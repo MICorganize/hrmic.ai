@@ -1,36 +1,68 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# HRMic.ai
+
+Modern HR management platform.
+
+## Tech Stack
+
+| Layer           | Technology                                        |
+| --------------- | ------------------------------------------------- |
+| Frontend        | Next.js 16 App Router                             |
+| Language        | TypeScript (strict)                               |
+| ORM             | Prisma 7                                          |
+| Database        | PostgreSQL (Neon)                                 |
+| Cache / Queue   | Upstash Redis                                     |
+| Object Storage  | Cloudflare R2                                     |
+| Authentication  | Auth.js (NextAuth v5)                             |
+| Validation      | Zod 4                                             |
+| Forms           | React Hook Form                                   |
+| UI              | Tailwind CSS + shadcn/ui                          |
+| Background Jobs | Inngest (v4)                                      |
+| Testing         | Vitest + Playwright                               |
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install          # also runs prisma generate (postinstall)
+cp .env.example .env # fill in real values (see below)
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment Variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Copy `.env.example` to `.env` and fill in credentials for:
 
-## Learn More
+- **Neon** — `DATABASE_URL` (pooled, for the app) and `DIRECT_URL` (direct, for Prisma CLI migrations)
+- **Upstash** — `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`
+- **Cloudflare R2** — `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`
+- **Auth.js** — `AUTH_SECRET` (generate with `npx auth secret`)
+- **Inngest** — keep `INNGEST_DEV=1` locally; add `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY` for Cloud
 
-To learn more about Next.js, take a look at the following resources:
+## Database
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm run db:migrate  # create & apply a migration (needs DIRECT_URL)
+npm run db:studio   # open Prisma Studio
+npm run db:seed     # seed the admin user (admin@hrmic.ai)
+npm run db:generate # regenerate the Prisma client (also runs on install)
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+The Prisma client is generated to `generated/prisma` (gitignored) — import it from
+`@/generated/prisma/client`, not `@prisma/client` (Prisma 7 breaking change).
 
-## Deploy on Vercel
+## Background Jobs
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Inngest functions live in `lib/inngest/`. Run the dev server for local testing:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+npx inngest dev     # opens http://localhost:8288
+```
+
+## Testing
+
+```bash
+npm run test        # Vitest (watch mode)
+npm run test:run    # Vitest (single run)
+npm run test:e2e    # Playwright (boots the dev server, needs chromium installed once: npx playwright install chromium)
+```
