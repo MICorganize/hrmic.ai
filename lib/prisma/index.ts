@@ -1,0 +1,37 @@
+import { PrismaClient } from "@/generated/prisma/client";
+import { PrismaNeon } from "@prisma/adapter-neon";
+
+const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
+
+function createPrismaClient() {
+  const adapter = new PrismaNeon({
+    connectionString: process.env.DATABASE_URL!,
+  });
+  return new PrismaClient({ adapter });
+}
+
+// Prisma's generated client gains new model delegates when the schema changes.
+// During `next dev`, discard an older globally cached client that does not have
+// a newly generated delegate, so a schema update works without restarting the
+// developer's running server.
+const cachedPrisma = globalForPrisma.prisma;
+const hasEmployeeTypeDefinition = Boolean(cachedPrisma && "employeeTypeDefinition" in cachedPrisma);
+const cachedRuntimeModel = cachedPrisma as unknown as {
+  _runtimeDataModel?: {
+    models?: Record<string, { fields?: Array<{ name: string }> }>;
+  };
+};
+const hasEmploymentTypeDefinitionField = Boolean(
+  cachedRuntimeModel?._runtimeDataModel?.models?.Employment?.fields?.some(
+    (field) => field.name === "employeeTypeDefinitionId"
+  )
+);
+
+export const prisma =
+  cachedPrisma && hasEmployeeTypeDefinition && hasEmploymentTypeDefinitionField
+    ? cachedPrisma
+    : createPrismaClient();
+
+if (process.env.NODE_ENV !== "production") {
+  globalForPrisma.prisma = prisma;
+}

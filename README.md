@@ -41,15 +41,32 @@ Copy `.env.example` to `.env` and fill in credentials for:
 
 ## Database
 
+The app connects to the real Neon database via the pooled `DATABASE_URL` in `.env`.
+`prisma/schema.prisma` is **synced from the database** (`npx prisma db pull`) — it is a
+snapshot of the live schema (46 models), not a source of truth for migrations.
+
+> ⚠️ **Do not run `npm run db:migrate` here.** The migrations for this database live in
+the main HRMic.ai project. Running `prisma migrate dev` locally would detect drift and
+offer to **reset the production database**. Manage schema changes through the real
+project and re-sync with `npx prisma db pull`.
+
 ```bash
-npm run db:migrate  # create & apply a migration (needs DIRECT_URL)
-npm run db:studio   # open Prisma Studio
-npm run db:seed     # seed the admin user (admin@hrmic.ai)
 npm run db:generate # regenerate the Prisma client (also runs on install)
+npm run db:seed     # upsert admin@hrmic.ai (password: Admin@1234, or ADMIN_PASSWORD env)
+npm run db:studio   # open Prisma Studio
 ```
 
 The Prisma client is generated to `generated/prisma` (gitignored) — import it from
 `@/generated/prisma/client`, not `@prisma/client` (Prisma 7 breaking change).
+
+## Login
+
+- Auth.js v5 (Credentials) against the `User` table — passwords are **bcrypt** hashes.
+- Login requires `status = "active"`; the session role comes from `UserRole` → `Role`
+  (Thai role names, e.g. `ผู้ดูแลระบบ`).
+- Existing users in the database (e.g. `cadirek@gmail.com`) sign in with their own password.
+- `npm run db:seed` creates `admin@hrmic.ai` with password `Admin@1234` (override via
+  `ADMIN_PASSWORD` env) attached to the first tenant and the `ผู้ดูแลระบบ` role.
 
 ## Background Jobs
 
