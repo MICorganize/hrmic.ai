@@ -289,12 +289,12 @@ export async function PATCH(
           updatedAt: new Date(),
         };
         const locationData = {
-          ...("province" in item ? { province: optionalString(item.province) } : {}),
-          ...("district" in item ? { district: optionalString(item.district) } : {}),
-          ...("subdistrict" in item ? { subdistrict: optionalString(item.subdistrict) } : {}),
-          ...("provinceId" in item ? { provinceId: optionalString(item.provinceId) } : {}),
-          ...("districtId" in item ? { districtId: optionalString(item.districtId) } : {}),
-          ...("subdistrictId" in item ? { subdistrictId: optionalString(item.subdistrictId) } : {}),
+          province: optionalString(item.province),
+          district: optionalString(item.district),
+          subdistrict: optionalString(item.subdistrict),
+          provinceId: optionalString(item.provinceId),
+          districtId: optionalString(item.districtId),
+          subdistrictId: optionalString(item.subdistrictId),
         };
         const existing = await prisma.address.findFirst({ where: { employeeId: id, type: item.type } });
         if (existing) await prisma.address.update({ where: { id: existing.id }, data: { ...addressData, ...locationData } });

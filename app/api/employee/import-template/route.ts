@@ -36,11 +36,21 @@ function isThai(nationality: string | null): boolean {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get("organizationId")?.trim();
+    const organizationId = searchParams.get("organizationId")?.trim();
+    const organizationFilter = organizationId
+      ? await (async () => {
+          const company = await prisma.company.findFirst({ where: { id: organizationId, deletedAt: null }, select: { id: true } });
+          if (company) return { companyId: company.id };
+          const branch = await prisma.branch.findFirst({ where: { id: organizationId, deletedAt: null }, select: { id: true } });
+          if (branch) return { branchId: branch.id };
+          const department = await prisma.department.findFirst({ where: { id: organizationId, deletedAt: null }, select: { id: true } });
+          return department ? { departmentId: department.id } : { id: organizationId };
+        })()
+      : {};
     const employees = await prisma.employee.findMany({
       where: {
         deletedAt: null,
-        ...(companyId ? { companyId } : {}),
+        ...organizationFilter,
       },
       orderBy: [{ employeeCode: "asc" }, { employeeNumber: "asc" }],
       select: {

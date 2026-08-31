@@ -39,7 +39,7 @@ const EMPLOYEE_GROUP_LABELS: Record<EmploymentType, string> = {
 const TITLE_EN: Record<string, string> = {
   นาย: "Mr.",
   นาง: "Mrs.",
-  นางสาว: "Miss",
+  นางสาว: "Ms.",
   "ด.ช.": "Master",
   "ด.ญ.": "Miss",
 };
@@ -91,14 +91,59 @@ function fmtMoney(value: { toString(): string } | null | undefined): string {
   return Number.isNaN(n) ? "0.00" : n.toFixed(2);
 }
 
+function fmtPhone(value: string | null | undefined): string {
+  return value?.replace(/[^0-9]/g, "") ?? "";
+}
+
+/** The employee form stores a Thai bank name; the reference report displays its bank code. */
+function fmtBankCode(value: string | null | undefined): string {
+  const bank = value?.trim() ?? "";
+  const BANK_CODES: Record<string, string> = {
+    "ธนาคารกรุงเทพ": "BBL",
+    "ธนาคารกสิกรไทย": "KBANK",
+    "ธนาคารไทยพาณิชย์": "SCB",
+  };
+  return BANK_CODES[bank] ?? bank;
+}
+
 /** One-line address from the Address rows of the requested type. */
 function fmtAddress(
-  addresses: { type: AddressType; addressLine: string | null; subdistrict: string | null; district: string | null; province: string | null; postalCode: string | null }[],
+  addresses: {
+    type: AddressType;
+    addressLine: string | null;
+    subdistrict: string | null;
+    district: string | null;
+    province: string | null;
+    postalCode: string | null;
+    Province?: { nameTH: string } | null;
+    District?: { nameTH: string } | null;
+    Subdistrict?: { nameTH: string; postalCode: string | null } | null;
+  }[],
   type: AddressType
 ): string {
   const a = addresses.find((addr) => addr.type === type);
   if (!a) return "";
-  return [a.addressLine, a.subdistrict, a.district, a.province, a.postalCode]
+  const provinceName = a.province?.trim() || a.Province?.nameTH || null;
+  const districtName = a.district?.trim() || a.District?.nameTH || null;
+  const subdistrictName = a.subdistrict?.trim() || a.Subdistrict?.nameTH || null;
+  const postalCode = a.postalCode?.trim() || a.Subdistrict?.postalCode || null;
+  const isBangkok = provinceName?.replace(/^จังหวัด/, "") === "กรุงเทพมหานคร";
+  const subdistrict = subdistrictName
+    ? subdistrictName.startsWith(isBangkok ? "แขวง" : "ตำบล")
+      ? subdistrictName
+      : `${isBangkok ? "แขวง" : "ตำบล"}${subdistrictName}`
+    : null;
+  const district = districtName
+    ? districtName.startsWith(isBangkok ? "เขต" : "อำเภอ")
+      ? districtName
+      : `${isBangkok ? "เขต" : "อำเภอ"}${districtName}`
+    : null;
+  const province = provinceName
+    ? isBangkok || provinceName.startsWith("จังหวัด")
+      ? provinceName
+      : `จังหวัด${provinceName}`
+    : null;
+  return [a.addressLine, subdistrict, district, province, postalCode]
     .filter((v): v is string => !!v?.trim())
     .join(" ");
 }
@@ -138,7 +183,11 @@ const ROW_SELECT = {
   Employment: { select: { employmentType: true } },
   Contract: { select: { endDate: true }, orderBy: { endDate: "desc" as const }, take: 1 },
   SocialSecurity: { select: { ssoNumber: true } },
-  BankAccount: { select: { bankName: true, accountNumber: true }, take: 1 },
+  BankAccount: {
+    select: { bankCode: true, bankName: true, accountNumber: true },
+    orderBy: { isDefault: "desc" as const },
+    take: 1,
+  },
   Address: {
     select: {
       type: true,
@@ -147,6 +196,9 @@ const ROW_SELECT = {
       district: true,
       province: true,
       postalCode: true,
+      Province: { select: { nameTH: true } },
+      District: { select: { nameTH: true } },
+      Subdistrict: { select: { nameTH: true, postalCode: true } },
     },
   },
 } satisfies Prisma.EmployeeSelect;
@@ -181,7 +233,7 @@ function buildRow(emp: EmployeeRow, index: number): string[] {
     emp.Position?.name ?? "", // ตำแหน่ง
     employmentType ? (EMPLOYEE_TYPE_LABELS[employmentType] ?? employmentType) : "", // ประเภทพนักงาน
     employmentType ? (EMPLOYEE_GROUP_LABELS[employmentType] ?? employmentType) : "", // กลุ่มพนักงาน
-    emp.phone ?? "", // เบอร์โทร
+    fmtPhone(emp.phone), // เบอร์โทร
     emp.email, // Email
     fmtDate(emp.birthDate), // วันเกิด
     emp.birthDate ? fmtDuration(emp.birthDate, today) : "", // อายุ
@@ -192,13 +244,13 @@ function buildRow(emp: EmployeeRow, index: number): string[] {
     fmtDuration(emp.hireDate, today), // อายุงาน วันที่เริ่มงาน
     fmtDate(emp.Contract?.[0]?.endDate), // วันที่หมดสัญญาจ้าง
     fmtDate(emp.terminationDate), // วันที่ลาออก
-    "", // แบล็กลิสต์ (ไม่มีข้อมูลในระบบ)
+    "ปกติ", // แบล็กลิสต์
     emp.citizenId ?? "", // เลขบัตรประจำตัวประชาชน / ผู้เสียภาษี
     emp.alienIdNumber ?? "", // เลขประจำตัวคนซึ่งไม่มีสัญชาติไทย
     emp.passportNo ?? "", // เลขหนังสือเดินทาง
     emp.workPermitNo ?? "", // เลขใบอนุญาตทำงาน
     emp.SocialSecurity?.ssoNumber ?? "", // เลขประจำตัวประกันสังคม
-    emp.BankAccount?.[0]?.bankName ?? "", // ธนาคาร
+    fmtBankCode(emp.BankAccount?.[0]?.bankCode || emp.BankAccount?.[0]?.bankName), // ธนาคาร
     emp.BankAccount?.[0]?.accountNumber ?? "", // เลขที่บัญชี
     fmtAddress(emp.Address, "permanent"), // ที่อยู่ตามบัตร
     fmtAddress(emp.Address, "current"), // ที่อยู่ปัจจุบัน
@@ -210,8 +262,27 @@ function buildRow(emp: EmployeeRow, index: number): string[] {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
+    if (searchParams.get("metadata") === "1") {
+      const [departments, positions] = await Promise.all([
+        prisma.department.findMany({
+          where: { deletedAt: null, status: "active" },
+          select: { id: true, code: true, name: true },
+          orderBy: [{ code: "asc" }, { name: "asc" }],
+        }),
+        prisma.position.findMany({
+          where: { deletedAt: null, status: "active" },
+          select: { id: true, code: true, name: true },
+          orderBy: [{ code: "asc" }, { name: "asc" }],
+        }),
+      ]);
+      return NextResponse.json({ departments, positions });
+    }
+
     const status = searchParams.get("status");
     const employmentType = searchParams.get("employmentType");
+    const departmentId = searchParams.get("departmentId");
+    const positionId = searchParams.get("positionId");
+    const hashtag = searchParams.get("hashtag")?.trim();
 
     const where: Prisma.EmployeeWhereInput = { deletedAt: null };
     if (status && status !== "all") {
@@ -220,6 +291,9 @@ export async function GET(request: Request) {
     if (employmentType && employmentType !== "all") {
       where.Employment = { is: { employmentType: employmentType as EmploymentType } };
     }
+    if (departmentId) where.departmentId = departmentId;
+    if (positionId) where.positionId = positionId;
+    if (hashtag) where.hashtag = { contains: hashtag, mode: "insensitive" };
 
     const employees = await prisma.employee.findMany({
       where,

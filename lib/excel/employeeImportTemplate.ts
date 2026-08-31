@@ -66,6 +66,11 @@ export type EmployeeImportRow = {
   worktimeRound: string;
 };
 
+export type EmployeeImportUploadRow = {
+  sourceRow: number;
+  values: Record<string, string>;
+};
+
 const COLUMN_NAMES = Array.from({ length: 64 }, (_, index) => {
   let value = index + 1;
   let name = "";
@@ -134,6 +139,56 @@ function readZip(input: Buffer): ZipEntry[] {
     offset += 46 + fileNameLength + extraLength + commentLength;
   }
   return entries;
+}
+
+function decodeXml(value: string): string {
+  return value
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
+function xmlText(value: string): string {
+  return decodeXml([...value.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map((match) => match[1]).join(""));
+}
+
+/** Parses the 64-column employee template without adding a browser-only Excel dependency. */
+export function parseEmployeeImportWorkbook(workbook: Buffer): EmployeeImportUploadRow[] {
+  const entries = readZip(workbook);
+  const sheet = entries.find((entry) => entry.name === "xl/worksheets/sheet1.xml")?.data.toString("utf8");
+  const sharedStrings = entries.find((entry) => entry.name === "xl/sharedStrings.xml")?.data.toString("utf8");
+  if (!sheet || !sharedStrings) throw new Error("ไฟล์ต้องเป็นเทมเพลตนำเข้าข้อมูลพนักงาน (.xlsx)");
+
+  const strings = [...sharedStrings.matchAll(/<si>([\s\S]*?)<\/si>/g)].map((match) => xmlText(match[1]));
+  const rows: EmployeeImportUploadRow[] = [];
+  let hasEmployeeCodeHeader = false;
+
+  for (const rowMatch of sheet.matchAll(/<row\b([^>]*)>([\s\S]*?)<\/row>/g)) {
+    const sourceRow = Number(rowMatch[1].match(/\br="(\d+)"/)?.[1] ?? "0");
+    if (!sourceRow) continue;
+    const values: Record<string, string> = {};
+    for (const cellMatch of rowMatch[2].matchAll(/<c\b([^>]*?)\/>|<c\b([^>]*)>([\s\S]*?)<\/c>/g)) {
+      const attributes = cellMatch[1] || cellMatch[2] || "";
+      const column = attributes.match(/\br="([A-Z]+)\d+"/)?.[1];
+      if (!column) continue;
+      const type = attributes.match(/\bt="([^"]+)"/)?.[1];
+      const content = cellMatch[3] ?? "";
+      const raw = content.match(/<v>([\s\S]*?)<\/v>/)?.[1] ?? "";
+      const value = type === "s" ? strings[Number(raw)] ?? "" : type === "inlineStr" ? xmlText(content) : decodeXml(raw);
+      values[column] = value.trim();
+    }
+    if (sourceRow <= 3) {
+      hasEmployeeCodeHeader ||= Object.values(values).some((value) => value.includes("รหัสพนักงาน"));
+      continue;
+    }
+    if (Object.values(values).some((value) => value !== "")) rows.push({ sourceRow, values });
+  }
+
+  if (!hasEmployeeCodeHeader) throw new Error("รูปแบบหัวตารางไม่ตรงกับเทมเพลตนำเข้าข้อมูลพนักงาน");
+  if (rows.length === 0) throw new Error("ไม่พบข้อมูลพนักงานในไฟล์ที่เลือก");
+  return rows;
 }
 
 function writeZip(entries: ZipEntry[]): Buffer {

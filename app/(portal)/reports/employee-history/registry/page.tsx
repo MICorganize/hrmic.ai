@@ -1,19 +1,11 @@
 "use client";
 
-import { useCallback, useState } from "react";
-import { ChevronDown, ChevronLeft, ChevronRight, Grid3x3, RefreshCw } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { ChevronDown, ChevronRight, Grid3x3, RefreshCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 
 const TABS = ["รายงานปกติ", "รายงานกำหนดเอง"] as const;
@@ -28,42 +20,39 @@ type Filters = {
   hashtag: string;
 };
 
+type SelectOption = { value: string; label: string };
+
+const ALL_OPTION: SelectOption = { value: "", label: "ทั้งหมด" };
+
 const INITIAL_FILTERS: Filters = {
-  orgStructure: "ทั้งหมด",
-  position: "ทั้งหมด",
+  orgStructure: "",
+  position: "",
   dataType: "ข้อมูลพื้นฐาน",
-  employeeType: "ทั้งหมด",
-  status: "ทั้งหมด",
+  employeeType: "",
+  status: "",
   hashtag: "",
 };
 
-const ORG_STRUCTURES = ["ทั้งหมด", "สำนักงานใหญ่", "สาขา 1"];
-const POSITIONS = ["ทั้งหมด", "พนักงานปฏิบัติการ", "หัวหน้างาน", "ผู้จัดการ"];
-const DATA_TYPES = ["ข้อมูลพื้นฐาน", "ข้อมูลเงินเดือน", "ข้อมูลทั้งหมด"];
-const EMPLOYEE_TYPES = ["ทั้งหมด", "พนักงานรายเดือน", "พนักงานรายวัน", "พนักงานพาร์ตไทม์"];
-const STATUSES = ["ทั้งหมด", "ทำงาน", "ลาออก"];
-
-/** Map the search card values to the API query params. */
-function statusQuery(value: string): string | undefined {
-  switch (value) {
-    case "ทำงาน":
-      return "active";
-    case "ลาออก":
-      return "terminated";
-    default:
-      return undefined;
-  }
-}
-
-function employmentTypeQuery(value: string): string | undefined {
-  const map: Record<string, string> = {
-    "พนักงานรายเดือน": "permanent",
-    "พนักงานรายวัน": "dailyWage",
-    "พนักงานพาร์ตไทม์": "partTime",
-    "พนักงานเหมาจ่าย": "contract",
-  };
-  return map[value];
-}
+const DATA_TYPES: SelectOption[] = [
+  { value: "ข้อมูลพื้นฐาน", label: "ข้อมูลพื้นฐาน" },
+  { value: "ข้อมูลเงินเดือน", label: "ข้อมูลเงินเดือน" },
+  { value: "ข้อมูลทั้งหมด", label: "ข้อมูลทั้งหมด" },
+];
+const EMPLOYEE_TYPES: SelectOption[] = [
+  ALL_OPTION,
+  { value: "permanent", label: "พนักงานรายเดือน" },
+  { value: "dailyWage", label: "พนักงานรายวัน" },
+  { value: "partTime", label: "พนักงานพาร์ตไทม์" },
+  { value: "contract", label: "พนักงานเหมาจ่าย" },
+  { value: "temporary", label: "พนักงานชั่วคราว" },
+];
+const STATUSES: SelectOption[] = [
+  ALL_OPTION,
+  { value: "active", label: "Active" },
+  { value: "inactive", label: "Inactive" },
+  { value: "suspended", label: "Suspended" },
+  { value: "terminated", label: "Out" },
+];
 
 /* ------------------------------ Field helpers ------------------------------ */
 
@@ -73,7 +62,7 @@ function SelectBox({
   onChange,
 }: {
   value: string;
-  options: string[];
+  options: SelectOption[];
   onChange: (value: string) => void;
 }) {
   return (
@@ -81,11 +70,11 @@ function SelectBox({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-8 w-full cursor-pointer appearance-none rounded-[3px] border border-[#d9d9d9] bg-white pl-2.5 pr-8 text-sm text-[#555] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#40a9ff]"
+        className="h-8 w-full cursor-pointer appearance-none rounded-[4px] border border-[#d9d9d9] bg-white px-[11px] pr-8 font-[Kanit,sans-serif] text-sm leading-[22px] text-[rgba(0,0,0,0.65)] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#40a9ff]"
       >
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
           </option>
         ))}
       </select>
@@ -97,7 +86,7 @@ function SelectBox({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mb-0.5 block text-xs leading-5 text-[#666]">{label}</label>
+      <label className="block font-[Kanit,sans-serif] text-sm leading-[22px] text-[rgba(0,0,0,0.65)]">{label}</label>
       {children}
     </div>
   );
@@ -107,34 +96,38 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function SearchCard({
   filters,
+  organizationOptions,
+  positionOptions,
   onChange,
   onSearch,
   custom = false,
 }: {
   filters: Filters;
+  organizationOptions: SelectOption[];
+  positionOptions: SelectOption[];
   onChange: (f: Filters) => void;
   onSearch: () => void;
   custom?: boolean;
 }) {
   return (
-    <Card className="overflow-hidden">
-      <div className="flex h-[59px] items-center px-3">
-        <p className="text-xl font-medium text-[#555]">ค้นหา</p>
+    <Card className="mb-3 overflow-hidden rounded-lg border-0 bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]">
+      <div className="flex h-[58.5625px] items-center p-3">
+        <p className="font-[Kanit,sans-serif] text-[22px] font-normal leading-[34.573px] text-[rgba(0,0,0,0.65)]">ค้นหา</p>
       </div>
-      <CardContent className="px-[7px] pb-3 pt-[15px]">
+      <CardContent className="px-2 py-4">
         {/* Row 1: โครงสร้างองค์กร / ตำแหน่ง / ประเภทข้อมูล */}
-        <div className="grid grid-cols-1 gap-x-2 gap-y-[7px] md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-x-2 gap-y-0 md:grid-cols-3">
           <Field label="โครงสร้างองค์กร">
             <SelectBox
               value={filters.orgStructure}
-              options={ORG_STRUCTURES}
+              options={organizationOptions}
               onChange={(v) => onChange({ ...filters, orgStructure: v })}
             />
           </Field>
           <Field label="ตำแหน่ง">
             <SelectBox
               value={filters.position}
-              options={POSITIONS}
+              options={positionOptions}
               onChange={(v) => onChange({ ...filters, position: v })}
             />
           </Field>
@@ -158,7 +151,7 @@ function SearchCard({
         </div>
 
         {/* Row 2: ประเภทพนักงาน / สถานะ / Hashtag */}
-        <div className="mt-0 grid grid-cols-1 gap-x-2 gap-y-[7px] md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-x-2 gap-y-0 md:grid-cols-3">
           {!custom && (
             <Field label="ประเภทพนักงาน">
               <SelectBox
@@ -180,26 +173,26 @@ function SearchCard({
               value={filters.hashtag}
               onChange={(e) => onChange({ ...filters, hashtag: e.target.value })}
               placeholder="#Hashtag"
-              className="h-8 rounded-[3px] border-[#d9d9d9] bg-white text-sm shadow-sm focus-visible:ring-1 focus-visible:ring-[#40a9ff]"
+              className="h-8 rounded-[4px] border-[#d9d9d9] bg-white px-[11px] font-[Kanit,sans-serif] text-sm leading-[22px] text-[rgba(0,0,0,0.65)] shadow-none focus-visible:ring-1 focus-visible:ring-[#40a9ff]"
             />
           </Field>
           {custom && <div />}
         </div>
 
-        {/* Footer — right-aligned buttons (mr-8 per reference) */}
-        <div className="mt-7 flex justify-end gap-2">
-          <Button className="h-9 rounded-[3px] bg-[#43b14b] px-3.5 text-sm shadow-sm hover:bg-[#43b14b]/90">
-            EXCEL
-            <Grid3x3 className="size-4" />
-          </Button>
-          <Button
-            className="h-9 rounded-[3px] bg-[#1890ff] px-3.5 text-sm shadow-sm hover:bg-[#1890ff]/90"
-            onClick={onSearch}
-          >
-            ค้นหา
-          </Button>
-        </div>
       </CardContent>
+      {/* Footer — right-aligned buttons (12px padding / 8px gap in the reference). */}
+      <div className="flex h-[60.65px] items-start justify-end gap-2 p-3">
+        <Button className="h-9 rounded-[4px] bg-[#4caf50] px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 shadow-[0px_3px_1px_-2px_rgba(0,0,0,0.2),0px_2px_2px_0px_rgba(0,0,0,0.14),0px_1px_5px_0px_rgba(0,0,0,0.12)] hover:bg-[#4caf50]/90">
+          EXCEL
+          <Grid3x3 className="size-4" />
+        </Button>
+        <Button
+          className="h-9 rounded-[4px] bg-[#2299ff] px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 shadow-[0px_3px_1px_-2px_rgba(0,0,0,0.2),0px_2px_2px_0px_rgba(0,0,0,0.14),0px_1px_5px_0px_rgba(0,0,0,0.12)] hover:bg-[#2299ff]/90"
+          onClick={onSearch}
+        >
+          ค้นหา
+        </Button>
+      </div>
     </Card>
   );
 }
@@ -208,7 +201,7 @@ function SearchCard({
 
 type CellAlign = "left" | "center" | "right";
 
-const REPORT_COLUMNS: { label: string; align: CellAlign }[] = [
+const REPORT_COLUMNS: { label: string; align: CellAlign; headerAlign?: CellAlign }[] = [
   { label: "ลำดับ", align: "center" },
   { label: "สถานะ", align: "center" },
   { label: "คำนำหน้าชื่อ", align: "left" },
@@ -233,8 +226,8 @@ const REPORT_COLUMNS: { label: string; align: CellAlign }[] = [
   { label: "กลุ่มพนักงาน", align: "center" },
   { label: "เบอร์โทร", align: "left" },
   { label: "Email", align: "left" },
-  { label: "วันเกิด", align: "right" },
-  { label: "อายุ", align: "right" },
+  { label: "วันเกิด", align: "right", headerAlign: "center" },
+  { label: "อายุ", align: "right", headerAlign: "center" },
   { label: "เพศ", align: "center" },
   { label: "วันที่บรรจุ", align: "right" },
   { label: "อายุงานวันที่บรรจุ", align: "right" },
@@ -258,46 +251,43 @@ const REPORT_COLUMNS: { label: string; align: CellAlign }[] = [
 
 function ReportTable({ rows }: { rows: string[][] }) {
   return (
-    <div className="max-h-[650px] overflow-auto rounded-md border border-border">
-      <Table className="min-w-max">
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
+    <div className="max-h-[650px] overflow-auto border border-[#e8e8e8] bg-white">
+      <table className="min-w-full w-max table-fixed border-separate border-spacing-0 font-[Kanit,sans-serif] text-sm leading-[22px]">
+        <thead>
+          <tr>
             {REPORT_COLUMNS.map((col) => (
-              <TableHead
+              <th
                 key={col.label}
                 className={cn(
-                  "whitespace-nowrap border-r border-white/20 bg-[#55b0ff] py-2.5 text-sm font-medium normal-case tracking-normal text-white last:border-r-0",
-                  col.align === "center" && "text-center",
-                  col.align === "right" && "text-right"
+                  "sticky top-0 z-10 whitespace-nowrap border-b border-r border-[#e8e8e8] bg-[#61a8ff] px-4 py-4 text-sm font-medium normal-case tracking-normal text-white last:border-r-0",
+                  (col.headerAlign ?? col.align) === "center" && "text-center",
+                  (col.headerAlign ?? col.align) === "right" && "text-right"
                 )}
               >
                 {col.label}
-              </TableHead>
+              </th>
             ))}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+          </tr>
+        </thead>
+        <tbody>
           {rows.map((row, ri) => (
-            <TableRow
-              key={ri}
-              className={cn(ri % 2 === 1 && "bg-muted/40", "hover:bg-muted/40")}
-            >
+            <tr key={ri} className="bg-white">
               {row.map((cell, ci) => (
-                <TableCell
+                <td
                   key={ci}
                   className={cn(
-                    "whitespace-nowrap border-r border-border py-2 text-sm font-light text-foreground last:border-r-0",
+                    "whitespace-nowrap border-b border-r border-[#e8e8e8] px-4 py-4 text-sm font-normal text-[rgba(0,0,0,0.65)] last:border-r-0",
                     REPORT_COLUMNS[ci].align === "center" && "text-center",
                     REPORT_COLUMNS[ci].align === "right" && "text-right"
                   )}
                 >
                   {cell}
-                </TableCell>
+                </td>
               ))}
-            </TableRow>
+            </tr>
           ))}
-        </TableBody>
-      </Table>
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -314,11 +304,11 @@ function NormalReportCard({
   onRetry: () => void;
 }) {
   return (
-    <Card>
-      <div className="px-3 pb-3 pt-4">
-        <p className="text-xl font-bold text-[#4d4d4d]">รายงานทะเบียนพนักงาน</p>
+    <Card className="mb-3 overflow-hidden rounded-lg border-0 bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]">
+      <div className="flex h-[58.5625px] items-center p-3">
+        <p className="font-[Kanit,sans-serif] text-[22px] font-bold leading-[34.573px] text-[rgba(0,0,0,0.65)]">รายงานทะเบียนพนักงาน</p>
       </div>
-      <CardContent className="px-2 pb-2 pt-[21px]">
+      <CardContent className="px-2 py-4">
         {loading ? (
           <div className="flex h-64 items-center justify-center gap-2 rounded-md border border-border bg-[#f8f9fa] text-sm text-muted-foreground">
             <RefreshCw className="size-5 animate-spin" />
@@ -337,7 +327,7 @@ function NormalReportCard({
             </button>
           </div>
         ) : rows.length === 0 ? (
-          <div className="flex h-[151px] flex-col items-center justify-center rounded-sm border border-[#e7edf3] bg-[#f4fcff]">
+          <div className="flex h-[163.6px] flex-col items-center justify-center border border-[#f0f0f0] bg-white">
             <svg width="64" height="41" viewBox="0 0 64 41" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <g transform="translate(0 1)" fill="none" fillRule="evenodd">
                 <ellipse cx="32" cy="33" rx="32" ry="7" fill="#f5f5f5" />
@@ -350,35 +340,7 @@ function NormalReportCard({
             <p className="mt-2 text-sm text-[#666]">ไม่มีข้อมูล</p>
           </div>
         ) : (
-          <>
-            <ReportTable rows={rows} />
-
-            {/* Pagination — right-aligned, single page */}
-            <div className="mt-4 flex items-center justify-end gap-1.5">
-              <button
-                type="button"
-                disabled
-                className="flex size-8 cursor-not-allowed items-center justify-center rounded-md border border-border text-muted-foreground/50"
-                aria-label="หน้าก่อนหน้า"
-              >
-                <ChevronLeft className="size-4" />
-              </button>
-              <button
-                type="button"
-                className="size-8 rounded-md bg-[#2563eb] text-sm font-medium text-white shadow-sm"
-              >
-                1
-              </button>
-              <button
-                type="button"
-                disabled
-                className="flex size-8 cursor-not-allowed items-center justify-center rounded-md border border-border text-muted-foreground/50"
-                aria-label="หน้าถัดไป"
-              >
-                <ChevronRight className="size-4" />
-              </button>
-            </div>
-          </>
+          <ReportTable rows={rows} />
         )}
       </CardContent>
     </Card>
@@ -390,19 +352,59 @@ function NormalReportCard({
 export default function ReportEmployeeRegistryPage() {
   const [activeTab, setActiveTab] = useState<Tab>("รายงานปกติ");
   const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
+  const [organizationOptions, setOrganizationOptions] = useState<SelectOption[]>([ALL_OPTION]);
+  const [positionOptions, setPositionOptions] = useState<SelectOption[]>([ALL_OPTION]);
   const [rows, setRows] = useState<string[][]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(false);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    void fetch("/api/report/employee-registry?metadata=1")
+      .then(async (response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return (await response.json()) as {
+          departments: Array<{ id: string; code: string; name: string }>;
+          positions: Array<{ id: string; code: string; name: string }>;
+        };
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setOrganizationOptions([
+          ALL_OPTION,
+          ...data.departments.map((department) => ({
+            value: department.id,
+            label: `${department.code}: ${department.name}`,
+          })),
+        ]);
+        setPositionOptions([
+          ALL_OPTION,
+          ...data.positions.map((position) => ({
+            value: position.id,
+            label: `${position.code}: ${position.name}`,
+          })),
+        ]);
+      })
+      .catch(() => {
+        // Keep the default "ทั้งหมด" option when report metadata is unavailable.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const loadData = useCallback(async (f: Filters) => {
     setLoading(true);
-    setError(false);
+      setError(false);
     try {
       const params = new URLSearchParams();
-      const status = statusQuery(f.status);
-      const employmentType = employmentTypeQuery(f.employeeType);
-      if (status) params.set("status", status);
-      if (employmentType) params.set("employmentType", employmentType);
+      if (f.status) params.set("status", f.status);
+      if (f.employeeType) params.set("employmentType", f.employeeType);
+      if (f.orgStructure) params.set("departmentId", f.orgStructure);
+      if (f.position) params.set("positionId", f.position);
+      if (f.hashtag.trim()) params.set("hashtag", f.hashtag.trim());
       const res = await fetch(`/api/report/employee-registry?${params.toString()}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { rows: string[][] };
@@ -429,7 +431,7 @@ export default function ReportEmployeeRegistryPage() {
 
           {/* Title + tooltip */}
           <div className="mt-4 flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold text-white">รายงานทะเบียนพนักงาน</h1>
+            <h1 className="font-[Kanit,sans-serif] text-2xl font-normal leading-[37.716px] text-white">รายงานทะเบียนพนักงาน</h1>
             <button
               type="button"
               className="flex size-6 items-center justify-center rounded-full border border-white/70 text-sm font-bold leading-none text-white transition-colors hover:bg-white/20"
@@ -443,7 +445,7 @@ export default function ReportEmployeeRegistryPage() {
 
       {/* Tabs nav — antd-style: tabs with an ink-bar underline on the active tab */}
       <div className="border-b border-border bg-white">
-        <div className="flex gap-8 px-6" role="tablist">
+        <div className="flex px-4" role="tablist">
           {TABS.map((tab) => {
             const active = tab === activeTab;
             return (
@@ -454,7 +456,7 @@ export default function ReportEmployeeRegistryPage() {
                 aria-selected={active}
                 onClick={() => setActiveTab(tab)}
                 className={cn(
-                  "relative whitespace-nowrap py-3.5 text-sm transition-colors",
+                  "relative mr-8 whitespace-nowrap p-3 text-sm leading-[22px] transition-colors last:mr-0",
                   active ? "font-medium text-[#1976d2]" : "text-[#616161] hover:text-foreground"
                 )}
               >
@@ -469,10 +471,12 @@ export default function ReportEmployeeRegistryPage() {
       </div>
 
       {/* Tab content */}
-      <div className="space-y-2.5 bg-[#f2f5fa] p-6 pt-[30px]">
-        <SearchCard
-          filters={filters}
-          onChange={setFilters}
+      <div className="bg-[#f0f2f5] px-6 pb-6 pt-[32.8px]">
+          <SearchCard
+            filters={filters}
+            organizationOptions={organizationOptions}
+            positionOptions={positionOptions}
+            onChange={setFilters}
           onSearch={() => loadData(filters)}
           custom={activeTab === "รายงานกำหนดเอง"}
         />

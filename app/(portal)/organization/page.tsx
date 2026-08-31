@@ -140,7 +140,8 @@ export default function OrganizationPage() {
   }, [applyTree]);
 
   useEffect(() => {
-    void loadOrganization();
+    const timer = window.setTimeout(() => void loadOrganization(), 0);
+    return () => window.clearTimeout(timer);
   }, [loadOrganization]);
 
   const toggle = (id: string) => {
@@ -248,7 +249,7 @@ export default function OrganizationPage() {
       ? [...node.children].sort((first, second) => first.code.localeCompare(second.code, undefined, { numeric: true, sensitivity: "base" }))
       : node.children;
     return (
-      <li key={node.id} role="treeitem" aria-level={level} aria-expanded={hasChildren ? isExpanded : undefined} className={`relative -top-9 w-full list-none border-[#808080] pl-10 ${hasChildren ? "border-l-0 border-b-0" : "border-l-[0.8px] border-b-[0.8px]"}`}>
+      <li key={node.id} role="treeitem" aria-level={level} aria-selected={false} aria-expanded={hasChildren ? isExpanded : undefined} className={`relative -top-9 w-full list-none border-[#808080] pl-10 ${hasChildren ? "border-l-0 border-b-0" : "border-l-[0.8px] border-b-[0.8px]"}`}>
         {hasChildren && <span aria-hidden="true" className="absolute left-0 top-0 z-0 h-16 border-l-[0.8px] border-[#808080]" />}
         {hasChildren && <span aria-hidden="true" className="absolute left-0 top-16 z-10 w-[50px] border-t-[0.8px] border-[#808080]" />}
         <div className="relative top-9 mb-3 flex h-[57.2px] w-full min-w-full items-center bg-white shadow-none">

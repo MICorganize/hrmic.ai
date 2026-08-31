@@ -89,6 +89,7 @@ model AttendanceRecord {
   checkOut        DateTime?
   overtimeMinutes Int              @default(0)
   status          AttendanceStatus @default(present)
+  dayType         WorkDayType?
   createdAt       DateTime         @default(now())
   createdBy       String?          @db.Uuid
   Employee        Employee         @relation(fields: [employeeId], references: [id], onDelete: Cascade)
@@ -456,6 +457,10 @@ model Employee {
   Address              Address[]
   Assignment           Assignment[]
   AttendanceRecord     AttendanceRecord[]
+  IndividualGeneralSetting IndividualGeneralSetting?
+  IndividualOvertimeSetting IndividualOvertimeSetting[]
+  IndividualShiftHolidaySetting IndividualShiftHolidaySetting?
+  IndividualWorkTimeSetting IndividualWorkTimeSetting[]
   BankAccount          BankAccount[]
   Certification        Certification[]
   Contact              Contact[]
@@ -490,6 +495,75 @@ model Employee {
   @@index([positionId])
   @@index([status])
   @@index([teamId])
+}
+
+model IndividualGeneralSetting {
+  id                  String   @id @db.Uuid
+  employeeId          String   @unique @db.Uuid
+  workDays            String   @db.VarChar(32)
+  workHours           String   @db.VarChar(32)
+  payrollCalculation  String   @db.VarChar(32)
+  allowHolidayWork    Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  Employee            Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model IndividualOvertimeSetting {
+  id                 String   @id @db.Uuid
+  employeeId         String   @db.Uuid
+  ruleNumber         Int
+  enabled            Boolean  @default(true)
+  startMinutes       Int      @default(0)
+  countingChoice     String   @db.VarChar(16)
+  payMethod          String   @db.VarChar(32)
+  wageRate           Decimal  @default(1) @db.Decimal(6, 2)
+  roundMoney         String   @db.VarChar(16)
+  maxHours           String   @db.VarChar(16)
+  roundHours         String   @db.VarChar(16)
+  calculationTargets String[] @default([])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  Employee           Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, ruleNumber])
+  @@index([employeeId])
+}
+
+model IndividualShiftHolidaySetting {
+  id              String   @id @db.Uuid
+  employeeId      String   @unique @db.Uuid
+  selectedShift   String   @db.VarChar(32)
+  weeklyShifts    String[] @default([])
+  selectedDayType String   @db.VarChar(32)
+  weeklyDayTypes  String[] @default([])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  Employee        Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+}
+
+model IndividualWorkTimeSetting {
+  id                String   @id @db.Uuid
+  employeeId        String   @db.Uuid
+  workTimeType      String   @db.VarChar(32)
+  enabled           Boolean  @default(true)
+  isPaid            Boolean  @default(false)
+  countMin          Int      @default(0)
+  countMax          Int      @default(0)
+  countMethod       String
+  moneyMin          Int?
+  moneyMax          Int?
+  moneyMethod       String?
+  calculationMethod String?
+  roundingMethod    String?
+  calculationTargets String[] @default([])
+  calculationDayTypes String[] @default([])
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  Employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@unique([employeeId, workTimeType])
+  @@index([employeeId])
 }
 
 model EmployeeTimeline {
@@ -928,6 +1002,16 @@ enum AttendanceStatus {
   late
   absent
   leave
+}
+
+/// The payroll calendar classification selected from the date-cell pencil.
+/// It is intentionally separate from AttendanceStatus, which describes the
+/// employee's clock-in/clock-out outcome for that date.
+enum WorkDayType {
+  work
+  publicHoliday
+  employeeHoliday
+  specialHoliday
 }
 
 enum AuditAction {

@@ -34,6 +34,24 @@ type EmployeeStats = {
   orgTree: OrgNode[];
 };
 
+type ImportEmployee = { id: string; code: string; name: string };
+type ImportHistory = { id: string; date: string; total: number; inserted: number; updated: number; deleted: number; errors: number };
+
+function AssignmentTable({ employees, selected, onChange }: { employees: ImportEmployee[]; selected: string[]; onChange: (ids: string[]) => void }) {
+  return (
+    <div className="mt-4 overflow-x-auto border border-[#f0f0f0]">
+      <Table className="min-w-[590px] table-fixed text-sm">
+        <colgroup><col className="w-[60px]" /><col className="w-[80px]" /><col className="w-[120px]" /><col className="w-[250px]" /><col className="w-[80px]" /></colgroup>
+        <TableHeader><TableRow className="h-[54.8px] hover:bg-transparent">
+          <TableHead className="border border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium text-white"><input aria-label="เลือกทั้งหมด" type="checkbox" checked={employees.length > 0 && selected.length === employees.length} onChange={(event) => onChange(event.target.checked ? employees.map((employee) => employee.id) : [])} /></TableHead>
+          <TableHead className="border border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium text-white">ลำดับ</TableHead><TableHead className="border border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium text-white">รหัสพนักงาน</TableHead><TableHead className="border border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium text-white">ชื่อพนักงาน</TableHead><TableHead className="border border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium text-white" />
+        </TableRow></TableHeader>
+        <TableBody>{employees.length === 0 ? <TableRow className="h-36 hover:bg-transparent"><TableCell colSpan={5} className="border border-[#f0f0f0] p-0"><div className="flex h-36 flex-col items-center justify-center gap-2 text-sm text-muted-foreground"><svg width="64" height="41" viewBox="0 0 64 41" xmlns="http://www.w3.org/2000/svg" className="ant-empty-img-simple"><g transform="translate(0 1)" fill="none" fillRule="evenodd"><ellipse cx="32" cy="33" rx="32" ry="7" fill="#f5f5f5" /><g fillRule="nonzero" stroke="#d9d9d9"><path d="M55 12.76L44.854 1.258C44.367.474 43.656 0 42.907 0H21.093c-.749 0-1.46.474-1.947 1.257L9 12.761V22h46v-9.24z" /><path d="M41.613 15.931c0-1.605.994-2.93 2.227-2.931H55v18.137C55 33.26 53.68 35 52.05 35h-40.1C10.32 35 9 33.259 9 31.137V13h11.16c1.233 0 2.227 1.323 2.227 2.928v.022c0 1.605 1.005 2.901 2.237 2.901h14.752c1.232 0 2.237-1.308 2.237-2.913v-.007z" /></g></g></svg><span>ไม่มีข้อมูล</span></div></TableCell></TableRow> : employees.map((employee, index) => <TableRow key={employee.id} className="h-[54.8px] hover:bg-transparent"><TableCell className="border border-[#f0f0f0] p-4 text-center"><input aria-label={`เลือก ${employee.name}`} type="checkbox" checked={selected.includes(employee.id)} onChange={(event) => onChange(event.target.checked ? [...selected, employee.id] : selected.filter((id) => id !== employee.id))} /></TableCell><TableCell className="border border-[#f0f0f0] p-4 text-center">{index + 1}</TableCell><TableCell className="border border-[#f0f0f0] p-4 text-center">{employee.code}</TableCell><TableCell className="border border-[#f0f0f0] p-4">{employee.code}: {employee.name}</TableCell><TableCell className="border border-[#f0f0f0] p-4" /></TableRow>)}</TableBody>
+      </Table>
+    </div>
+  );
+}
+
 /* ---------------------------------- Data ---------------------------------- */
 
 const SUBMENU_ITEMS = [
@@ -434,16 +452,15 @@ function DashboardContent({ stats }: { stats: EmployeeStats }) {
 function ImportEmployeeContent({ organizations }: { organizations: OrgNode[] }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
+  const [importEmployees, setImportEmployees] = useState<ImportEmployee[]>([]);
+  const [importHistory, setImportHistory] = useState<ImportHistory[]>([]);
+  const [selectedDepartmentEmployees, setSelectedDepartmentEmployees] = useState<string[]>([]);
+  const [selectedPositionEmployees, setSelectedPositionEmployees] = useState<string[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   const [templateOrganizationId, setTemplateOrganizationId] = useState("");
   const [organization, setOrganization] = useState("");
   const [position, setPosition] = useState("");
-  const organizationOptions = organizations.flatMap((node) => {
-    const nested = (node.children ?? []).flatMap((child) => [
-      { id: child.id, name: child.name },
-      ...(child.children ?? []).map((leaf) => ({ id: leaf.id, name: leaf.name })),
-    ]);
-    return [{ id: node.id, name: node.name }, ...nested];
-  });
   const allOrganizationNodes: OrgNode[] = [];
   const collectOrganizationNodes = (nodes: OrgNode[]) => {
     nodes.forEach((node) => {
@@ -452,6 +469,9 @@ function ImportEmployeeContent({ organizations }: { organizations: OrgNode[] }) 
     });
   };
   collectOrganizationNodes(organizations);
+  const organizationOptions = allOrganizationNodes
+    .filter((node) => node.count !== undefined || (node.children?.length ?? 0) > 0)
+    .map((node) => ({ id: node.id, name: node.name }));
   const positionOptions = Array.from(
     new Map(
       allOrganizationNodes
@@ -463,69 +483,52 @@ function ImportEmployeeContent({ organizations }: { organizations: OrgNode[] }) 
     ? `/api/employee/import-template?organizationId=${encodeURIComponent(templateOrganizationId)}`
     : "/api/employee/import-template";
 
-  const SelectControl = ({
-    label,
-    value,
-    onChange,
-  }: {
-    label: string;
-    value: string;
-    onChange: (value: string) => void;
-  }) => (
-    <label className="block">
-      <span className="mb-1 block text-sm leading-[22px] text-foreground">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-8 w-full rounded-[2px] border border-[#d9d9d9] bg-white px-3 text-sm leading-[22px] text-foreground outline-none focus:border-[#2299ff] focus:ring-1 focus:ring-[#2299ff]"
-      >
-        <option value="">{label}</option>
-        <option value="สำนักงานใหญ่">สำนักงานใหญ่</option>
-        <option value="SVOA PUBLIC">SVOA PUBLIC</option>
-      </select>
-    </label>
-  );
+  const loadImportData = useCallback(async () => {
+    const response = await fetch("/api/employee/import", { cache: "no-store" });
+    if (!response.ok) return;
+    const data = (await response.json()) as { employees: ImportEmployee[]; history: ImportHistory[] };
+    setImportEmployees(data.employees);
+    setImportHistory(data.history);
+  }, []);
 
-  const EmptyAssignmentTable = ({ type }: { type: "department" | "position" }) => (
-    <div className="mt-4 overflow-x-auto border border-[#f0f0f0]">
-      <Table className="min-w-[590px] table-fixed text-sm">
-        <colgroup>
-          <col className="w-[60px]" />
-          <col className="w-[80px]" />
-          <col className="w-[120px]" />
-          <col className="w-[250px]" />
-          <col className="w-[80px]" />
-        </colgroup>
-        <TableHeader>
-          <TableRow className="h-[54.8px] hover:bg-transparent">
-            <TableHead className="border border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium text-white"><input aria-label="เลือกทั้งหมด" type="checkbox" /></TableHead>
-            <TableHead className="border border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium text-white">ลำดับ</TableHead>
-            <TableHead className="border border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium text-white">รหัสพนักงาน</TableHead>
-            <TableHead className="border border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium text-white">ชื่อพนักงาน</TableHead>
-            <TableHead className="border border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium text-white"></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          <TableRow className="h-36 hover:bg-transparent">
-            <TableCell colSpan={5} className="border border-[#f0f0f0] p-0">
-              <div className="flex h-36 flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-                <svg width="64" height="41" viewBox="0 0 64 41" xmlns="http://www.w3.org/2000/svg" className="ant-empty-img-simple">
-                  <g transform="translate(0 1)" fill="none" fillRule="evenodd">
-                    <ellipse cx="32" cy="33" rx="32" ry="7" fill="#f5f5f5" />
-                    <g fillRule="nonzero" stroke="#d9d9d9">
-                      <path d="M55 12.76L44.854 1.258C44.367.474 43.656 0 42.907 0H21.093c-.749 0-1.46.474-1.947 1.257L9 12.761V22h46v-9.24z" />
-                      <path d="M41.613 15.931c0-1.605.994-2.93 2.227-2.931H55v18.137C55 33.26 53.68 35 52.05 35h-40.1C10.32 35 9 33.259 9 31.137V13h11.16c1.233 0 2.227 1.323 2.227 2.928v.022c0 1.605 1.005 2.901 2.237 2.901h14.752c1.232 0 2.237-1.308 2.237-2.913v-.007z" />
-                    </g>
-                  </g>
-                </svg>
-                <span>ไม่มีข้อมูล</span>
-              </div>
-            </TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
-    </div>
-  );
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadImportData(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadImportData]);
+
+  const uploadFile = async (selectedFile: File) => {
+    setFile(selectedFile);
+    setImportError(null);
+    setImporting(true);
+    try {
+      const formData = new FormData();
+      formData.set("file", selectedFile);
+      const response = await fetch("/api/employee/import", { method: "POST", body: formData });
+      const result = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "นำเข้าข้อมูลพนักงานไม่สำเร็จ");
+      await loadImportData();
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : "นำเข้าข้อมูลพนักงานไม่สำเร็จ");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const saveAssignments = async (scope: "department" | "position", employeeIds: string[], targetId: string) => {
+    if (!targetId || employeeIds.length === 0) return;
+    const response = await fetch("/api/employee/import", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scope, employeeIds, targetId }),
+    });
+    const result = (await response.json()) as { error?: string };
+    if (!response.ok) {
+      setImportError(result.error ?? "บันทึกข้อมูลไม่สำเร็จ");
+      return;
+    }
+    setImportError(null);
+    await loadImportData();
+  };
 
   return (
     <Card
@@ -543,6 +546,7 @@ function ImportEmployeeContent({ organizations }: { organizations: OrgNode[] }) 
         </button>
       </div>
       <CardContent className="px-2 py-4">
+        <p className="sr-only" aria-live="polite">{importError ?? ""}</p>
         {/* Step 1 & 2: Download template & Import */}
         <section>
           <div className="flex flex-col lg:flex-row">
@@ -576,10 +580,10 @@ function ImportEmployeeContent({ organizations }: { organizations: OrgNode[] }) 
                 <span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">2</span>
                 <div className="m-2 min-w-0 flex-1">
                   <div className="h-10 text-lg font-bold leading-[40px] text-foreground">นำเข้าข้อมูล (Import)</div>
-                  <input ref={inputRef} id="fileImport" type="file" accept="application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+                  <input ref={inputRef} id="fileImport" type="file" accept="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(event) => { const selectedFile = event.target.files?.[0]; if (selectedFile) void uploadFile(selectedFile); }} />
                   <div className="flex items-center">
-                    <button type="button" onClick={() => inputRef.current?.click()} className="h-9 rounded-[4px] bg-[#2299ff] px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#1d85e0]">เลือกไฟล์</button>
-                    <span className="ml-2 text-sm text-muted-foreground">{file ? file.name : "\u00A0ยังไม่ได้เลือกไฟล์"}</span>
+                    <button type="button" disabled={importing} onClick={() => inputRef.current?.click()} className="h-9 rounded-[4px] bg-[#2299ff] px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#1d85e0] disabled:cursor-not-allowed disabled:opacity-60">เลือกไฟล์</button>
+                    <span className="ml-2 text-sm text-muted-foreground">{importing ? "กำลังนำเข้าข้อมูล..." : file ? file.name : "\u00A0ยังไม่ได้เลือกไฟล์"}</span>
                   </div>
                 </div>
               </div>
@@ -607,8 +611,8 @@ function ImportEmployeeContent({ organizations }: { organizations: OrgNode[] }) 
                         ))}
               </select>
             </div>
-            <EmptyAssignmentTable type="department" />
-            <div className="mt-4 flex justify-end"><button type="button" className="m-1 h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#029702]">บันทึก</button></div>
+            <AssignmentTable employees={importEmployees} selected={selectedDepartmentEmployees} onChange={setSelectedDepartmentEmployees} />
+            <div className="mt-4 flex justify-end"><button type="button" onClick={() => void saveAssignments("department", selectedDepartmentEmployees, organization)} className="m-1 h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#029702]">บันทึก</button></div>
           </div>
         </section>
 
@@ -632,8 +636,8 @@ function ImportEmployeeContent({ organizations }: { organizations: OrgNode[] }) 
                 ))}
               </select>
             </div>
-            <EmptyAssignmentTable type="position" />
-            <div className="mt-4 flex justify-end"><button type="button" className="m-1 h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#029702]">บันทึก</button></div>
+            <AssignmentTable employees={importEmployees} selected={selectedPositionEmployees} onChange={setSelectedPositionEmployees} />
+            <div className="mt-4 flex justify-end"><button type="button" onClick={() => void saveAssignments("position", selectedPositionEmployees, position)} className="m-1 h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#029702]">บันทึก</button></div>
           </div>
         </section>
 
@@ -661,9 +665,10 @@ function ImportEmployeeContent({ organizations }: { organizations: OrgNode[] }) 
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={7} className="border border-[#f0f0f0] p-0">
-                    <div className="my-8 flex flex-col items-center text-center text-sm leading-[22px] text-black/25">
+                {importHistory.length === 0 ? (
+                  <TableRow className="hover:bg-transparent">
+                    <TableCell colSpan={7} className="border border-[#f0f0f0] p-0">
+                      <div className="my-8 flex flex-col items-center text-center text-sm leading-[22px] text-black/25">
                       <svg width="64" height="41" viewBox="0 0 64 41" xmlns="http://www.w3.org/2000/svg" className="ant-empty-img-simple mb-2">
                         <g transform="translate(0 1)" fill="none" fillRule="evenodd">
                           <ellipse cx="32" cy="33" rx="32" ry="7" fill="#f5f5f5" />
@@ -673,10 +678,21 @@ function ImportEmployeeContent({ organizations }: { organizations: OrgNode[] }) 
                           </g>
                         </g>
                       </svg>
-                      <p className="m-0">ไม่มีข้อมูล</p>
-                    </div>
-                  </TableCell>
-                </TableRow>
+                        <p className="m-0">ไม่มีข้อมูล</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ) : importHistory.map((entry) => (
+                  <TableRow key={entry.id} className="h-[54.8px] hover:bg-transparent">
+                    <TableCell className="body-center border border-[#f0f0f0] p-4 text-center">{entry.date}</TableCell>
+                    <TableCell className="body-center border border-[#f0f0f0] p-4 text-center">{entry.total}</TableCell>
+                    <TableCell className="body-center border border-[#f0f0f0] p-4 text-center">{entry.inserted}</TableCell>
+                    <TableCell className="body-center border border-[#f0f0f0] p-4 text-center">{entry.updated}</TableCell>
+                    <TableCell className="body-center border border-[#f0f0f0] p-4 text-center">{entry.deleted}</TableCell>
+                    <TableCell className="body-center border border-[#f0f0f0] p-4 text-center">{entry.errors}</TableCell>
+                    <TableCell className="body-center border border-[#f0f0f0] p-4 text-center" />
+                  </TableRow>
+                ))}
               </TableBody>
             </Table>
           </div>

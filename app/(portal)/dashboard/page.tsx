@@ -6,6 +6,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 
+import { HRMicWordmark } from "@/components/hrmic-wordmark";
 import { cn } from "@/lib/utils";
 
 function DateControl({ children = "ส.ค. 2026", wide = false }: { children?: React.ReactNode; wide?: boolean }) {
@@ -146,8 +147,7 @@ function ServiceHeader() {
       <div className="mb-[5px] min-h-0 basis-[10%]" />
       <div className="mb-[5px] flex min-h-0 basis-[80%] items-stretch">
         <div className="flex basis-1/5 flex-col items-center justify-center">
-          <img src="https://micorganize.humansoft.co.th/assets/images/logos/widget/logo.svg" alt="HumanSoft" className="h-10 w-[200px] translate-x-[9.6px] translate-y-[-1.225px]" />
-          <img src="https://micorganize.humansoft.co.th/assets/images/manual/widget_text.png" alt="โปรแกรม HR - HRM และโปรแกรม Payroll" className="h-[12.3875px] w-[238.2125px] translate-x-[9.6px] translate-y-[-1.2375px]" />
+          <div className="scale-90 translate-x-[9.6px] translate-y-[-1.225px]"><HRMicWordmark /></div>
         </div>
         <div className="flex min-w-0 flex-1 flex-col justify-center">
           <div className="flex w-full">
@@ -169,7 +169,7 @@ function ServiceHeader() {
           <div className="flex w-full justify-end"><span>ข้อมูลอัพเดทล่าสุดวันที่ 25 ส.ค. 2026</span></div>
         </div>
       </div>
-      <div className="flex min-h-0 basis-[10%] items-center justify-center"><p className="text-xs leading-[18px] text-[#313131]">เปิดทำการทุกวัน เวลาทำการ 08.30 - 17.30 น.</p></div>
+      <div className="flex min-h-0 basis-[10%] items-center justify-center"><p className="-translate-y-1.5 text-xs leading-[18px] text-[#313131]">เปิดทำการทุกวัน เวลาทำการ 08.30 - 17.30 น.</p></div>
     </header>
   );
 }

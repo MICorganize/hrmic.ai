@@ -38,6 +38,28 @@ function invalid(message: string) {
   return NextResponse.json({ error: message }, { status: 400 });
 }
 
+async function auditOrganization(
+  action: "insert" | "update" | "delete",
+  kind: OrganizationKind,
+  id: string,
+  companyId: string,
+  metadata: Record<string, string | null>
+) {
+  const company = await prisma.company.findFirst({ where: { id: companyId }, select: { tenantId: true } });
+  if (!company) return;
+  await prisma.auditLog.create({
+    data: {
+      id: crypto.randomUUID(),
+      tenantId: company.tenantId,
+      companyId,
+      action,
+      entityType: `organization_${kind}`,
+      entityId: id,
+      metadata,
+    },
+  });
+}
+
 async function organizationTree(): Promise<OrganizationNode[]> {
   const [companies, branches, departments] = await Promise.all([
     prisma.company.findMany({
@@ -146,7 +168,7 @@ export async function POST(request: Request) {
       });
       const tenant = existingCompany ?? (await prisma.tenant.findFirst({ select: { id: true } }));
       if (!tenant) return invalid("ไม่พบข้อมูลองค์กรสำหรับสร้างบริษัท");
-      await prisma.company.create({
+      const company = await prisma.company.create({
         data: {
           id: crypto.randomUUID(),
           tenantId: "tenantId" in tenant ? tenant.tenantId : tenant.id,
@@ -156,12 +178,14 @@ export async function POST(request: Request) {
           updatedAt: now,
         },
       });
+      await auditOrganization("insert", kind, company.id, company.id, { name, code });
     } else if (kind === "branch") {
       const company = await prisma.company.findFirst({ where: { id: companyId, deletedAt: null } });
       if (!company) return invalid("ไม่พบบริษัทที่เลือก");
-      await prisma.branch.create({
+      const branch = await prisma.branch.create({
         data: { id: crypto.randomUUID(), companyId, name, code, updatedAt: now },
       });
+      await auditOrganization("insert", kind, branch.id, companyId, { name, code });
     } else {
       const branchId = text(body?.branchId) || null;
       const parentId = text(body?.parentId) || null;
@@ -174,10 +198,12 @@ export async function POST(request: Request) {
       if (parentId) {
         const parent = await prisma.department.findFirst({ where: { id: parentId, companyId, deletedAt: null } });
         if (!parent) return invalid("ไม่พบแผนกแม่ที่เลือก");
+        if (parent.branchId !== branchId) return invalid("แผนกแม่ต้องอยู่ในสำนักงานสาขาเดียวกัน");
       }
-      await prisma.department.create({
+      const department = await prisma.department.create({
         data: { id: crypto.randomUUID(), companyId, branchId, parentId, name, code, updatedAt: now },
       });
+      await auditOrganization("insert", kind, department.id, companyId, { name, code });
     }
 
     return NextResponse.json({ companies: await organizationTree() }, { status: 201 });
@@ -201,14 +227,17 @@ export async function PATCH(request: Request) {
 
     const updatedAt = new Date();
     if (kind === "company") {
-      await prisma.company.update({
+      const company = await prisma.company.update({
         where: { id },
         data: { name: englishName || name, companyNameTH: name, companyCode: code, updatedAt },
       });
+      await auditOrganization("update", kind, id, company.id, { name, code });
     } else if (kind === "branch") {
-      await prisma.branch.update({ where: { id }, data: { name, code, updatedAt } });
+      const branch = await prisma.branch.update({ where: { id }, data: { name, code, updatedAt } });
+      await auditOrganization("update", kind, id, branch.companyId, { name, code });
     } else {
-      await prisma.department.update({ where: { id }, data: { name, code, updatedAt } });
+      const department = await prisma.department.update({ where: { id }, data: { name, code, updatedAt } });
+      await auditOrganization("update", kind, id, department.companyId, { name, code });
     }
     return NextResponse.json({ companies: await organizationTree() });
   } catch (error) {
@@ -243,8 +272,14 @@ export async function DELETE(request: Request) {
         { status: 409 }
       );
     }
-    if (kind === "branch") await prisma.branch.delete({ where: { id } });
-    else await prisma.department.delete({ where: { id } });
+    const deletedAt = new Date();
+    if (kind === "branch") {
+      const branch = await prisma.branch.update({ where: { id }, data: { deletedAt } });
+      await auditOrganization("delete", kind, id, branch.companyId, { name: branch.name, code: branch.code });
+    } else {
+      const department = await prisma.department.update({ where: { id }, data: { deletedAt } });
+      await auditOrganization("delete", kind, id, department.companyId, { name: department.name, code: department.code });
+    }
     return NextResponse.json({ companies: await organizationTree() });
   } catch (error) {
     const prismaCode = (error as { code?: string }).code;

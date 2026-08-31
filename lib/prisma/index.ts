@@ -26,9 +26,18 @@ const hasEmploymentTypeDefinitionField = Boolean(
     (field) => field.name === "employeeTypeDefinitionId"
   )
 );
+const hasAttendanceDayTypeField = Boolean(
+  cachedRuntimeModel?._runtimeDataModel?.models?.AttendanceRecord?.fields?.some(
+    (field) => field.name === "dayType"
+  )
+);
+const hasIndividualGeneralSetting = Boolean(cachedPrisma && "individualGeneralSetting" in cachedPrisma);
+const hasIndividualOvertimeSetting = Boolean(cachedPrisma && "individualOvertimeSetting" in cachedPrisma);
+const hasIndividualShiftHolidaySetting = Boolean(cachedPrisma && "individualShiftHolidaySetting" in cachedPrisma);
+const hasIndividualWorkTimeSetting = Boolean(cachedPrisma && "individualWorkTimeSetting" in cachedPrisma);
 
 export const prisma =
-  cachedPrisma && hasEmployeeTypeDefinition && hasEmploymentTypeDefinitionField
+  cachedPrisma && hasEmployeeTypeDefinition && hasEmploymentTypeDefinitionField && hasAttendanceDayTypeField && hasIndividualGeneralSetting && hasIndividualOvertimeSetting && hasIndividualShiftHolidaySetting && hasIndividualWorkTimeSetting
     ? cachedPrisma
     : createPrismaClient();
 

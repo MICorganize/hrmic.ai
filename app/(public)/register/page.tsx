@@ -1,73 +1,86 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
-import { Building2, Eye, EyeOff, Lock, Mail, User } from "lucide-react";
+import { Building2, Eye, EyeOff, KeyRound, Mail, UserRound } from "lucide-react";
 
-import { AuthCard } from "@/components/layouts/AuthCard";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { HRMicWordmark } from "@/components/hrmic-wordmark";
+import { cn } from "@/lib/utils";
 
 export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [language, setLanguage] = useState<"th" | "en">("th");
 
   return (
-    <AuthCard title="ลงทะเบียน" tagline="สมัครใช้งาน HRMic.ai">
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-foreground">ชื่อ-นามสกุล</label>
-        <div className="relative">
-          <User className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="ชื่อ นามสกุล" autoComplete="name" />
+    <main className="grid min-h-dvh place-items-center bg-[#f4f5f7] p-4 font-[family:var(--font-kanit)] text-[#454545] sm:p-8">
+      <section className="grid w-full max-w-[960px] overflow-hidden rounded-sm bg-white shadow-[0_4px_24px_rgba(33,41,52,0.14)] lg:min-h-[580px] lg:grid-cols-2">
+        <aside className="hidden min-h-full overflow-hidden bg-[#0259e6] lg:flex lg:items-center">
+          <Image src="/images/auth/login-illustration.jpg" alt="ภาพประกอบการลงทะเบียนอย่างปลอดภัย" width={5209} height={4167} priority className="h-auto w-full" />
+        </aside>
+
+        <div className="relative flex min-h-[580px] flex-col justify-center px-7 py-8 sm:px-12">
+          <div className="absolute right-7 top-6 flex items-center gap-1 text-xs text-[#8d949b] sm:right-10">
+            <span>ภาษา</span>
+            <button type="button" onClick={() => setLanguage("th")} className={cn("grid size-6 place-items-center rounded-full text-[11px]", language === "th" ? "bg-[#135ee4] text-white" : "text-[#8d949b]")}>TH</button>
+            <button type="button" onClick={() => setLanguage("en")} className={cn("grid size-6 place-items-center rounded-full text-[11px]", language === "en" ? "bg-[#135ee4] text-white" : "text-[#8d949b]")}>EN</button>
+          </div>
+
+          <div className="mb-6">
+            <div className="origin-center -translate-y-2 scale-[.64] sm:scale-[.72]"><HRMicWordmark primaryClassName="text-[#315ff4] [text-shadow:0_0_1.5px_#1849db]" /></div>
+            <h1 className="-mt-5 text-2xl font-semibold text-[#333]">ลงทะเบียน</h1>
+            <p className="mt-1 text-sm text-[#777]">สร้างบัญชีเพื่อเริ่มต้นใช้งาน HRMic.ai</p>
+          </div>
+
+          <form className="space-y-3.5" onSubmit={(event) => event.preventDefault()}>
+            <div>
+              <label htmlFor="register-name" className="mb-1.5 block text-sm text-[#4a4f55]">ชื่อ-นามสกุล</label>
+              <div className="relative">
+                <UserRound className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#5e6670]" strokeWidth={1.8} />
+                <input id="register-name" name="name" type="text" autoComplete="name" placeholder="กรอกชื่อ-นามสกุล" className="h-10 w-full rounded-full border border-[#e0e3e7] bg-white pl-11 pr-4 text-sm text-[#353a40] outline-none transition focus:border-[#315ff4] focus:ring-1 focus:ring-[#315ff4]" required />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="register-email" className="mb-1.5 block text-sm text-[#4a4f55]">อีเมล</label>
+              <div className="relative">
+                <Mail className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#5e6670]" strokeWidth={1.8} />
+                <input id="register-email" name="email" type="email" autoComplete="email" placeholder="กรอกอีเมล" className="h-10 w-full rounded-full border border-[#e0e3e7] bg-white pl-11 pr-4 text-sm text-[#353a40] outline-none transition focus:border-[#315ff4] focus:ring-1 focus:ring-[#315ff4]" required />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="register-company" className="mb-1.5 block text-sm text-[#4a4f55]">ชื่อบริษัท</label>
+              <div className="relative">
+                <Building2 className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#5e6670]" strokeWidth={1.8} />
+                <input id="register-company" name="organization" type="text" autoComplete="organization" placeholder="กรอกชื่อบริษัท" className="h-10 w-full rounded-full border border-[#e0e3e7] bg-white pl-11 pr-4 text-sm text-[#353a40] outline-none transition focus:border-[#315ff4] focus:ring-1 focus:ring-[#315ff4]" required />
+              </div>
+            </div>
+
+            <div>
+              <label htmlFor="register-password" className="mb-1.5 block text-sm text-[#4a4f55]">รหัสผ่าน</label>
+              <div className="relative">
+                <KeyRound className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#5e6670]" strokeWidth={1.8} />
+                <input id="register-password" name="password" type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="สร้างรหัสผ่าน" className="h-10 w-full rounded-full border border-[#e0e3e7] bg-white pl-11 pr-11 text-sm text-[#353a40] outline-none transition focus:border-[#315ff4] focus:ring-1 focus:ring-[#315ff4]" required />
+                <button type="button" onClick={() => setShowPassword((visible) => !visible)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#66707a] hover:text-[#315ff4]" aria-label={showPassword ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}>{showPassword ? <Eye className="size-[18px]" strokeWidth={1.8} /> : <EyeOff className="size-[18px]" strokeWidth={1.8} />}</button>
+              </div>
+            </div>
+
+            <label className="flex cursor-pointer items-center gap-2 pt-1 text-sm text-[#5d6570]">
+              <input type="checkbox" checked={acceptedTerms} onChange={(event) => setAcceptedTerms(event.target.checked)} className="size-4 accent-[#315ff4]" />
+              ฉันยอมรับข้อกำหนดและเงื่อนไขการใช้งาน
+            </label>
+
+            <button type="submit" disabled={!acceptedTerms} className={cn("flex h-10 w-full items-center justify-center rounded-full text-[16px] font-medium text-white shadow-sm transition", acceptedTerms ? "bg-[#315ff4] hover:bg-[#1849db]" : "cursor-not-allowed bg-[#b8c5ed]")}>ลงทะเบียน</button>
+          </form>
+
+          <p className="mt-5 text-center text-sm text-[#757b82]">
+            มีบัญชีผู้ใช้อยู่แล้ว?{" "}
+            <Link href="/login" className="font-medium text-[#315ff4] hover:underline">เข้าสู่ระบบ</Link>
+          </p>
         </div>
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-foreground">อีเมล</label>
-        <div className="relative">
-          <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" type="email" placeholder="you@company.com" autoComplete="email" />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-foreground">ชื่อบริษัท</label>
-        <div className="relative">
-          <Building2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input className="pl-9" placeholder="บริษัทของคุณ" autoComplete="organization" />
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <label className="text-sm font-medium text-foreground">รหัสผ่าน</label>
-        <div className="relative">
-          <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            type={showPassword ? "text" : "password"}
-            className="pl-9 pr-10"
-            placeholder="สร้างรหัสผ่าน"
-            autoComplete="new-password"
-          />
-          <button
-            type="button"
-            onClick={() => setShowPassword((v) => !v)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
-            aria-label={showPassword ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}
-          >
-            {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
-          </button>
-        </div>
-      </div>
-
-      <Button className="w-full" size="lg">
-        ลงทะเบียน
-      </Button>
-
-      <div className="pt-1 text-center text-sm text-muted-foreground">
-        มีบัญชีอยู่แล้ว?{" "}
-        <Link href="/login" className="font-medium text-primary hover:underline">
-          เข้าสู่ระบบ
-        </Link>
-      </div>
-    </AuthCard>
+      </section>
+    </main>
   );
 }

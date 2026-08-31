@@ -835,7 +835,7 @@ function SidebarContent({
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 py-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 pb-4 pt-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {/* เมนูโปรด (favorites) header row */}
         <button
           type="button"
@@ -1027,7 +1027,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       {/* Desktop sidebar */}
       <aside
         className={cn(
-          "fixed inset-y-0 left-0 z-40 hidden bg-[#1386f4] lg:block",
+            "fixed inset-y-0 left-0 z-40 hidden bg-[#0259e6] lg:block",
           collapsed ? "w-24" : "w-80"
         )}
       >
@@ -1103,7 +1103,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
           <div className="absolute inset-y-0 left-0 w-80 max-w-[85vw] overflow-y-auto bg-white shadow-xl">
-            <div className="bg-[#0080ff]">
+            <div className="bg-[#0259e6]">
               <SidebarContent
                 currentPath={pathname}
                 expanded={expanded}
@@ -1163,7 +1163,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               aria-haspopup="menu"
             >
               <span className="flex min-w-0 flex-col leading-tight">
-                <span className="truncate text-base font-light text-foreground">SVOA</span>
+                <span className="truncate text-base font-medium text-foreground">MIC</span>
                 <span className="truncate text-xs font-medium text-muted-foreground">
                   MIC ORGANIZE CO., LTD.
                 </span>

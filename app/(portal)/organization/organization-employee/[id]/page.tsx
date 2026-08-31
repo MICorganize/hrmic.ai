@@ -148,6 +148,11 @@ type AddressLocation = {
   label: string;
 };
 
+type StoredAddressLocation = Pick<
+  AddressLocation,
+  "province" | "district" | "subdistrict" | "postalCode" | "provinceId" | "districtId" | "subdistrictId"
+>;
+
 /* ------------------------------ Form fields ------------------------------- */
 
 function FieldShell({
@@ -489,25 +494,28 @@ function AddressLocationAutocomplete({
   useEffect(() => {
     const query = value.trim();
     if (!open || !query) {
-      setLocations([]);
-      setActiveIndex(-1);
       return;
     }
 
     const controller = new AbortController();
-    setLoading(true);
-    void fetch(`/api/address/locations?q=${encodeURIComponent(query)}`, { signal: controller.signal })
-      .then(async (response) => (response.ok ? (await response.json()) as AddressLocation[] : []))
-      .then((items) => {
-        setLocations(items);
-        setActiveIndex(items.length ? 0 : -1);
-      })
-      .catch((error: unknown) => {
-        if (!(error instanceof DOMException && error.name === "AbortError")) setLocations([]);
-      })
-      .finally(() => {
+    void (async () => {
+      await Promise.resolve();
+      if (controller.signal.aborted) return;
+
+      setLoading(true);
+      try {
+        const response = await fetch(`/api/address/locations?q=${encodeURIComponent(query)}`, { signal: controller.signal });
+        const items = response.ok ? await response.json() as AddressLocation[] : [];
+        if (!controller.signal.aborted) {
+          setLocations(items);
+          setActiveIndex(items.length ? 0 : -1);
+        }
+      } catch (error: unknown) {
+        if (!(error instanceof DOMException && error.name === "AbortError") && !controller.signal.aborted) setLocations([]);
+      } finally {
         if (!controller.signal.aborted) setLoading(false);
-      });
+      }
+    })();
 
     return () => controller.abort();
   }, [open, value]);
@@ -525,7 +533,7 @@ function AddressLocationAutocomplete({
         autoComplete="off"
         role="combobox"
         aria-autocomplete="list"
-        aria-expanded={open && locations.length > 0}
+        aria-expanded={open && Boolean(value.trim()) && locations.length > 0}
         aria-controls={optionsId}
         value={value}
         onChange={(event) => {
@@ -555,7 +563,7 @@ function AddressLocationAutocomplete({
         }}
         className="h-[31.6px] w-full rounded border border-[#d9d9d9] bg-white px-[11px] font-[Kanit,sans-serif] text-sm leading-[22px] text-[rgba(0,0,0,0.65)] outline-none focus:border-[#1890ff]"
       />
-      {open && (loading || locations.length > 0) && (
+      {open && Boolean(value.trim()) && (loading || locations.length > 0) && (
         <div id={optionsId} role="listbox" className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded border border-[#d9d9d9] bg-white py-1 shadow-[0_3px_6px_rgba(0,0,0,0.16)]">
           {loading && <div className="px-3 py-2 text-sm text-black/45">กำลังค้นหา...</div>}
           {!loading && locations.map((location, index) => (
@@ -595,6 +603,22 @@ function formatAddressLocation(address: EmployeeDetail["addresses"][number] | un
   return `${subdistrict} ${district} ${province} ${address.postalCode}`;
 }
 
+function getStoredAddressLocation(
+  address: EmployeeDetail["addresses"][number] | undefined
+): StoredAddressLocation | null {
+  if (!address?.subdistrict || !address.district || !address.province) return null;
+
+  return {
+    subdistrict: address.subdistrict,
+    district: address.district,
+    province: address.province,
+    postalCode: address.postalCode,
+    subdistrictId: address.subdistrictId ?? "",
+    districtId: address.districtId ?? "",
+    provinceId: address.provinceId ?? "",
+  };
+}
+
 function PersonalHistoryContent({ employee, employeeId, onSaved }: { employee: EmployeeDetail; employeeId: string; onSaved: (employee: EmployeeDetail) => void }) {
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const permanent = employee.addresses.find((address) => address.type === "permanent");
@@ -602,28 +626,28 @@ function PersonalHistoryContent({ employee, employeeId, onSaved }: { employee: E
   const [addressValues, setAddressValues] = useState({
     permanent: permanent?.addressLine ?? "", current: current?.addressLine ?? "",
     permanentPostal: formatAddressLocation(permanent), currentPostal: formatAddressLocation(current),
-    permanentPostalCode: permanent?.postalCode ?? "", currentPostalCode: current?.postalCode ?? "",
   });
-  const [selectedLocations, setSelectedLocations] = useState<{ permanent: AddressLocation | null; current: AddressLocation | null }>({ permanent: null, current: null });
+  const [selectedLocations, setSelectedLocations] = useState<{ permanent: StoredAddressLocation | null; current: StoredAddressLocation | null }>({
+    permanent: getStoredAddressLocation(permanent),
+    current: getStoredAddressLocation(current),
+  });
   const save = async () => {
     setSaveState("saving");
     try {
-      const addressPayload = (type: "permanent" | "current", addressLine: string, postalCode: string, location: AddressLocation | null) => ({
+      const addressPayload = (type: "permanent" | "current", addressLine: string, location: StoredAddressLocation | null) => ({
         type,
         addressLine,
-        postalCode,
-        ...(location ? {
-          province: location.province,
-          district: location.district,
-          subdistrict: location.subdistrict,
-          provinceId: location.provinceId,
-          districtId: location.districtId,
-          subdistrictId: location.subdistrictId,
-        } : {}),
+        postalCode: location?.postalCode ?? null,
+        province: location?.province ?? null,
+        district: location?.district ?? null,
+        subdistrict: location?.subdistrict ?? null,
+        provinceId: location?.provinceId || null,
+        districtId: location?.districtId || null,
+        subdistrictId: location?.subdistrictId || null,
       });
       const response = await fetch(`/api/employee/${employeeId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ addresses: [
-        addressPayload("permanent", addressValues.permanent, addressValues.permanentPostalCode, selectedLocations.permanent),
-        addressPayload("current", addressValues.current, addressValues.currentPostalCode, selectedLocations.current),
+        addressPayload("permanent", addressValues.permanent, selectedLocations.permanent),
+        addressPayload("current", addressValues.current, selectedLocations.current),
       ] }) });
       if (!response.ok) throw new Error("save failed");
       onSaved((await response.json()) as EmployeeDetail);
@@ -653,7 +677,7 @@ function PersonalHistoryContent({ employee, employeeId, onSaved }: { employee: E
             <div>
               <div className="p-1"><label className="block text-sm leading-[22px] text-[rgba(0,0,0,0.65)]">ประเทศ</label><SettingSelect value="Thailand" /></div>
               <div className="p-1"><label className="block text-sm leading-[22px] text-[rgba(0,0,0,0.65)]">ที่อยู่</label><ProfileTextInput className="h-[31.6px]" value={addressValues.permanent} onChange={(value) => setAddressValues((current) => ({ ...current, permanent: value }))} /></div>
-              <div className="min-h-[62px] p-1"><label className="block text-sm leading-[22px] text-[rgba(0,0,0,0.65)]">ระบุรหัสไปรษณีย์ หรือ ตำบล / แขวง</label><AddressLocationAutocomplete value={addressValues.permanentPostal} onChange={(value) => { setAddressValues((current) => ({ ...current, permanentPostal: value, permanentPostalCode: value })); setSelectedLocations((current) => ({ ...current, permanent: null })); }} onSelect={(location) => { setAddressValues((current) => ({ ...current, permanentPostal: location.label, permanentPostalCode: location.postalCode ?? "" })); setSelectedLocations((current) => ({ ...current, permanent: location })); }} /></div>
+              <div className="min-h-[62px] p-1"><label className="block text-sm leading-[22px] text-[rgba(0,0,0,0.65)]">ระบุรหัสไปรษณีย์ หรือ ตำบล / แขวง</label><AddressLocationAutocomplete value={addressValues.permanentPostal} onChange={(value) => { setAddressValues((current) => ({ ...current, permanentPostal: value })); setSelectedLocations((current) => ({ ...current, permanent: null })); }} onSelect={(location) => { setAddressValues((current) => ({ ...current, permanentPostal: location.label })); setSelectedLocations((current) => ({ ...current, permanent: location })); }} /></div>
             </div>
           </section>
           <section>
@@ -661,9 +685,9 @@ function PersonalHistoryContent({ employee, employeeId, onSaved }: { employee: E
             <div>
               <div className="p-1"><label className="block text-sm leading-[22px] text-[rgba(0,0,0,0.65)]">ประเทศ</label><SettingSelect value="Thailand" /></div>
               <div className="p-1"><label className="block text-sm leading-[22px] text-[rgba(0,0,0,0.65)]">ที่อยู่</label><ProfileTextInput className="h-[31.6px]" value={addressValues.current} onChange={(value) => setAddressValues((current) => ({ ...current, current: value }))} /></div>
-              <div className="min-h-[62px] p-1"><label className="block text-sm leading-[22px] text-[rgba(0,0,0,0.65)]">ระบุรหัสไปรษณีย์ หรือ ตำบล / แขวง</label><AddressLocationAutocomplete value={addressValues.currentPostal} onChange={(value) => { setAddressValues((current) => ({ ...current, currentPostal: value, currentPostalCode: value })); setSelectedLocations((current) => ({ ...current, current: null })); }} onSelect={(location) => { setAddressValues((current) => ({ ...current, currentPostal: location.label, currentPostalCode: location.postalCode ?? "" })); setSelectedLocations((current) => ({ ...current, current: location })); }} /></div>
+              <div className="min-h-[62px] p-1"><label className="block text-sm leading-[22px] text-[rgba(0,0,0,0.65)]">ระบุรหัสไปรษณีย์ หรือ ตำบล / แขวง</label><AddressLocationAutocomplete value={addressValues.currentPostal} onChange={(value) => { setAddressValues((current) => ({ ...current, currentPostal: value })); setSelectedLocations((current) => ({ ...current, current: null })); }} onSelect={(location) => { setAddressValues((current) => ({ ...current, currentPostal: location.label })); setSelectedLocations((current) => ({ ...current, current: location })); }} /></div>
             </div>
-            <div><label className="block text-sm leading-[22px] text-[rgba(0,0,0,0.65)]">&nbsp;</label><button type="button" onClick={() => { setAddressValues((current) => ({ ...current, current: current.permanent, currentPostal: current.permanentPostal, currentPostalCode: current.permanentPostalCode })); setSelectedLocations((current) => ({ ...current, current: current.permanent })); }} className="h-9 w-full rounded bg-[#039be5] px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_0px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-[#0288d1]">ใช้ที่อยู่ตามบัตรประชาชน</button></div>
+            <div><label className="block text-sm leading-[22px] text-[rgba(0,0,0,0.65)]">&nbsp;</label><button type="button" onClick={() => { setAddressValues((current) => ({ ...current, current: current.permanent, currentPostal: current.permanentPostal })); setSelectedLocations((current) => ({ ...current, current: current.permanent })); }} className="h-9 w-full rounded bg-[#039be5] px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_0px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-[#0288d1]">ใช้ที่อยู่ตามบัตรประชาชน</button></div>
           </section>
           <div className="mt-2"><button type="button" onClick={save} disabled={saveState === "saving"} className="h-9 w-full rounded bg-[#03ae03] px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-[#029b02] disabled:cursor-not-allowed disabled:opacity-70">{saveState === "saving" ? "กำลังบันทึก..." : saveState === "saved" ? "บันทึกแล้ว" : saveState === "error" ? "บันทึกไม่สำเร็จ" : "บันทึก"}</button></div>
         </SettingPanel>
@@ -1948,7 +1972,7 @@ export default function OrganizationEmployeeDetailPage({
         ) : activeTab === "ตั้งค่า" ? (
           <EmployeeSettingsContent />
         ) : activeTab === "ประวัติส่วนตัว" ? (
-          <PersonalHistoryContent employee={emp} employeeId={employeeId} onSaved={setEmp} />
+          <PersonalHistoryContent key={emp.id} employee={emp} employeeId={employeeId} onSaved={setEmp} />
         ) : activeTab === "ประวัติการปรับเงินเดือน/ปรับประเภท" ? (
           <SalaryAdjustmentHistoryContent />
         ) : activeTab === "รายรับ/รายจ่ายคงที่" ? (
