@@ -222,6 +222,7 @@ export function DeleteEmployeeContent() {
       setPassword("");
       fetchEmployees();
       fetchDeletedEmployees(); // refresh count
+      window.dispatchEvent(new Event("employee-data-changed"));
     } catch {
       setDeleteError("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
     } finally {
@@ -320,6 +321,7 @@ export function DeleteEmployeeContent() {
       setPurgeSelected(new Set());
       fetchDeletedEmployees();
       fetchEmployees(); // refresh list tab count
+      window.dispatchEvent(new Event("employee-data-changed"));
     } catch {
       setActionError("เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
     } finally {

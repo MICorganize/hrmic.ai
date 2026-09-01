@@ -492,6 +492,7 @@ model Employee {
   @@index([citizenId])
   @@index([companyId])
   @@index([departmentId])
+  @@index([deletedAt, employeeCode, employeeNumber])
   @@index([positionId])
   @@index([status])
   @@index([teamId])
@@ -708,6 +709,8 @@ model PayrollItem {
 model PayrollRun {
   id          String        @id @db.Uuid
   period      String        @unique
+  periodStart DateTime?     @db.Date
+  periodEnd   DateTime?     @db.Date
   status      PayrollStatus @default(draft)
   runAt       DateTime?
   createdAt   DateTime      @default(now())

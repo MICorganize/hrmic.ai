@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ChevronDown, Filter, FolderOpen, Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -115,7 +115,15 @@ function EmployeeNode({
   );
 
   return (
-    <li role="treeitem" aria-level={level} aria-selected={false} className="pb-[2.8px] pt-[2px]">
+    <li
+      role="treeitem"
+      aria-level={level}
+      aria-selected={false}
+      className={cn(
+        "relative pb-[2.8px] pt-[2px]",
+        level > 1 && "before:absolute before:left-0 before:top-[23px] before:w-4 before:border-t before:border-dotted before:border-[#bfbfbf]"
+      )}
+    >
       {onEmployeeSelect ? (
         <button
           type="button"
@@ -147,17 +155,23 @@ function OrganizationNode({
   level = 1,
   onSelect,
   onEmployeeSelect,
+  forceExpanded = false,
 }: {
   node: OrgNode;
   level?: number;
   onSelect: () => void;
   onEmployeeSelect?: (employee: OrgNode) => void;
+  forceExpanded?: boolean;
 }) {
-  const [expanded, setExpanded] = useState(true);
   const children = node.children ?? [];
   const hasChildren = children.length > 0;
   const isEmployee = isEmployeeNode(node);
-
+  // The employee list is a browsing surface: show every employee card when
+  // it opens, while still allowing a department to be collapsed manually.
+  const [expanded, setExpanded] = useState(true);
+  useEffect(() => {
+    if (forceExpanded) setExpanded(true);
+  }, [forceExpanded]);
   if (isEmployee) return <EmployeeNode node={node} level={level} onSelect={onSelect} onEmployeeSelect={onEmployeeSelect} />;
 
   return (
@@ -171,7 +185,7 @@ function OrganizationNode({
             aria-label={expanded ? `ย่อ ${node.code}` : `ขยาย ${node.code}`}
           >
             <ChevronDown
-              className={cn("size-6 transition-transform", !expanded && "-rotate-90")}
+              className={cn("size-[19.2px] transition-transform", !expanded && "-rotate-90")}
               aria-hidden="true"
             />
           </button>
@@ -185,9 +199,9 @@ function OrganizationNode({
       </div>
 
       {expanded && (
-        <ul role="group" className="ml-[29.8px] list-none border-l border-dotted border-[#bfbfbf] p-0">
+        <ul role="group" className="ml-5 list-none border-l border-dotted border-[#bfbfbf] p-0">
           {children.map((child) => (
-            <OrganizationNode key={child.id} node={child} level={level + 1} onSelect={onSelect} onEmployeeSelect={onEmployeeSelect} />
+            <OrganizationNode key={child.id} node={child} level={level + 1} onSelect={onSelect} onEmployeeSelect={onEmployeeSelect} forceExpanded={forceExpanded} />
           ))}
         </ul>
       )}
@@ -198,17 +212,20 @@ function OrganizationNode({
 export function EmployeeSelectPanel({
   onClose,
   orgTree,
+  loading = false,
   onEmployeeSelect,
 }: {
   onClose: () => void;
   orgTree: OrgNode[];
+  loading?: boolean;
   onEmployeeSelect?: (employee: OrgNode) => void;
 }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<EmployeeFilters>(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<EmployeeFilters>(EMPTY_FILTERS);
-  const visibleTree = filterTree(orgTree, appliedFilters);
-  const options = collectOptions(orgTree);
+  const visibleTree = useMemo(() => filterTree(orgTree, appliedFilters), [orgTree, appliedFilters]);
+  const options = useMemo(() => collectOptions(orgTree), [orgTree]);
+  const hasAppliedFilters = Object.values(appliedFilters).some((value) => value !== "" && value !== "active");
 
   const updateDraft = <K extends keyof EmployeeFilters>(key: K, value: EmployeeFilters[K]) => {
     setDraftFilters((current) => ({ ...current, [key]: value }));
@@ -290,18 +307,22 @@ export function EmployeeSelectPanel({
         )}
 
         <div
-          className="-ml-[12.2px] min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-[21px] font-[Kanit,sans-serif] text-[14px] leading-[22.001px]"
+          className="-ml-[12.2px] min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-[21px] font-[Kanit,sans-serif] text-[14px] leading-[22.001px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           data-testid="org-emp-select-tree"
         >
           <ul role="tree" className="m-0 list-none p-0" aria-label="โครงสร้างองค์กรและรายชื่อพนักงาน">
-            {visibleTree.length === 0 ? (
+            {loading ? (
+              <li role="treeitem" className="flex min-h-[160px] items-center justify-center text-sm text-muted-foreground">
+                กำลังโหลดรายชื่อพนักงาน...
+              </li>
+            ) : visibleTree.length === 0 ? (
               <li role="treeitem" className="flex min-h-[160px] flex-col items-center justify-center gap-2 text-center text-muted-foreground">
                 <FolderOpen className="size-8" />
                 <span className="text-sm">ไม่มีข้อมูลพนักงาน</span>
               </li>
             ) : (
               visibleTree.map((node) => (
-                <OrganizationNode key={node.id} node={node} onSelect={onClose} onEmployeeSelect={onEmployeeSelect} />
+                <OrganizationNode key={node.id} node={node} onSelect={onClose} onEmployeeSelect={onEmployeeSelect} forceExpanded={hasAppliedFilters} />
               ))
             )}
           </ul>

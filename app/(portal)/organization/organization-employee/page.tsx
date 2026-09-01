@@ -31,7 +31,6 @@ type EmployeeStats = {
   byBranch: { name: string; count: number }[];
   byNationality: { nationality: string; count: number }[];
   history: { id: string; subject: string; by: string; date: string; note: string }[];
-  orgTree: OrgNode[];
 };
 
 type ImportEmployee = { id: string; code: string; name: string };
@@ -507,6 +506,7 @@ function ImportEmployeeContent({ organizations }: { organizations: OrgNode[] }) 
       const result = (await response.json()) as { error?: string };
       if (!response.ok) throw new Error(result.error ?? "นำเข้าข้อมูลพนักงานไม่สำเร็จ");
       await loadImportData();
+      window.dispatchEvent(new Event("employee-data-changed"));
     } catch (error) {
       setImportError(error instanceof Error ? error.message : "นำเข้าข้อมูลพนักงานไม่สำเร็จ");
     } finally {
@@ -528,6 +528,7 @@ function ImportEmployeeContent({ organizations }: { organizations: OrgNode[] }) 
     }
     setImportError(null);
     await loadImportData();
+    window.dispatchEvent(new Event("employee-data-changed"));
   };
 
   return (
@@ -724,24 +725,45 @@ export default function OrganizationEmployeePage() {
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
   const [selectOpen, setSelectOpen] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<OrgNode | null>(null);
   const [stats, setStats] = useState<EmployeeStats | null>(null);
+  const [orgTree, setOrgTree] = useState<OrgNode[] | null>(null);
+  const [treeLoading, setTreeLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
 
-  const loadStats = useCallback(async () => {
-    const res = await fetch("/api/employee", { cache: "no-store" });
+  const loadStats = useCallback(async (fresh = false) => {
+    const suffix = fresh ? `&refresh=${Date.now()}` : "";
+    const res = await fetch(`/api/employee?view=summary${suffix}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return (await res.json()) as EmployeeStats;
   }, []);
 
+  const loadOrgTree = useCallback(async (fresh = false) => {
+    if (!fresh && orgTree !== null) return orgTree;
+    setTreeLoading(true);
+    try {
+      const suffix = fresh ? `&refresh=${Date.now()}` : "";
+      const res = await fetch(`/api/employee?view=tree${suffix}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = (await res.json()) as { orgTree: OrgNode[] };
+      setOrgTree(data.orgTree);
+      return data.orgTree;
+    } finally {
+      setTreeLoading(false);
+    }
+  }, [orgTree]);
+
   const runLoad = useCallback(async () => {
     setLoadError(false);
-    setStats(null);
     try {
-      setStats(await loadStats());
+      setStats(await loadStats(true));
+      // A mutation may have changed the employee list. Re-fetch the heavier
+      // tree only if the user opens the picker or import tab afterwards.
+      setOrgTree(null);
     } catch {
-      setLoadError(true);
+      if (!stats) setLoadError(true);
     }
-  }, [loadStats]);
+  }, [loadStats, stats]);
 
   useEffect(() => {
     let cancelled = false;
@@ -759,17 +781,40 @@ export default function OrganizationEmployeePage() {
   }, [loadStats]);
 
   useEffect(() => {
+    // Warm the picker cache only after the dashboard is interactive. This
+    // makes a later "เลือกพนักงาน" click instant without delaying first paint.
+    if (!stats || orgTree !== null || treeLoading) return;
+    const idleId = window.requestIdleCallback?.(() => void loadOrgTree(), { timeout: 2_000 });
+    if (idleId !== undefined) return () => window.cancelIdleCallback(idleId);
+    const timer = window.setTimeout(() => void loadOrgTree(), 1_200);
+    return () => window.clearTimeout(timer);
+  }, [loadOrgTree, orgTree, stats, treeLoading]);
+
+  useEffect(() => {
     const closeEmployeeList = () => setSelectOpen(false);
     window.addEventListener("employee-list-close", closeEmployeeList);
     return () => window.removeEventListener("employee-list-close", closeEmployeeList);
   }, []);
 
+  useEffect(() => {
+    const refreshEmployeeData = () => void runLoad();
+    window.addEventListener("employee-data-changed", refreshEmployeeData);
+    return () => window.removeEventListener("employee-data-changed", refreshEmployeeData);
+  }, [runLoad]);
+
   if (selectedEmployeeId) {
     return (
       <OrganizationEmployeeDetailPage
         employeeId={selectedEmployeeId}
-        onBack={() => setSelectedEmployeeId(null)}
-        onEmployeeChange={setSelectedEmployeeId}
+        selectedEmployee={selectedEmployee}
+        onBack={() => {
+          setSelectedEmployeeId(null);
+          setSelectedEmployee(null);
+        }}
+        onEmployeeChange={(employee) => {
+          setSelectedEmployee(employee);
+          setSelectedEmployeeId(employee.id);
+        }}
       />
     );
   }
@@ -798,7 +843,10 @@ export default function OrganizationEmployeePage() {
     >
       <PageBanner
         selectOpen={selectOpen}
-        onToggleSelect={() => setSelectOpen((v) => !v)}
+        onToggleSelect={() => {
+          if (!selectOpen) void loadOrgTree();
+          setSelectOpen((current) => !current);
+        }}
         onAddEmployee={() => setIsAddingEmployee(true)}
         total={stats?.total ?? null}
       />
@@ -807,8 +855,12 @@ export default function OrganizationEmployeePage() {
         {selectOpen && (
           <EmployeeSelectPanel
             onClose={() => setSelectOpen(false)}
-            orgTree={stats?.orgTree ?? []}
-            onEmployeeSelect={(employee) => setSelectedEmployeeId(employee.id)}
+            orgTree={orgTree ?? []}
+            loading={treeLoading}
+            onEmployeeSelect={(employee) => {
+              setSelectedEmployee(employee);
+              setSelectedEmployeeId(employee.id);
+            }}
           />
         )}
 
@@ -843,7 +895,10 @@ export default function OrganizationEmployeePage() {
                   <button
                     key={item}
                     type="button"
-                    onClick={() => setActiveTab(item)}
+                    onClick={() => {
+                      setActiveTab(item);
+                      if (item === "นำเข้าข้อมูลพนักงาน") void loadOrgTree();
+                    }}
                     className={cn(
                       "mb-3 block h-[41.2px] w-full rounded-[8px] border-[1.6px] px-2 py-2 text-center text-sm font-normal leading-[22.001px] tracking-[-0.1px] transition-colors",
                       active
@@ -863,7 +918,7 @@ export default function OrganizationEmployeePage() {
             {activeTab === "ลบข้อมูลพนักงาน" ? (
               <DeleteEmployeeContent />
             ) : activeTab === "นำเข้าข้อมูลพนักงาน" ? (
-              <ImportEmployeeContent organizations={stats?.orgTree ?? []} />
+              <ImportEmployeeContent organizations={orgTree ?? []} />
             ) : activeTab !== "Dashboard" ? (
               <TabPlaceholder tab={activeTab} />
             ) : loadError ? (

@@ -30,10 +30,10 @@ function groupForEmployee(
 }
 
 /**
- * Dashboard data is scoped to the requested payroll month.  The payroll period
- * follows the normal-calculation screen (16th of the previous month through
- * the 15th of the selected month); birthday notifications follow the selected
- * calendar month, matching the "ณ <เดือน>" dashboard heading.
+ * Dashboard data is scoped to the saved payroll period for the requested
+ * month (or the full calendar month when no custom range is saved). Birthday
+ * notifications always follow the selected calendar month, matching the
+ * "ณ <เดือน>" dashboard heading.
  */
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -44,11 +44,20 @@ export async function GET(request: Request) {
   }
 
   const { year, month } = requestedMonth;
-  const periodStart = new Date(Date.UTC(year, month - 2, 16));
-  const periodEnd = new Date(Date.UTC(year, month - 1, 15));
+  const defaultPeriodStart = new Date(Date.UTC(year, month - 1, 1));
+  const defaultPeriodEnd = new Date(Date.UTC(year, month, 0));
   const calendarStart = new Date(Date.UTC(year, month - 1, 1));
 
   try {
+    // A saved period is shared by the modal, dashboard and individual salary
+    // calculation.  The end date is stored as an inclusive DATE value.
+    const savedPeriod = await prisma.payrollRun.findUnique({
+      where: { period: `${year}-${String(month).padStart(2, "0")}` },
+      select: { periodStart: true, periodEnd: true },
+    });
+    const periodStart = savedPeriod?.periodStart ?? defaultPeriodStart;
+    const periodEnd = savedPeriod?.periodEnd ?? defaultPeriodEnd;
+
     // An employee stays in the selected payroll period through their final day,
     // so termination is evaluated by date instead of the employee's current
     // status alone.

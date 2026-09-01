@@ -792,15 +792,7 @@ function SidebarContent({
           })}
         </nav>
 
-        <div className="shrink-0 space-y-0.5 px-2 pb-3 text-center">
-          <button
-            type="button"
-            onClick={() => router.refresh()}
-            className="inline-flex flex-col items-center gap-1 rounded-full px-2 py-1.5 text-[11px] font-medium text-white transition-colors hover:bg-white/15"
-          >
-            <RefreshCw className="size-4" />
-            <span className="max-w-full truncate">โหลดเมนูใหม่</span>
-          </button>
+        <div className="shrink-0 px-2 pb-3 text-center">
           <p className="text-[10px] text-white/80">v.2.6.27</p>
         </div>
       </div>
@@ -924,15 +916,7 @@ function SidebarContent({
       </nav>
 
       {/* Bottom actions */}
-      <div className="shrink-0 space-y-0.5 px-4 pb-1 text-center">
-        <button
-          type="button"
-          onClick={() => router.refresh()}
-          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-normal text-white transition-colors hover:bg-white/15"
-        >
-          โหลดเมนูใหม่
-          <RefreshCw className="size-4" />
-        </button>
+      <div className="shrink-0 px-4 pb-1 text-center">
         <p className="text-[11px] text-white/80">v.2.6.27</p>
       </div>
     </div>

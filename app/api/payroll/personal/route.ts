@@ -4,12 +4,27 @@ import { prisma } from "@/lib/prisma";
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-function periodDates(month: string) {
+function defaultPeriodDates(month: string) {
   const [year, monthNumber] = month.split("-").map(Number);
   return {
     start: new Date(Date.UTC(year, monthNumber - 1, 1)),
     end: new Date(Date.UTC(year, monthNumber, 1)),
   };
+}
+
+async function periodDates(month: string) {
+  const defaultPeriod = defaultPeriodDates(month);
+  const savedPeriod = await prisma.payrollRun.findUnique({
+    where: { period: month },
+    select: { periodStart: true, periodEnd: true },
+  });
+  if (!savedPeriod?.periodStart || !savedPeriod.periodEnd) return defaultPeriod;
+
+  // Values in PayrollRun are inclusive database DATE values.  The existing
+  // attendance and leave queries use an exclusive end boundary.
+  const end = new Date(savedPeriod.periodEnd);
+  end.setUTCDate(end.getUTCDate() + 1);
+  return { start: savedPeriod.periodStart, end };
 }
 
 function numberValue(value: { toString(): string } | number | null | undefined) {
@@ -21,7 +36,7 @@ function isDisabledCalculation(value: string | null | undefined) {
 }
 
 async function getEmployeeCalculation(employeeId: string, month: string) {
-  const { start, end } = periodDates(month);
+  const { start, end } = await periodDates(month);
   const employee = await prisma.employee.findFirst({
     where: { id: employeeId, deletedAt: null },
     include: {

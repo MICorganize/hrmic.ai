@@ -4,8 +4,11 @@ import Link from "next/link";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  ArrowRight,
   Calendar,
   Check,
+  ChevronsLeft,
+  ChevronsRight,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -26,7 +29,9 @@ import {
 
 import { EmployeeSelectPanel, type OrgNode } from "@/components/employee/EmployeeSelectPanel";
 import { Button } from "@/components/ui/button";
+import { Calendar as DatePickerCalendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Table,
   TableBody,
@@ -56,6 +61,8 @@ const MONTHS_TH = [
   "พฤศจิกายน",
   "ธันวาคม",
 ];
+
+const MONTHS_TH_SHORT = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
 
 type DashboardStats = {
   salaryEmployees: number;
@@ -192,23 +199,23 @@ type EmployeeDetailsResponse = {
 };
 
 function toPayrollEmployeeProfile(employee: EmployeeDetailsResponse): EmployeeProfile {
-  const employmentType = employee.employmentType ?? "-";
+  const employmentType = employee.employmentType ?? "";
   return {
     code: employee.employeeCode ?? employee.employeeNumber,
     name: `${employee.firstNameTH} ${employee.lastNameTH}`.trim(),
-    company: employee.companyName ?? "-",
-    branch: employee.branchName ?? "-",
-    department: employee.departmentName ?? "-",
-    position: employee.positionName ?? "-",
-    phone: employee.phone ?? "-",
-    email: employee.email ?? "-",
-    wage: employee.baseSalary ? `${employee.baseSalary.replace(/\.00$/, "")} บาท` : "-",
+    company: employee.companyName ?? "",
+    branch: employee.branchName ?? "",
+    department: employee.departmentName ?? "",
+    position: employee.positionName ?? "",
+    phone: employee.phone ?? "",
+    email: employee.email ?? "",
+    wage: employee.baseSalary ? `${employee.baseSalary.replace(/\.00$/, "")} บาท` : "",
     empGroup: employmentType,
     empType: employmentType,
-    startDate: employee.hireDate ?? "-",
-    hireDate: employee.confirmationDate ?? employee.hireDate ?? "-",
+    startDate: employee.hireDate ?? "",
+    hireDate: employee.confirmationDate ?? employee.hireDate ?? "",
     socialSecurity: employee.socialSecurity?.calculationType ?? "ไม่คิดประกันสังคม",
-    tax: employee.taxInformation?.calculationType ?? "-",
+    tax: employee.taxInformation?.calculationType ?? "",
     calcRound: "เต็มเดือน",
   };
 }
@@ -286,24 +293,308 @@ function BlueTableHead({ children, className }: { children: React.ReactNode; cla
 
 /* --------------------------------- Banner ---------------------------------- */
 
+function PayrollMonthPicker({
+  monthLabel,
+  monthValue,
+  onMonthChange,
+}: {
+  monthLabel: string;
+  monthValue: string;
+  onMonthChange: (month: string) => void;
+}) {
+  const selectedYear = Number(monthValue.slice(0, 4)) || new Date().getFullYear();
+  const selectedMonth = Number(monthValue.slice(5, 7)) - 1;
+  const [open, setOpen] = useState(false);
+  const [viewYear, setViewYear] = useState(selectedYear);
+
+  useEffect(() => {
+    if (open) setViewYear(selectedYear);
+  }, [open, selectedYear]);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="relative inline-flex h-[31.6px] w-full items-center justify-between rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 text-sm font-normal leading-[22px] tracking-[-0.1px] text-[rgba(0,0,0,0.65)] outline-none transition-colors hover:border-[#40a9ff] focus:border-[#40a9ff] focus:ring-1 focus:ring-[#40a9ff]"
+          aria-label="เลือกเดือน"
+        >
+          {monthLabel}
+          <Calendar className="size-4 text-slate-500" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-[280px] gap-0 rounded-[2px] p-0 font-[Kanit,sans-serif] shadow-[0_3px_6px_-4px_rgba(0,0,0,0.12),0_6px_16px_0_rgba(0,0,0,0.08),0_9px_28px_8px_rgba(0,0,0,0.05)]">
+        <div className="flex h-10 items-center justify-between border-b border-[#f0f0f0] px-3">
+          <button type="button" onClick={() => setViewYear((year) => year - 1)} title="ปีก่อนหน้า" aria-label="ปีก่อนหน้า" className="flex size-8 items-center justify-center text-black/65 transition-colors hover:text-[#1890ff]">
+            <ChevronsLeft className="size-4" />
+          </button>
+          <button type="button" onClick={() => setViewYear(selectedYear)} title="เลือกปี" className="h-8 px-2 text-sm font-medium text-black/85 hover:text-[#1890ff]">
+            {viewYear}
+          </button>
+          <button type="button" onClick={() => setViewYear((year) => year + 1)} title="ปีถัดไป" aria-label="ปีถัดไป" className="flex size-8 items-center justify-center text-black/65 transition-colors hover:text-[#1890ff]">
+            <ChevronsRight className="size-4" />
+          </button>
+        </div>
+        <div role="grid" aria-label={`เลือกเดือน ปี ${viewYear}`} className="grid grid-cols-3 gap-y-1 p-3">
+          {MONTHS_TH_SHORT.map((label, monthIndex) => {
+            const selected = viewYear === selectedYear && monthIndex === selectedMonth;
+            return (
+              <button
+                key={label}
+                type="button"
+                role="gridcell"
+                title={label}
+                aria-selected={selected}
+                onClick={() => {
+                  onMonthChange(`${viewYear}-${String(monthIndex + 1).padStart(2, "0")}`);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "mx-auto flex h-8 w-16 items-center justify-center rounded-[2px] text-sm transition-colors",
+                  selected ? "bg-[#1890ff] text-white" : "text-black/65 hover:bg-[#e6f7ff] hover:text-[#1890ff]"
+                )}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function monthRange(monthValue: string) {
+  const [year, month] = monthValue.split("-").map(Number);
+  const monthIndex = (month || 1) - 1;
+  const selectedYear = year || new Date().getFullYear();
+  const formatDate = (day: number) => `${selectedYear}-${String(monthIndex + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return {
+    startDate: formatDate(1),
+    endDate: formatDate(new Date(selectedYear, monthIndex + 1, 0).getDate()),
+  };
+}
+
+type SavedPayrollPeriod = {
+  startDate: string;
+  endDate: string;
+  isConfigured: boolean;
+};
+
+function dateFromKey(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function dateKey(value: Date) {
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+}
+
+function formatThaiDate(dateValue: string) {
+  if (!dateValue) return "";
+  const [year, month, day] = dateValue.split("-").map(Number);
+  return `${String(day).padStart(2, "0")} ${MONTHS_TH[(month || 1) - 1] ?? ""} ${year}`;
+}
+
+function formatPayrollPeriod(startDate: string, endDate: string) {
+  const compactDate = (value: string) => {
+    const [year = "", month = "", day = ""] = value.split("-");
+    return year && month && day ? `${day}/${month}/${year}` : "";
+  };
+  return `ตั้งแต่วันที่ ${compactDate(startDate)} จนถึงวันที่ ${compactDate(endDate)}`;
+}
+
+function PayrollPeriodDatePicker({
+  value,
+  label,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  label: string;
+  onChange: (value: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={label}
+          disabled={disabled}
+          className="min-w-0 flex-1 truncate bg-transparent p-0 text-left font-[Kanit,sans-serif] text-sm leading-[22.001px] outline-none disabled:cursor-wait"
+        >
+          {formatThaiDate(value)}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="!z-[1200] w-auto p-0" align="start">
+        <DatePickerCalendar
+          mode="single"
+          selected={dateFromKey(value)}
+          onSelect={(date) => date && onChange(dateKey(date))}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function SalaryPeriodSettingsModal({
+  open,
+  monthValue,
+  period,
+  onClose,
+  onSave,
+  onReset,
+}: {
+  open: boolean;
+  monthValue: string;
+  period: SavedPayrollPeriod;
+  onClose: () => void;
+  onSave: (period: Pick<SavedPayrollPeriod, "startDate" | "endDate">) => Promise<void>;
+  onReset: () => Promise<void>;
+}) {
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [year, month] = monthValue.split("-").map(Number);
+  const selectedYear = year || new Date().getFullYear();
+  const selectedMonth = (month || 1) - 1;
+
+  useEffect(() => {
+    if (!open) return;
+    setStartDate(period.startDate);
+    setEndDate(period.endDate);
+    setError("");
+  }, [monthValue, open, period.endDate, period.startDate]);
+
+  async function savePeriod() {
+    if (!startDate || !endDate || startDate > endDate) {
+      setError("กรุณาระบุช่วงวันที่ให้ถูกต้อง");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await onSave({ startDate, endDate });
+      onClose();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "ไม่สามารถบันทึกงวดเงินเดือนได้");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function resetPeriod() {
+    setSaving(true);
+    setError("");
+    try {
+      await onReset();
+      const range = monthRange(monthValue);
+      setStartDate(range.startDate);
+      setEndDate(range.endDate);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "ไม่สามารถรีเซ็ตงวดเงินเดือนได้");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (!open) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/[0.32] p-4" role="dialog" aria-modal="true" aria-labelledby="salary-period-settings-title">
+      <button type="button" aria-label="ปิดหน้าต่างตั้งค่างวด" className="absolute inset-0 cursor-default" onClick={onClose} />
+      <section className="relative z-10 w-[733.3333px] max-w-full overflow-hidden rounded-[11px] bg-white font-[Kanit,sans-serif] text-sm shadow-[0_11px_15px_-7px_rgba(0,0,0,0.2),0_24px_38px_3px_rgba(0,0,0,0.14),0_9px_46px_8px_rgba(0,0,0,0.12)]">
+        <header className="modal-header h-[85.7125px] bg-[#61a8ff] p-6 text-white">
+          <div className="flex h-[37.7125px] items-center">
+            <h2 id="salary-period-settings-title" className="text-[24px] font-normal leading-[37.716px]">
+            การคำนวณเงินเดือนของเดือน {MONTHS_TH[selectedMonth] ?? ""} {selectedYear}
+            </h2>
+          </div>
+        </header>
+
+        <div className="modal-body h-[98.38875px] px-9 py-[22.394375px]">
+          <label className="block h-[22px] text-sm font-normal leading-[22.001px] text-black/[0.87]">ตั้งแต่วันที่ - จนถึงวันที่</label>
+          <div className="flex h-[31.6px] items-center rounded-[4px] border-[0.8px] border-[#40a9ff] bg-white px-[11px] py-1 text-sm leading-[22.001px] text-black/[0.65] shadow-[0_0_0_2px_rgba(24,144,255,0.2)]">
+            <PayrollPeriodDatePicker value={startDate} label="วันเริ่มต้น" onChange={setStartDate} disabled={saving} />
+            <span className="flex h-4 w-8 shrink-0 items-center justify-center px-2"><ArrowRight className="size-3.5" /></span>
+            <PayrollPeriodDatePicker value={endDate} label="วันสิ้นสุด" onChange={setEndDate} disabled={saving} />
+            <span className="ml-1 flex h-[22px] w-3 shrink-0 items-center justify-center text-black/45">
+              <Calendar className="size-3" aria-hidden="true" />
+            </span>
+          </div>
+          {error && <p role="alert" className="mt-1 text-xs leading-4 text-[#d9363e]">{error}</p>}
+        </div>
+
+        <footer className="modal-footer flex h-[60.8px] items-center justify-end bg-white p-3 shadow-[0_0_1px_rgba(0,0,0,0.87)]">
+          <button type="button" onClick={onClose} disabled={saving} className="mr-2 h-9 rounded-[4px] bg-[#808b9e] px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#909aaa] disabled:cursor-wait disabled:opacity-70">ยกเลิก</button>
+          <button type="button" onClick={() => void resetPeriod()} disabled={saving} className="mr-2 h-9 min-w-16 rounded-[4px] bg-[#ff4c33] px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_0_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#ff654f] disabled:cursor-wait disabled:opacity-70">ลบ</button>
+          <button type="button" onClick={() => void savePeriod()} disabled={saving} className="h-9 rounded-[4px] bg-[#03ae03] px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#039b03] disabled:cursor-wait disabled:opacity-70">{saving ? "กำลังบันทึก" : "บันทึก"}</button>
+        </footer>
+      </section>
+    </div>,
+    document.body
+  );
+}
+
 function PageBanner({
   monthLabel,
   monthIndex,
   year,
   monthValue,
   onMonthChange,
-  onPrevMonth,
-  onNextMonth,
 }: {
   monthLabel: string;
   monthIndex: number;
   year: number;
   monthValue: string;
   onMonthChange: (month: string) => void;
-  onPrevMonth: () => void;
-  onNextMonth: () => void;
 }) {
-  const monthInputRef = useRef<HTMLInputElement>(null);
+  const [periodSettingsOpen, setPeriodSettingsOpen] = useState(false);
+  const [period, setPeriod] = useState<SavedPayrollPeriod>(() => ({ ...monthRange(monthValue), isConfigured: false }));
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setPeriod({ ...monthRange(monthValue), isConfigured: false });
+
+    async function loadPeriod() {
+      try {
+        const response = await fetch(`/api/payroll/period?month=${encodeURIComponent(monthValue)}`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error("Unable to load saved payroll period");
+        setPeriod((await response.json()) as SavedPayrollPeriod);
+      } catch (requestError) {
+        if ((requestError as { name?: string }).name !== "AbortError") {
+          console.error("Unable to load payroll period:", requestError);
+        }
+      }
+    }
+
+    void loadPeriod();
+    return () => controller.abort();
+  }, [monthValue]);
+
+  async function savePeriod(nextPeriod: Pick<SavedPayrollPeriod, "startDate" | "endDate">) {
+    const response = await fetch("/api/payroll/period", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ month: monthValue, ...nextPeriod }),
+    });
+    const data = (await response.json().catch(() => null)) as SavedPayrollPeriod | { error?: string } | null;
+    if (!response.ok) throw new Error(data && "error" in data ? data.error : "ไม่สามารถบันทึกงวดเงินเดือนได้");
+    setPeriod(data as SavedPayrollPeriod);
+  }
+
+  async function resetPeriod() {
+    const response = await fetch(`/api/payroll/period?month=${encodeURIComponent(monthValue)}`, { method: "DELETE" });
+    const data = (await response.json().catch(() => null)) as SavedPayrollPeriod | { error?: string } | null;
+    if (!response.ok) throw new Error(data && "error" in data ? data.error : "ไม่สามารถรีเซ็ตงวดเงินเดือนได้");
+    setPeriod(data as SavedPayrollPeriod);
+  }
 
   return (
     <section className="h-[7.5rem] bg-[#61a8ff] px-6 text-sm leading-[22px] tracking-[-0.1px] text-white">
@@ -320,56 +611,15 @@ function PageBanner({
 
         {/* Month picker + period (Element: stacked column, ~320px) */}
         <div className="w-80 shrink-0 pt-[2.05px]">
-          <div className="relative inline-flex h-[31.6px] w-full items-center rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 text-[rgba(0,0,0,0.65)]">
-            <button
-              type="button"
-              onClick={onPrevMonth}
-              className="sr-only"
-              aria-label="เดือนก่อนหน้า"
-            >
-              <ChevronLeft className="size-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const picker = monthInputRef.current;
-                if (!picker) return;
-                if (typeof picker.showPicker === "function") picker.showPicker();
-                else picker.focus();
-              }}
-              className="flex h-full w-full items-center justify-between text-sm font-normal leading-[22px] tracking-[-0.1px]"
-            >
-              {monthLabel}
-              <Calendar className="size-4 text-slate-500" />
-            </button>
-            <input
-              ref={monthInputRef}
-              type="month"
-              aria-label="เลือกเดือน"
-              value={monthValue}
-              onChange={(event) => onMonthChange(event.target.value)}
-              className="pointer-events-none absolute inset-0 z-10 h-full w-full opacity-0"
-            />
-            <button
-              type="button"
-              onClick={onNextMonth}
-              className="sr-only"
-              aria-label="เดือนถัดไป"
-            >
-              <ChevronRight className="size-4" />
-            </button>
-          </div>
+          <PayrollMonthPicker monthLabel={monthLabel} monthValue={monthValue} onMonthChange={onMonthChange} />
 
           <div className="flex h-6 items-center justify-between">
             <span className="flex min-w-0 flex-1 justify-center whitespace-nowrap text-sm leading-[22px] tracking-[-0.1px] text-white">
-              {(() => {
-                const month = String(monthIndex + 1).padStart(2, "0");
-                const endDay = String(new Date(year, monthIndex + 1, 0).getDate()).padStart(2, "0");
-                return `ตั้งแต่วันที่ 01/${month}/${year} จนถึงวันที่ ${endDay}/${month}/${year}`;
-              })()}
+              {formatPayrollPeriod(period.startDate, period.endDate)}
             </span>
             <button
               type="button"
+              onClick={() => setPeriodSettingsOpen(true)}
               className="size-6 shrink-0 rounded-full p-0 font-semibold text-white transition-colors hover:bg-white/20"
               aria-label="ตั้งค่างวด"
               title="ตั้งค่างวด"
@@ -379,7 +629,14 @@ function PageBanner({
           </div>
         </div>
       </div>
-
+      <SalaryPeriodSettingsModal
+        open={periodSettingsOpen}
+        monthValue={monthValue}
+        period={period}
+        onClose={() => setPeriodSettingsOpen(false)}
+        onSave={savePeriod}
+        onReset={resetPeriod}
+      />
     </section>
   );
 }
@@ -2381,6 +2638,9 @@ function PersonContent({ monthKey }: { monthKey: string }) {
   const [employeeProfile, setEmployeeProfile] = useState<EmployeeProfile | null>(null);
   const [payroll, setPayroll] = useState<PersonalPayrollData | null>(null);
   const [payrollSaving, setPayrollSaving] = useState(false);
+  // Selecting the same employee is a deliberate refresh action too. The ID
+  // alone would not change, so effects that depend only on it would not run.
+  const [employeeSelectionVersion, setEmployeeSelectionVersion] = useState(0);
   const personTabListRef = useRef<HTMLDivElement>(null);
   const [personTabPagination, setPersonTabPagination] = useState({ before: false, after: false });
 
@@ -2437,7 +2697,7 @@ function PersonContent({ monthKey }: { monthKey: string }) {
       });
 
     return () => controller.abort();
-  }, [monthKey, selectedEmployeeId]);
+  }, [employeeSelectionVersion, monthKey, selectedEmployeeId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2492,7 +2752,7 @@ function PersonContent({ monthKey }: { monthKey: string }) {
 
     void loadWorkTime();
     return () => controller.abort();
-  }, [monthKey, selectedEmployeeId]);
+  }, [employeeSelectionVersion, monthKey, selectedEmployeeId]);
 
   useEffect(() => {
     if (!selectedEmployeeId) {
@@ -2521,7 +2781,7 @@ function PersonContent({ monthKey }: { monthKey: string }) {
 
     void loadEmployeeProfile();
     return () => controller.abort();
-  }, [selectedEmployeeId]);
+  }, [employeeSelectionVersion, selectedEmployeeId]);
 
   useEffect(() => {
     const closeEmployeeList = (event: MouseEvent) => {
@@ -2540,19 +2800,19 @@ function PersonContent({ monthKey }: { monthKey: string }) {
     ? {
         code: selectedCode,
         name: selectedEmployee?.name ?? selectedCode,
-        company: "-",
-        branch: "-",
-        department: "-",
-        position: selectedEmployee?.positionName ?? "-",
-        phone: "-",
-        email: "-",
-        wage: "-",
-        empGroup: selectedEmployee?.type ?? "-",
-        empType: selectedEmployee?.type ?? "-",
-        startDate: "-",
-        hireDate: "-",
-        socialSecurity: "-",
-        tax: "-",
+        company: "",
+        branch: "",
+        department: "",
+        position: selectedEmployee?.positionName ?? "",
+        phone: "",
+        email: "",
+        wage: "",
+        empGroup: selectedEmployee?.type ?? "",
+        empType: selectedEmployee?.type ?? "",
+        startDate: "",
+        hireDate: "",
+        socialSecurity: "",
+        tax: "",
         calcRound: "เต็มเดือน",
       }
     : null;
@@ -2796,6 +3056,7 @@ function PersonContent({ monthKey }: { monthKey: string }) {
             setEmployeeProfile(null);
             setPayroll(null);
             setWork({ rows: [], naDates: [] });
+            setEmployeeSelectionVersion((current) => current + 1);
             setSidebarOpen(false);
           }}
         />
@@ -4475,10 +4736,6 @@ export default function PayrollCalculationPage() {
   }, [monthKey]);
 
   const monthLabel = `${MONTHS_TH[monthIndex]} ${year}`;
-  const shiftMonth = (amount: number) => {
-    setSelectedMonth((current) => new Date(current.getFullYear(), current.getMonth() + amount, 1));
-  };
-
   return (
     <div>
       <PageBanner
@@ -4490,8 +4747,6 @@ export default function PayrollCalculationPage() {
           const [selectedYear, selectedMonthIndex] = month.split("-").map(Number);
           if (selectedYear && selectedMonthIndex) setSelectedMonth(new Date(selectedYear, selectedMonthIndex - 1, 1));
         }}
-        onPrevMonth={() => shiftMonth(-1)}
-        onNextMonth={() => shiftMonth(1)}
       />
 
       <TabsBar activeTab={activeTab} onChange={setActiveTab} />

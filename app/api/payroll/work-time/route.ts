@@ -20,6 +20,23 @@ function parseMonth(value: string | null) {
   return { year, month };
 }
 
+async function payrollPeriod(month: { year: number; month: number }) {
+  const defaultStart = new Date(Date.UTC(month.year, month.month - 1, 1));
+  const defaultEnd = new Date(Date.UTC(month.year, month.month, 1));
+  const periodKey = `${month.year}-${String(month.month).padStart(2, "0")}`;
+  const savedPeriod = await prisma.payrollRun.findUnique({
+    where: { period: periodKey },
+    select: { periodStart: true, periodEnd: true },
+  });
+  if (!savedPeriod?.periodStart || !savedPeriod.periodEnd) {
+    return { periodStart: defaultStart, periodEnd: defaultEnd };
+  }
+
+  const periodEnd = new Date(savedPeriod.periodEnd);
+  periodEnd.setUTCDate(periodEnd.getUTCDate() + 1);
+  return { periodStart: savedPeriod.periodStart, periodEnd };
+}
+
 function dateKey(value: Date) {
   return value.toISOString().slice(0, 10);
 }
@@ -90,10 +107,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "กรุณาระบุพนักงานและเดือนในรูปแบบ YYYY-MM" }, { status: 400 });
   }
 
-  const periodStart = new Date(Date.UTC(selectedMonth.year, selectedMonth.month - 1, 1));
-  const periodEnd = new Date(Date.UTC(selectedMonth.year, selectedMonth.month, 1));
-
   try {
+    const { periodStart, periodEnd } = await payrollPeriod(selectedMonth);
     const employee = await prisma.employee.findFirst({
       where: { id: employeeId, deletedAt: null },
       select: {

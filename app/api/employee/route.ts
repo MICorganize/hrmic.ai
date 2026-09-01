@@ -199,11 +199,28 @@ async function buildOrgTree(employees: EmployeeTreeRow[]): Promise<OrgTreeNode[]
     hashtag: e.hashtag,
   });
 
+  const groupBy = <T,>(items: T[], getKey: (item: T) => string | null) => {
+    const grouped = new Map<string, T[]>();
+    for (const item of items) {
+      const key = getKey(item);
+      if (!key) continue;
+      const group = grouped.get(key);
+      if (group) group.push(item);
+      else grouped.set(key, [item]);
+    }
+    return grouped;
+  };
+  const employeesByCompany = groupBy(employees, (employee) => employee.companyId);
+  const employeesByBranch = groupBy(employees, (employee) => employee.branchId);
+  const employeesByDepartment = groupBy(employees, (employee) => employee.departmentId);
+  const branchesByCompany = groupBy(branches, (branch) => branch.companyId);
+  const departmentsByCompany = groupBy(departments, (department) => department.companyId);
+
   const tree: OrgTreeNode[] = [];
   for (const company of companies) {
-    const companyEmps = employees.filter((e) => e.companyId === company.id);
-    const companyBranches = branches.filter((b) => b.companyId === company.id);
-    const companyDepts = departments.filter((d) => d.companyId === company.id);
+    const companyEmps = employeesByCompany.get(company.id) ?? [];
+    const companyBranches = branchesByCompany.get(company.id) ?? [];
+    const companyDepts = departmentsByCompany.get(company.id) ?? [];
     const deptIdSet = new Set(companyDepts.map((d) => d.id));
 
     const node: OrgTreeNode = {
@@ -216,7 +233,7 @@ async function buildOrgTree(employees: EmployeeTreeRow[]): Promise<OrgTreeNode[]
 
     if (companyBranches.length > 0) {
       for (const branch of companyBranches) {
-        const branchEmps = companyEmps.filter((e) => e.branchId === branch.id);
+        const branchEmps = employeesByBranch.get(branch.id) ?? [];
         const branchNode: OrgTreeNode = {
           id: branch.id,
           code: branch.code,
@@ -228,7 +245,7 @@ async function buildOrgTree(employees: EmployeeTreeRow[]): Promise<OrgTreeNode[]
           (d) => d.branchId === branch.id || (d.branchId === null && companyBranches.length === 1)
         );
         for (const dept of branchDepts) {
-          const deptEmps = branchEmps.filter((e) => e.departmentId === dept.id);
+          const deptEmps = employeesByDepartment.get(dept.id) ?? [];
           branchNode.children!.push({
             id: dept.id,
             code: dept.code,
@@ -245,7 +262,7 @@ async function buildOrgTree(employees: EmployeeTreeRow[]): Promise<OrgTreeNode[]
       }
     } else {
       for (const dept of companyDepts) {
-        const deptEmps = companyEmps.filter((e) => e.departmentId === dept.id);
+        const deptEmps = employeesByDepartment.get(dept.id) ?? [];
         node.children!.push({
           id: dept.id,
           code: dept.code,
@@ -272,69 +289,21 @@ function formatDate(date: Date): string {
   return `${d}/${m}/${date.getUTCFullYear()}`;
 }
 
-export async function GET() {
-  try {
-    const employees = await prisma.employee.findMany({
-      where: { deletedAt: null }, // Exclude soft-deleted employees
-      // Preserve this order when employees are grouped into the selector tree,
-      // so sibling employees appear D001 → D002 → D004 from top to bottom.
-      orderBy: [{ employeeCode: "asc" }, { employeeNumber: "asc" }],
-      select: {
-        id: true,
-        companyId: true,
-        branchId: true,
-        departmentId: true,
-        employeeNumber: true,
-        employeeCode: true,
-        firstNameTH: true,
-        lastNameTH: true,
-        nickname: true,
-        gender: true,
-        nationality: true,
-        status: true,
-        hashtag: true,
-        Branch: { select: { name: true } },
-        Position: { select: { id: true, name: true } },
-        Employment: { select: { employmentType: true } },
-      },
-    });
-
-    const byGender = { male: 0, female: 0, other: 0, unknown: 0 };
-    const byEmploymentType: Record<string, number> = {
-      permanent: 0,
-      dailyWage: 0,
-      temporary: 0,
-      contract: 0,
-      partTime: 0,
-      unknown: 0,
-    };
-    const branchMap = new Map<string, number>();
-    const nationalityMap = new Map<string, number>();
-
-    for (const emp of employees) {
-      if (emp.gender === "male") byGender.male++;
-      else if (emp.gender === "female") byGender.female++;
-      else if (emp.gender === "other") byGender.other++;
-      else byGender.unknown++;
-
-      const type = emp.Employment?.employmentType;
-      byEmploymentType[type ?? "unknown"]++;
-
-      const branch = emp.Branch?.name ?? "ไม่ระบุสาขา";
-      branchMap.set(branch, (branchMap.get(branch) ?? 0) + 1);
-
-      const nat = emp.nationality ?? "ไม่ระบุ";
-      nationalityMap.set(nat, (nationalityMap.get(nat) ?? 0) + 1);
-    }
-
-    const byBranch = [...branchMap.entries()].map(([name, count]) => ({ name, count }));
-    const byNationality = [...nationalityMap.entries()].map(([nationality, count]) => ({
-      nationality,
-      count,
-    }));
-
-    // ประวัติการแก้ไขข้อมูลพนักงาน
-    const timeline = await prisma.employeeTimeline.findMany({
+async function getEmployeeSummary() {
+  // Keep the dashboard payload small. The organisation tree contains every
+  // employee and is fetched only when the employee picker is opened.
+  const activeEmployees = { deletedAt: null };
+  const [total, genderCounts, nationalityCounts, branchCounts, employmentTypeCounts, timeline] = await Promise.all([
+    prisma.employee.count({ where: activeEmployees }),
+    prisma.employee.groupBy({ by: ["gender"], where: activeEmployees, _count: { _all: true } }),
+    prisma.employee.groupBy({ by: ["nationality"], where: activeEmployees, _count: { _all: true } }),
+    prisma.employee.groupBy({ by: ["branchId"], where: activeEmployees, _count: { _all: true } }),
+    prisma.employment.groupBy({
+      by: ["employmentType"],
+      where: { Employee: { deletedAt: null } },
+      _count: { _all: true },
+    }),
+    prisma.employeeTimeline.findMany({
       orderBy: { eventDate: "desc" },
       take: 20,
       select: {
@@ -345,31 +314,100 @@ export async function GET() {
         createdBy: true,
         Employee: { select: { firstNameTH: true, lastNameTH: true } },
       },
-    });
-    const creatorIds = [...new Set(timeline.map((t) => t.createdBy).filter((v): v is string => !!v))];
-    const creators = creatorIds.length
-      ? await prisma.user.findMany({ where: { id: { in: creatorIds } }, select: { id: true, name: true } })
-      : [];
-    const creatorName = new Map(creators.map((u) => [u.id, u.name]));
-    const history = timeline.map((t) => ({
-      id: t.id,
-      subject: `${t.Employee.firstNameTH} ${t.Employee.lastNameTH}`.trim(),
-      by: t.createdBy ? (creatorName.get(t.createdBy) ?? "ระบบ") : "ระบบ",
-      date: formatDate(t.eventDate),
-      note: t.description ?? t.title,
-    }));
+    }),
+  ]);
 
-    const orgTree = await buildOrgTree(employees);
+  const byGender = { male: 0, female: 0, other: 0, unknown: 0 };
+  const byEmploymentType: Record<string, number> = {
+    permanent: 0,
+    dailyWage: 0,
+    temporary: 0,
+    contract: 0,
+    partTime: 0,
+    unknown: total,
+  };
 
-    return NextResponse.json({
-      total: employees.length,
-      byGender,
-      byEmploymentType,
-      byBranch,
-      byNationality,
-      history,
-      orgTree,
-    });
+  for (const group of genderCounts) {
+    if (group.gender === "male") byGender.male = group._count._all;
+    else if (group.gender === "female") byGender.female = group._count._all;
+    else if (group.gender === "other") byGender.other = group._count._all;
+    else byGender.unknown = group._count._all;
+  }
+  for (const group of employmentTypeCounts) {
+    byEmploymentType[group.employmentType] = group._count._all;
+    byEmploymentType.unknown -= group._count._all;
+  }
+
+  const branchIds = branchCounts.flatMap((group) => (group.branchId ? [group.branchId] : []));
+  const branches = branchIds.length
+    ? await prisma.branch.findMany({ where: { id: { in: branchIds } }, select: { id: true, name: true } })
+    : [];
+  const branchNames = new Map(branches.map((branch) => [branch.id, branch.name]));
+
+  const creatorIds = [...new Set(timeline.map((entry) => entry.createdBy).filter((value): value is string => !!value))];
+  const creators = creatorIds.length
+    ? await prisma.user.findMany({ where: { id: { in: creatorIds } }, select: { id: true, name: true } })
+    : [];
+  const creatorName = new Map(creators.map((user) => [user.id, user.name]));
+
+  return {
+    total,
+    byGender,
+    byEmploymentType,
+    byBranch: branchCounts.map((group) => ({
+      name: group.branchId ? (branchNames.get(group.branchId) ?? "ไม่ระบุสาขา") : "ไม่ระบุสาขา",
+      count: group._count._all,
+    })),
+    byNationality: nationalityCounts.map((group) => ({
+      nationality: group.nationality ?? "ไม่ระบุ",
+      count: group._count._all,
+    })),
+    history: timeline.map((entry) => ({
+      id: entry.id,
+      subject: `${entry.Employee.firstNameTH} ${entry.Employee.lastNameTH}`.trim(),
+      by: entry.createdBy ? (creatorName.get(entry.createdBy) ?? "ระบบ") : "ระบบ",
+      date: formatDate(entry.eventDate),
+      note: entry.description ?? entry.title,
+    })),
+  };
+}
+
+async function getOrganizationTree() {
+  const employees = await prisma.employee.findMany({
+    where: { deletedAt: null },
+    orderBy: [{ employeeCode: "asc" }, { employeeNumber: "asc" }],
+    select: {
+      id: true,
+      companyId: true,
+      branchId: true,
+      departmentId: true,
+      employeeNumber: true,
+      employeeCode: true,
+      firstNameTH: true,
+      lastNameTH: true,
+      nickname: true,
+      status: true,
+      hashtag: true,
+      Position: { select: { id: true, name: true } },
+      Employment: { select: { employmentType: true } },
+    },
+  });
+
+  return buildOrgTree(employees);
+}
+
+export async function GET(request: Request) {
+  try {
+    const view = new URL(request.url).searchParams.get("view");
+    const headers = { "Cache-Control": "private, max-age=30, stale-while-revalidate=60" };
+
+    if (view === "summary") return NextResponse.json(await getEmployeeSummary(), { headers });
+    if (view === "tree") return NextResponse.json({ orgTree: await getOrganizationTree() }, { headers });
+
+    // Preserve the original response for any existing callers while new pages
+    // opt into the much smaller, task-specific payloads above.
+    const [summary, orgTree] = await Promise.all([getEmployeeSummary(), getOrganizationTree()]);
+    return NextResponse.json({ ...summary, orgTree }, { headers });
   } catch (err) {
     console.error("GET /api/employee failed:", err);
     return NextResponse.json({ error: "ไม่สามารถโหลดข้อมูลพนักงานได้" }, { status: 500 });

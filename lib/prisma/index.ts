@@ -35,9 +35,16 @@ const hasIndividualGeneralSetting = Boolean(cachedPrisma && "individualGeneralSe
 const hasIndividualOvertimeSetting = Boolean(cachedPrisma && "individualOvertimeSetting" in cachedPrisma);
 const hasIndividualShiftHolidaySetting = Boolean(cachedPrisma && "individualShiftHolidaySetting" in cachedPrisma);
 const hasIndividualWorkTimeSetting = Boolean(cachedPrisma && "individualWorkTimeSetting" in cachedPrisma);
+const hasPayrollRunPeriodFields = Boolean(
+  cachedRuntimeModel?._runtimeDataModel?.models?.PayrollRun?.fields?.some(
+    (field) => field.name === "periodStart"
+  ) && cachedRuntimeModel?._runtimeDataModel?.models?.PayrollRun?.fields?.some(
+    (field) => field.name === "periodEnd"
+  )
+);
 
 export const prisma =
-  cachedPrisma && hasEmployeeTypeDefinition && hasEmploymentTypeDefinitionField && hasAttendanceDayTypeField && hasIndividualGeneralSetting && hasIndividualOvertimeSetting && hasIndividualShiftHolidaySetting && hasIndividualWorkTimeSetting
+  cachedPrisma && hasEmployeeTypeDefinition && hasEmploymentTypeDefinitionField && hasAttendanceDayTypeField && hasIndividualGeneralSetting && hasIndividualOvertimeSetting && hasIndividualShiftHolidaySetting && hasIndividualWorkTimeSetting && hasPayrollRunPeriodFields
     ? cachedPrisma
     : createPrismaClient();
 

@@ -136,6 +136,55 @@ type EmployeeDetail = {
   hashtag: string | null;
 };
 
+function detailPreviewFromTreeNode(employee: OrgNode): EmployeeDetail {
+  return {
+    id: employee.id,
+    employeeNumber: employee.code,
+    employeeCode: employee.code || null,
+    fingerprintCode: null,
+    title: null,
+    firstNameTH: employee.name,
+    lastNameTH: "",
+    nickname: null,
+    firstNameEN: null,
+    lastNameEN: null,
+    nicknameEN: null,
+    gender: null,
+    nationality: null,
+    maritalStatus: null,
+    birthDate: null,
+    age: null,
+    phone: null,
+    email: "",
+    citizenId: null,
+    alienIdNumber: null,
+    passportNo: null,
+    workPermitNo: null,
+    companyName: null,
+    branchName: null,
+    departmentName: null,
+    positionName: employee.positionName ?? null,
+    hireDate: null,
+    confirmationDate: null,
+    contractEndDate: null,
+    retirementDate: null,
+    probationDays: null,
+    probationDate: null,
+    baseSalary: null,
+    advanceType: null,
+    advanceLimit: null,
+    employmentType: employee.type ?? null,
+    paymentChannel: null,
+    companyPayoutAccount: null,
+    socialSecurity: null,
+    taxInformation: null,
+    bankAccount: null,
+    addresses: [],
+    description: null,
+    hashtag: employee.hashtag ?? null,
+  };
+}
+
 type AddressLocation = {
   id: string;
   subdistrictId: string;
@@ -1457,12 +1506,14 @@ function ErrorCard({ onRetry }: { onRetry: () => void }) {
 
 export default function OrganizationEmployeeDetailPage({
   employeeId: selectedEmployeeId,
+  selectedEmployee,
   onBack,
   onEmployeeChange,
 }: {
   employeeId?: string;
+  selectedEmployee?: OrgNode | null;
   onBack?: () => void;
-  onEmployeeChange?: (employeeId: string) => void;
+  onEmployeeChange?: (employee: OrgNode) => void;
 }) {
   const params = useParams<{ id?: string }>();
   const employeeId = selectedEmployeeId ?? params.id ?? "";
@@ -1470,11 +1521,17 @@ export default function OrganizationEmployeeDetailPage({
   const [selectOpen, setSelectOpen] = useState(false);
   const tabsScrollRef = useRef<HTMLDivElement>(null);
   const [tabPagination, setTabPagination] = useState({ canGoBack: false, canGoForward: true });
-  const [emp, setEmp] = useState<EmployeeDetail | null>(null);
+  const [loadedEmp, setEmp] = useState<EmployeeDetail | null>(() =>
+    selectedEmployee ? detailPreviewFromTreeNode(selectedEmployee) : null
+  );
   const [orgTree, setOrgTree] = useState<OrgNode[]>([]);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  // A selected ID can stay the same when the user picks the current employee
+  // from the picker again. Keep a separate reload value so that action still
+  // fetches the latest detail instead of being ignored by React's state bailout.
+  const [reloadVersion, setReloadVersion] = useState(0);
 
   const load = useCallback(async () => {
     const res = await fetch(`/api/employee/${employeeId}`);
@@ -1508,7 +1565,7 @@ export default function OrganizationEmployeeDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [load]);
+  }, [load, reloadVersion]);
 
   useEffect(() => {
     const closeEmployeeList = () => setSelectOpen(false);
@@ -1517,18 +1574,8 @@ export default function OrganizationEmployeeDetailPage({
   }, []);
 
   const retry = useCallback(() => {
-    setError(false);
-    setLoading(true);
-    (async () => {
-      try {
-        setEmp(await load());
-      } catch {
-        setError(true);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [load]);
+    setReloadVersion((current) => current + 1);
+  }, []);
 
   const updateTabPagination = useCallback(() => {
     const element = tabsScrollRef.current;
@@ -1543,7 +1590,12 @@ export default function OrganizationEmployeeDetailPage({
     tabsScrollRef.current?.scrollBy({ left: direction * 320, behavior: "smooth" });
   }, []);
 
-  if (loading) return <LoadingCard />;
+  const isPreview = Boolean(
+    selectedEmployee && selectedEmployee.id === employeeId && loadedEmp?.id !== employeeId
+  );
+  const emp = isPreview ? detailPreviewFromTreeNode(selectedEmployee!) : loadedEmp;
+
+  if (loading && !emp) return <LoadingCard />;
   if (error) return <ErrorCard onRetry={retry} />;
   if (!emp) return <NotFoundCard onBack={onBack} />;
 
@@ -1559,9 +1611,15 @@ export default function OrganizationEmployeeDetailPage({
   const orgLabel = [emp.companyName, emp.branchName].filter(Boolean).join(" - ");
   const startDuration = employmentDuration(emp.hireDate);
   const confirmationDuration = employmentDuration(emp.confirmationDate);
+  const pendingValue = (loading && selectedEmployee) || isPreview ? "" : "-";
 
   return (
     <div
+      className={cn(
+        "transition-[opacity,transform] duration-200 ease-out",
+        isPreview ? "translate-y-0.5 opacity-75" : "translate-y-0 opacity-100"
+      )}
+      aria-busy={loading}
       onClick={(event) => {
         const target = event.target as HTMLElement;
         if (!target.closest("[data-employee-select-panel]") && !target.closest("[data-employee-select-trigger]")) {
@@ -1634,16 +1692,16 @@ export default function OrganizationEmployeeDetailPage({
                 <div id="section-user-name-1" className="flex w-[198.5375px] shrink-0 flex-col">
                   <p className="whitespace-nowrap text-xl font-semibold leading-[30.4px]">{emp.firstNameTH} {emp.lastNameTH}</p>
                   <div className="text-[14px] font-normal text-[#f5f5f5]">
-                    <p className="whitespace-nowrap leading-[20.8px]">ตำแหน่ง: <span className="font-medium text-white">{emp.positionName ?? "-"}</span></p>
-                    <p className="whitespace-nowrap leading-[20.8px]">แผนก: <span className="font-medium text-white">{emp.departmentName ?? "-"}</span></p>
-                    <p className="whitespace-nowrap leading-[20.8px]">ประเภทพนักงาน: <span className="font-medium text-white">{emp.employmentType ?? "-"}</span></p>
+                    <p className="whitespace-nowrap leading-[20.8px]">ตำแหน่ง: <span className="font-medium text-white">{emp.positionName ?? pendingValue}</span></p>
+                    <p className="whitespace-nowrap leading-[20.8px]">แผนก: <span className="font-medium text-white">{emp.departmentName ?? pendingValue}</span></p>
+                    <p className="whitespace-nowrap leading-[20.8px]">ประเภทพนักงาน: <span className="font-medium text-white">{emp.employmentType ?? pendingValue}</span></p>
                   </div>
                 </div>
 
                 <div id="section-user-name-2" className="flex w-[229.625px] shrink-0 translate-x-[30px] flex-col text-[14px] font-normal text-[#f5f5f5]">
-                  <p className="translate-y-[5px] whitespace-nowrap leading-[20.8px]">วันที่เริ่มงาน: <span className="font-medium text-white">{emp.hireDate ?? "-"}{startDuration && ` ${startDuration}`}</span></p>
-                  <p className="translate-y-[5px] whitespace-nowrap leading-[20.8px]">วันที่บรรจุ: <span className="font-medium text-white">{emp.confirmationDate ?? "-"}{confirmationDuration && ` ${confirmationDuration}`}</span></p>
-                  <p className="translate-y-[5px] whitespace-nowrap leading-[20.8px]">เบอร์โทรศัพท์: <span className="font-medium text-white">{emp.phone ?? "-"}</span></p>
+                  <p className="translate-y-[5px] whitespace-nowrap leading-[20.8px]">วันที่เริ่มงาน: <span className="font-medium text-white">{emp.hireDate ?? pendingValue}{startDuration && ` ${startDuration}`}</span></p>
+                  <p className="translate-y-[5px] whitespace-nowrap leading-[20.8px]">วันที่บรรจุ: <span className="font-medium text-white">{emp.confirmationDate ?? pendingValue}{confirmationDuration && ` ${confirmationDuration}`}</span></p>
+                  <p className="translate-y-[5px] whitespace-nowrap leading-[20.8px]">เบอร์โทรศัพท์: <span className="font-medium text-white">{emp.phone ?? pendingValue}</span></p>
                   <p className="translate-y-[5px] whitespace-nowrap leading-[20.8px]">อีเมล: <span className="font-medium text-white">{emp.email}</span></p>
                 </div>
 
@@ -1681,7 +1739,14 @@ export default function OrganizationEmployeeDetailPage({
           <EmployeeSelectPanel
             onClose={() => setSelectOpen(false)}
             orgTree={orgTree}
-            onEmployeeSelect={onEmployeeChange ? (employee) => onEmployeeChange(employee.id) : undefined}
+            onEmployeeSelect={onEmployeeChange ? (employee) => {
+              setSelectOpen(false);
+              if (employee.id === employeeId) {
+                setReloadVersion((current) => current + 1);
+                return;
+              }
+              onEmployeeChange(employee);
+            } : undefined}
           />
         )}
 
@@ -1748,7 +1813,7 @@ export default function OrganizationEmployeeDetailPage({
           <Card className="rounded-[5px] border-0 bg-white shadow-none">
             <CardContent className="space-y-1 bg-white px-7 pb-6 pt-5">
               <form
-                key={emp.id}
+                key={`${emp.id}-${isPreview || loading ? "preview" : "loaded"}`}
                 className="space-y-1"
                 onSubmit={async (event) => {
                   event.preventDefault();
