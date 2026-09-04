@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ComponentType } from "react";
+import { useSearchParams } from "next/navigation";
 import {
+  ChevronDown,
   ChevronRight,
   Menu,
   RefreshCw,
@@ -12,6 +14,7 @@ import { EmployeeSelectPanel, type OrgNode } from "@/components/employee/Employe
 import OrganizationEmployeeCreatePage from "./create/page";
 import OrganizationEmployeeDetailPage from "./[id]/page";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Table,
   TableBody,
@@ -26,12 +29,49 @@ import { cn } from "@/lib/utils";
 
 type EmployeeStats = {
   total: number;
+  company: { id: string; name: string; code: string | null } | null;
   byGender: { male: number; female: number; other: number; unknown: number };
   byEmploymentType: Record<string, number>;
   byBranch: { name: string; count: number }[];
   byNationality: { nationality: string; count: number }[];
   history: { id: string; subject: string; by: string; date: string; note: string }[];
 };
+
+type OrganizationRecord = {
+  id: string;
+  kind: "company" | "branch" | "department";
+  name: string;
+  code: string;
+  children?: OrganizationRecord[];
+};
+
+type OrganizationOption = {
+  id: string;
+  name: string;
+  code: string;
+  kind: OrganizationRecord["kind"];
+};
+
+function flattenOrganizationRecords(nodes: OrganizationRecord[], depth = 0): OrganizationOption[] {
+  return nodes.flatMap((node) => [
+    { id: node.id, name: `${"\u00a0\u00a0".repeat(depth)}${node.name}`, code: node.code, kind: node.kind },
+    ...flattenOrganizationRecords(node.children ?? [], depth + 1),
+  ]);
+}
+
+function OrganizationTreeDropdown({ companies, value, loading, onChange }: { companies: OrganizationRecord[]; value: string; loading: boolean; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set(companies.map((company) => company.id)));
+  useEffect(() => setExpanded((current) => new Set([...current, ...companies.map((company) => company.id)])), [companies]);
+  const findNode = (nodes: OrganizationRecord[]): OrganizationRecord | undefined => { for (const node of nodes) { if (node.id === value) return node; const child = findNode(node.children ?? []); if (child) return child; } return undefined; };
+  const selectedNode = findNode(companies);
+  const renderNode = (node: OrganizationRecord, depth = 0): React.ReactNode => {
+    const hasChildren = (node.children?.length ?? 0) > 0;
+    const isExpanded = expanded.has(node.id);
+    return <li key={`${node.kind}-${node.id}`} role="treeitem" aria-level={depth + 1} aria-expanded={hasChildren ? isExpanded : undefined}><div className="flex min-h-6 items-center rounded-none pr-1 hover:bg-[#f5f5f5]"><span aria-hidden className="h-6 shrink-0" style={{ width: `${depth * 18}px` }} />{hasChildren ? <button type="button" onClick={() => setExpanded((current) => { const next = new Set(current); next.has(node.id) ? next.delete(node.id) : next.add(node.id); return next; })} className="flex size-6 shrink-0 items-center justify-center text-[#666] hover:text-[#1677ff]" aria-label={isExpanded ? `ยุบ ${node.name}` : `ขยาย ${node.name}`}>{isExpanded ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}</button> : <span className="size-6 shrink-0" />}<button type="button" disabled={hasChildren} onClick={() => { onChange(node.id); setOpen(false); }} className={cn("min-w-0 flex-1 rounded-none px-1 py-0 text-left text-sm leading-6", hasChildren ? "cursor-not-allowed text-black/25" : "text-black/85 hover:bg-[#e6f7ff]", value === node.id && "bg-[#e6f7ff] text-[#1677ff]")} title={node.name}>{node.name}</button></div>{hasChildren && isExpanded && <ul role="group" className="m-0 list-none p-0">{(node.children ?? []).map((child) => renderNode(child, depth + 1))}</ul>}</li>;
+  };
+  return <Popover open={open} onOpenChange={setOpen}><PopoverTrigger asChild><button type="button" disabled={loading || companies.length === 0} className="flex h-8 w-full items-center justify-between rounded-[2px] border border-[#d9d9d9] bg-white px-[11px] text-left text-sm leading-[22px] text-black/85 shadow-none transition-colors focus-visible:outline-none focus-visible:border-[#40a9ff] focus-visible:shadow-[0_0_0_2px_rgba(24,144,255,0.2)] disabled:cursor-not-allowed disabled:bg-[#f5f5f5] disabled:text-black/25"><span className={cn("truncate", !selectedNode && "text-black/25")}>{loading ? "กำลังโหลดโครงสร้างองค์กร..." : selectedNode?.name ?? "ข้อมูลองค์กร"}</span><ChevronDown className="ml-2 size-4 shrink-0 text-black/25" /></button></PopoverTrigger><PopoverContent align="start" sideOffset={0} className="max-h-[280px] w-[var(--radix-popover-trigger-width)] overflow-auto rounded-[2px] bg-white p-1 shadow-[0_3px_6px_-4px_rgba(0,0,0,0.12),0_6px_16px_0_rgba(0,0,0,0.08),0_9px_28px_8px_rgba(0,0,0,0.05)] ring-0"><ul role="tree" aria-label="ข้อมูลองค์กร" className="m-0 list-none p-0">{companies.map((company) => renderNode(company))}</ul></PopoverContent></Popover>;
+}
 
 type ImportEmployee = { id: string; code: string; name: string };
 type ImportHistory = { id: string; date: string; total: number; inserted: number; updated: number; deleted: number; errors: number };
@@ -142,11 +182,13 @@ function PageBanner({
   onToggleSelect,
   onAddEmployee,
   total,
+  companyCode,
 }: {
   selectOpen: boolean;
   onToggleSelect: () => void;
   onAddEmployee: () => void;
   total: number | null;
+  companyCode: string | null;
 }) {
   const maxDisplay = 2;
   const loaded = total ?? 0;
@@ -459,7 +501,9 @@ function ImportEmployeeContent({ organizations }: { organizations: OrgNode[] }) 
   const [importError, setImportError] = useState<string | null>(null);
   const [templateOrganizationId, setTemplateOrganizationId] = useState("");
   const [organization, setOrganization] = useState("");
+  const [databaseOrganizationTree, setDatabaseOrganizationTree] = useState<OrganizationRecord[]>([]);
   const [position, setPosition] = useState("");
+  const [databaseOrganizations, setDatabaseOrganizations] = useState<OrganizationOption[]>([]);
   const allOrganizationNodes: OrgNode[] = [];
   const collectOrganizationNodes = (nodes: OrgNode[]) => {
     nodes.forEach((node) => {
@@ -468,9 +512,10 @@ function ImportEmployeeContent({ organizations }: { organizations: OrgNode[] }) 
     });
   };
   collectOrganizationNodes(organizations);
-  const organizationOptions = allOrganizationNodes
+  const legacyOrganizationOptions = allOrganizationNodes
     .filter((node) => node.count !== undefined || (node.children?.length ?? 0) > 0)
-    .map((node) => ({ id: node.id, name: node.name }));
+    .map((node) => ({ id: node.id, name: node.name, code: node.code, kind: "department" as const }));
+  const organizationOptions = databaseOrganizations.length > 0 ? databaseOrganizations : legacyOrganizationOptions;
   const positionOptions = Array.from(
     new Map(
       allOrganizationNodes
@@ -488,6 +533,27 @@ function ImportEmployeeContent({ organizations }: { organizations: OrgNode[] }) 
     const data = (await response.json()) as { employees: ImportEmployee[]; history: ImportHistory[] };
     setImportEmployees(data.employees);
     setImportHistory(data.history);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadOrganizations = async () => {
+      try {
+        const response = await fetch("/api/organization", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = (await response.json()) as { companies?: OrganizationRecord[] };
+        if (!cancelled) {
+          setDatabaseOrganizationTree(data.companies ?? []);
+          setDatabaseOrganizations(flattenOrganizationRecords(data.companies ?? []));
+        }
+      } catch {
+        // The employee tree remains a safe fallback while the organization API is unavailable.
+      }
+    };
+    void loadOrganizations();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -562,7 +628,7 @@ function ImportEmployeeContent({ organizations }: { organizations: OrgNode[] }) 
                       <select value={templateOrganizationId} onChange={(event) => setTemplateOrganizationId(event.target.value)} aria-label="โครงสร้างองค์กร" className="h-8 w-full rounded-[4px] border border-[#d9d9d9] bg-white px-3 text-sm text-muted-foreground outline-none focus:border-[#2299ff] focus:ring-1 focus:ring-[#2299ff]">
                         <option value="" disabled>โครงสร้างองค์กร</option>
                         {organizationOptions.map((organization) => (
-                          <option key={organization.id} value={organization.id}>{organization.name}</option>
+                          <option key={organization.id} value={organization.id}>{organization.code}: {organization.name}</option>
                         ))}
                       </select>
                     </div>
@@ -604,13 +670,8 @@ function ImportEmployeeContent({ organizations }: { organizations: OrgNode[] }) 
           </div>
           <div className="mx-8 mt-2">
             <div className="mb-4">
-              <label className="mb-1 block text-sm leading-[22px] text-foreground">ข้อมูลองค์กร</label>
-              <select value={organization} onChange={(event) => setOrganization(event.target.value)} className="h-8 w-full rounded-[4px] border border-[#d9d9d9] bg-white px-3 text-sm leading-[22px] text-foreground outline-none focus:border-[#2299ff] focus:ring-1 focus:ring-[#2299ff]">
-                <option value="">ข้อมูลองค์กร</option>
-                        {organizationOptions.map((item) => (
-                          <option key={item.id} value={item.id}>{item.name}</option>
-                        ))}
-              </select>
+              <label className="mb-1 block font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-[rgba(0,0,0,0.65)]">ข้อมูลองค์กร</label>
+              <OrganizationTreeDropdown companies={databaseOrganizationTree} value={organization} loading={databaseOrganizationTree.length === 0 && organizationOptions.length === 0} onChange={setOrganization} />
             </div>
             <AssignmentTable employees={importEmployees} selected={selectedDepartmentEmployees} onChange={setSelectedDepartmentEmployees} />
             <div className="mt-4 flex justify-end"><button type="button" onClick={() => void saveAssignments("department", selectedDepartmentEmployees, organization)} className="m-1 h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#029702]">บันทึก</button></div>
@@ -721,9 +782,11 @@ function TabPlaceholder({ tab }: { tab: string }) {
 /* ---------------------------------- Page ---------------------------------- */
 
 export default function OrganizationEmployeePage() {
+  const searchParams = useSearchParams();
+  const companyId = searchParams.get("companyId")?.trim() ?? "";
   const [activeTab, setActiveTab] = useState(SUBMENU_ITEMS[0]);
   const [isAddingEmployee, setIsAddingEmployee] = useState(false);
-  const [selectOpen, setSelectOpen] = useState(false);
+  const [selectOpen, setSelectOpen] = useState(() => Boolean(companyId));
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<OrgNode | null>(null);
   const [stats, setStats] = useState<EmployeeStats | null>(null);
@@ -732,18 +795,22 @@ export default function OrganizationEmployeePage() {
   const [loadError, setLoadError] = useState(false);
 
   const loadStats = useCallback(async (fresh = false) => {
-    const suffix = fresh ? `&refresh=${Date.now()}` : "";
-    const res = await fetch(`/api/employee?view=summary${suffix}`);
+    const params = new URLSearchParams({ view: "summary" });
+    if (companyId) params.set("companyId", companyId);
+    if (fresh) params.set("refresh", String(Date.now()));
+    const res = await fetch(`/api/employee?${params.toString()}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return (await res.json()) as EmployeeStats;
-  }, []);
+  }, [companyId]);
 
   const loadOrgTree = useCallback(async (fresh = false) => {
     if (!fresh && orgTree !== null) return orgTree;
     setTreeLoading(true);
     try {
-      const suffix = fresh ? `&refresh=${Date.now()}` : "";
-      const res = await fetch(`/api/employee?view=tree${suffix}`);
+      const params = new URLSearchParams({ view: "tree" });
+      if (companyId) params.set("companyId", companyId);
+      if (fresh) params.set("refresh", String(Date.now()));
+      const res = await fetch(`/api/employee?${params.toString()}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { orgTree: OrgNode[] };
       setOrgTree(data.orgTree);
@@ -751,7 +818,7 @@ export default function OrganizationEmployeePage() {
     } finally {
       setTreeLoading(false);
     }
-  }, [orgTree]);
+  }, [companyId, orgTree]);
 
   const runLoad = useCallback(async () => {
     setLoadError(false);
@@ -849,6 +916,7 @@ export default function OrganizationEmployeePage() {
         }}
         onAddEmployee={() => setIsAddingEmployee(true)}
         total={stats?.total ?? null}
+        companyCode={stats?.company?.code ?? null}
       />
 
       <div className="relative min-h-[calc(100vh-10rem)] bg-[#f1f7fc] px-3 pb-8 pt-10 sm:px-4 lg:px-0 lg:pt-0">

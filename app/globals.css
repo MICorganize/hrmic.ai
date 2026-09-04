@@ -2,6 +2,42 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
+/* The reference application ships this Kanit release as TTFs. Keep this menu
+   on that exact face so Thai and Latin glyph metrics stay aligned. */
+@font-face {
+  font-family: "HumansoftKanit";
+  src: url("/fonts/humansoft/Kanit-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+.company-widget-group {
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+  scrollbar-width: thin;
+}
+
+.company-widget-group::-webkit-scrollbar {
+  width: 8px;
+}
+
+.company-widget-group::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.company-widget-group::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+@font-face {
+  font-family: "HumansoftKanit";
+  src: url("/fonts/humansoft/Kanit-Medium.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
 @font-face {
   font-family: "Anuphan";
   src: url("/fonts/anuphan/Anuphan-Regular.woff2") format("woff2");
@@ -81,7 +117,7 @@
 }
 
 :root {
-  /* HRMic.ai — Humansoft style palette (micorganize.humansoft.co.th) */
+/* HRMic.ai palette */
   --background: #e7eff8;
   --foreground: #1c2430;
   --card: #ffffff;

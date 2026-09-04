@@ -22,6 +22,7 @@ import { EmployeeSelectPanel, type OrgNode } from "@/components/employee/Employe
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { USER_IMAGE_ORIGIN } from "@/lib/external-assets";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -51,7 +52,7 @@ const NO_WRAP_TABS = new Set([
   "โรงพยาบาลตามสิทธิ",
 ]);
 
-/** Measured widths from the Humansoft employee-header tab strip at desktop size. */
+/** Measured widths from the HRMic employee-header tab strip at desktop size. */
 const HEADER_TAB_WIDTHS: Partial<Record<(typeof TABS)[number], number>> = {
   "ข้อมูลพื้นฐาน": 160,
   "ตั้งค่า": 160,
@@ -636,9 +637,7 @@ function AddressLocationAutocomplete({
 
 function formatAddressLocation(address: EmployeeDetail["addresses"][number] | undefined) {
   if (!address) return "";
-  if (!address.subdistrict || !address.district || !address.province || !address.postalCode) {
-    return address.postalCode ?? "";
-  }
+  if (!address.subdistrict || !address.district || !address.province) return address.postalCode ?? "";
   const isBangkok = address.province === "กรุงเทพมหานคร";
   const subdistrict = address.subdistrict.startsWith(isBangkok ? "แขวง" : "ตำบล")
     ? address.subdistrict
@@ -649,7 +648,7 @@ function formatAddressLocation(address: EmployeeDetail["addresses"][number] | un
   const province = isBangkok || address.province.startsWith("จังหวัด")
     ? address.province
     : `จังหวัด${address.province}`;
-  return `${subdistrict} ${district} ${province} ${address.postalCode}`;
+  return [subdistrict, district, province, address.postalCode].filter(Boolean).join(" ");
 }
 
 function getStoredAddressLocation(
@@ -683,17 +682,23 @@ function PersonalHistoryContent({ employee, employeeId, onSaved }: { employee: E
   const save = async () => {
     setSaveState("saving");
     try {
-      const addressPayload = (type: "permanent" | "current", addressLine: string, location: StoredAddressLocation | null) => ({
+      if ((addressValues.permanentPostal.trim() && !selectedLocations.permanent) || (addressValues.currentPostal.trim() && !selectedLocations.current)) {
+        setSaveState("error");
+        return;
+      }
+      const addressPayload = (type: "permanent" | "current", addressLine: string, location: StoredAddressLocation | null) => {
+        return {
         type,
         addressLine,
         postalCode: location?.postalCode ?? null,
-        province: location?.province ?? null,
-        district: location?.district ?? null,
-        subdistrict: location?.subdistrict ?? null,
+        province: location?.province || null,
+        district: location?.district || null,
+        subdistrict: location?.subdistrict || null,
         provinceId: location?.provinceId || null,
         districtId: location?.districtId || null,
         subdistrictId: location?.subdistrictId || null,
-      });
+        };
+      };
       const response = await fetch(`/api/employee/${employeeId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ addresses: [
         addressPayload("permanent", addressValues.permanent, selectedLocations.permanent),
         addressPayload("current", addressValues.current, selectedLocations.current),
@@ -1677,7 +1682,7 @@ export default function OrganizationEmployeeDetailPage({
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 id="image-user"
-                src="https://web-core.humansoft.co.th/images/userPlaceHolder.png"
+                src={`${USER_IMAGE_ORIGIN}/images/userPlaceHolder.png`}
                 alt=""
                 className="ml-6 mr-2 block size-24 rounded-full object-fill shadow-[0_0_0_1.79272px_rgba(3,174,3,0.7),0_0_0_7.88179px_rgba(3,174,3,0.333)]"
               />

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { verifyPassword } from "@/lib/encryption/password";
+import { getActiveCompany } from "@/lib/active-company";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
@@ -45,17 +46,19 @@ export async function POST(request: Request) {
       );
     }
 
+    const company = await getActiveCompany();
     // Build the where clause
     let where: Record<string, unknown>;
 
     if (purgeAll) {
       // Purge ALL soft-deleted employees (no retention check)
-      where = { deletedAt: { not: null } };
+      where = { deletedAt: { not: null }, ...(company ? { companyId: company.id } : {}) };
     } else if (Array.isArray(employeeIds) && employeeIds.length > 0) {
       // Purge specific employees — must be soft-deleted
       where = {
         id: { in: employeeIds },
         deletedAt: { not: null },
+        ...(company ? { companyId: company.id } : {}),
       };
     } else {
       return NextResponse.json(
@@ -86,7 +89,7 @@ export async function POST(request: Request) {
 
     // Hard delete — cascade will handle related records
     const result = await prisma.employee.deleteMany({
-      where: { id: { in: employeeIdsToPurge } },
+      where: { id: { in: employeeIdsToPurge }, ...(company ? { companyId: company.id } : {}) },
     });
 
     return NextResponse.json({

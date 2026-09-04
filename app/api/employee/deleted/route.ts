@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getActiveCompany } from "@/lib/active-company";
 import { prisma } from "@/lib/prisma";
 
 export type DeletedEmployeeItem = {
@@ -40,6 +41,8 @@ export async function GET(request: Request) {
     const where: Record<string, unknown> = {
       deletedAt: { not: null },
     };
+    const company = await getActiveCompany();
+    if (company) where.companyId = company.id;
 
     if (search) {
       where.OR = [

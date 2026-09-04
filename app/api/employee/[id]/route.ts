@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Gender, MaritalStatus, Prisma } from "@/generated/prisma/client";
 
+import { getActiveCompany } from "@/lib/active-company";
 import { prisma } from "@/lib/prisma";
 
 const EMPLOYEE_TYPE_LABELS: Record<string, string> = {
@@ -104,8 +105,9 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const emp = await prisma.employee.findUnique({
-      where: { id },
+    const company = await getActiveCompany();
+    const emp = await prisma.employee.findFirst({
+      where: { id, ...(company ? { companyId: company.id } : {}) },
       include: {
         Company: { select: { name: true } },
         Branch: { select: { name: true } },
@@ -214,6 +216,12 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+    const company = await getActiveCompany();
+    const currentEmployee = await prisma.employee.findFirst({
+      where: { id, ...(company ? { companyId: company.id } : {}) },
+      select: { id: true },
+    });
+    if (!currentEmployee) return NextResponse.json({ error: "ไม่พบข้อมูลพนักงาน" }, { status: 404 });
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
     if (!body) {
       return NextResponse.json({ error: "ข้อมูลที่ส่งมาไม่ถูกต้อง" }, { status: 400 });

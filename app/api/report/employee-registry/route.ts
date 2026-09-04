@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { AddressType, EmploymentType, Prisma, Status } from "@/generated/prisma/client";
 
+import { getActiveCompany } from "@/lib/active-company";
 import { prisma } from "@/lib/prisma";
 
 /* ---------------------------------- Maps ---------------------------------- */
@@ -262,15 +263,16 @@ function buildRow(emp: EmployeeRow, index: number): string[] {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
+    const company = await getActiveCompany();
     if (searchParams.get("metadata") === "1") {
       const [departments, positions] = await Promise.all([
         prisma.department.findMany({
-          where: { deletedAt: null, status: "active" },
+          where: { deletedAt: null, status: "active", ...(company ? { companyId: company.id } : {}) },
           select: { id: true, code: true, name: true },
           orderBy: [{ code: "asc" }, { name: "asc" }],
         }),
         prisma.position.findMany({
-          where: { deletedAt: null, status: "active" },
+          where: { deletedAt: null, status: "active", ...(company ? { companyId: company.id } : {}) },
           select: { id: true, code: true, name: true },
           orderBy: [{ code: "asc" }, { name: "asc" }],
         }),
@@ -284,7 +286,7 @@ export async function GET(request: Request) {
     const positionId = searchParams.get("positionId");
     const hashtag = searchParams.get("hashtag")?.trim();
 
-    const where: Prisma.EmployeeWhereInput = { deletedAt: null };
+    const where: Prisma.EmployeeWhereInput = { deletedAt: null, ...(company ? { companyId: company.id } : {}) };
     if (status && status !== "all") {
       where.status = status as Status;
     }

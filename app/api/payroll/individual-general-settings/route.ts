@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { CLOSED_PAYROLL_PERIOD_MESSAGE, isPayrollPeriodClosed } from "@/lib/payroll/period-lock";
 
 export const dynamic = "force-dynamic";
 
@@ -45,16 +46,20 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const employeeId = typeof body?.employeeId === "string" ? body.employeeId.trim() : "";
+  const month = typeof body?.month === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(body.month) ? body.month : null;
   const workDays = body?.workDays;
   const workHours = body?.workHours;
   const payrollCalculation = body?.payrollCalculation;
   const allowHolidayWork = body?.allowHolidayWork;
 
-  if (!employeeId || !isOneOf(workDays, WORK_DAY_OPTIONS) || !isOneOf(workHours, WORK_HOUR_OPTIONS) || !isOneOf(payrollCalculation, PAYROLL_CALCULATION_OPTIONS) || typeof allowHolidayWork !== "boolean") {
+  if (!employeeId || !month || !isOneOf(workDays, WORK_DAY_OPTIONS) || !isOneOf(workHours, WORK_HOUR_OPTIONS) || !isOneOf(payrollCalculation, PAYROLL_CALCULATION_OPTIONS) || typeof allowHolidayWork !== "boolean") {
     return NextResponse.json({ error: "ข้อมูลการตั้งค่าทั่วไปไม่ถูกต้อง" }, { status: 400 });
   }
 
   try {
+    if (await isPayrollPeriodClosed(month)) {
+      return NextResponse.json({ error: CLOSED_PAYROLL_PERIOD_MESSAGE }, { status: 409 });
+    }
     const employee = await prisma.employee.findFirst({ where: { id: employeeId, deletedAt: null }, select: { id: true } });
     if (!employee) return NextResponse.json({ error: "ไม่พบข้อมูลพนักงาน" }, { status: 404 });
 

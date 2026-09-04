@@ -924,7 +924,7 @@ export default function OrganizationEmployeeCreatePage({
 
   return (
     <div className="w-full overflow-x-hidden">
-      {/* Header follows the employee-data page header used by HumanSoft. */}
+{/* Header follows the employee-data page header used by HRMic. */}
       <section className="relative flex h-40 items-center justify-between overflow-hidden border-b border-white/20 bg-[#61a8ff] p-6 tracking-[-0.1px] text-white">
         <div className="flex min-w-0 flex-col items-start">
           <div className="hidden items-center text-sm leading-[22.001px] text-white/70 md:flex">
@@ -1310,7 +1310,7 @@ export default function OrganizationEmployeeCreatePage({
                     </thead>
                     <tbody>
                       <tr className="h-[62px] border-t border-border bg-card">
-                        <td className="px-5 text-foreground">การเข้าใช้งาน Application HumanSoft สำหรับพนักงานใหม่</td>
+<td className="px-5 text-foreground">การเข้าใช้งาน Application HRMic สำหรับพนักงานใหม่</td>
                         <td className="text-center">
                           <span className="inline-flex items-center gap-[5px] text-emerald-600">
                             <span className="size-2 rounded-full bg-emerald-500" />

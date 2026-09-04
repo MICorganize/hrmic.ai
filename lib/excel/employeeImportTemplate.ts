@@ -276,8 +276,8 @@ function renderTemplate(baseSheet: string, sharedStrings: string, employees: Emp
   const headerRows = sheetDataMatch[1].match(/<row r="[123]"[\s\S]*?<\/row>/g);
   if (!headerRows || headerRows.length !== 3) throw new Error("โครงสร้างหัวตารางเทมเพลต Excel ไม่ครบถ้วน");
   const styles = getCellStyles(sheetDataMatch[1]);
-  const baseItems = [...sharedStrings.matchAll(/<si>[\s\S]*?<\/si>/g)].map((match) => match[0]).slice(0, 114);
-  if (baseItems.length !== 114) throw new Error("โครงสร้างข้อความเทมเพลต Excel ไม่ครบถ้วน");
+  const baseItems = [...sharedStrings.matchAll(/<si>[\s\S]*?<\/si>/g)].map((match) => match[0]);
+  if (baseItems.length < 114) throw new Error("โครงสร้างข้อความเทมเพลต Excel ไม่ครบถ้วน");
 
   const dataItems: string[] = [];
   const stringIndex = new Map<string, number>();
@@ -286,7 +286,7 @@ function renderTemplate(baseSheet: string, sharedStrings: string, employees: Emp
     if (!normalized) return null;
     const existing = stringIndex.get(normalized);
     if (existing !== undefined) return existing;
-    const index = 114 + dataItems.length;
+    const index = baseItems.length + dataItems.length;
     stringIndex.set(normalized, index);
     dataItems.push(`<si><t>${escapeXml(normalized)}</t></si>`);
     return index;
@@ -307,7 +307,14 @@ function renderTemplate(baseSheet: string, sharedStrings: string, employees: Emp
     return [
       value === null
         ? `<c r="${source}${row}" s="${style(source)}"/>`
-        : `<c r="${source}${row}" s="${style(source)}"><v>${excelDate(value)}</v></c>`,
+        : monthOnly
+          ? (() => {
+              const index = addString(formatMonth(value));
+              return index === null
+                ? `<c r="${source}${row}" s="${style(source)}"/>`
+                : `<c r="${source}${row}" s="${style(source)}" t="s"><v>${index}</v></c>`;
+            })()
+          : `<c r="${source}${row}" s="${style(source)}"><v>${excelDate(value)}</v></c>`,
       `<c r="${output}${row}" s="${style(output)}" t="str"><f>${formula}</f><v>${value ? (monthOnly ? formatMonth(value) : formatDate(value)) : ""}</v></c>`,
     ];
   };
@@ -331,16 +338,28 @@ function renderTemplate(baseSheet: string, sharedStrings: string, employees: Emp
       BG: employee.positionCode, BH: employee.positionName, BI: employee.onboarding,
       BJ: employee.salaryCalculation, BK: employee.overtimeRound, BL: employee.worktimeRound,
     };
-    const dateColumns = new Set(["O", "P", "Z", "AA", "AB", "AC", "AD", "AE", "AF", "AG", "AI", "AJ"]);
     const numberColumns = new Map<string, number | null>([["AL", employee.salary], ["AM", employee.advanceLimit]]);
-    const cells = COLUMN_NAMES.filter((column) => !dateColumns.has(column) && !numberColumns.has(column)).map((column) => stringCell(column, row, values[column] ?? ""));
-    cells.push(...datePair("O", "P", row, employee.socialSecurityStartDate, true));
-    cells.push(...datePair("Z", "AA", row, employee.birthDate));
-    cells.push(...datePair("AB", "AC", row, employee.hireDate));
-    cells.push(...datePair("AD", "AE", row, employee.confirmationDate));
-    cells.push(...datePair("AF", "AG", row, employee.taxStartDate, true));
-    cells.push(...datePair("AI", "AJ", row, employee.signoutDate));
-    cells.push(numberCell("AL", row, employee.salary), numberCell("AM", row, employee.advanceLimit));
+    const datePairs = new Map<string, [string, Date | null, boolean]>([
+      ["O", ["P", employee.socialSecurityStartDate, true]],
+      ["Z", ["AA", employee.birthDate, false]],
+      ["AB", ["AC", employee.hireDate, false]],
+      ["AD", ["AE", employee.confirmationDate, false]],
+      ["AF", ["AG", employee.taxStartDate, true]],
+      ["AI", ["AJ", employee.signoutDate, false]],
+    ]);
+    const datePairOutputs = new Set([...datePairs.values()].map(([output]) => output));
+    const cells: string[] = [];
+    for (const column of COLUMN_NAMES) {
+      if (datePairOutputs.has(column)) continue;
+      const datePairInfo = datePairs.get(column);
+      if (datePairInfo) {
+        cells.push(...datePair(column, datePairInfo[0], row, datePairInfo[1], datePairInfo[2]));
+      } else if (numberColumns.has(column)) {
+        cells.push(numberCell(column, row, numberColumns.get(column)!));
+      } else {
+        cells.push(stringCell(column, row, values[column] ?? ""));
+      }
+    }
     return `<row r="${row}" spans="1:64">${cells.join("")}</row>`;
   });
 
@@ -349,11 +368,11 @@ function renderTemplate(baseSheet: string, sharedStrings: string, employees: Emp
     .replace(/<dimension ref="[^"]+"\/>/, `<dimension ref="A1:BL${lastRow}"/>`)
     .replace(/<selection activeCell="[^"]+" sqref="[^"]+"\/>/, `<selection activeCell="BL${lastRow}" sqref="BL${lastRow}"/>`)
     .replace(/<sheetData>[\s\S]*?<\/sheetData>/, `<sheetData>${headerRows.join("")}${employeeRows.join("")}</sheetData>`);
-  const strings = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" count="${baseItems.length + dataItems.length}" uniqueCount="${baseItems.length + dataItems.length}">${baseItems.join("")}${dataItems.join("")}</sst>`;
+  const strings = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" uniqueCount="${baseItems.length + dataItems.length}">${baseItems.join("")}${dataItems.join("")}</sst>`;
   return { sheet, strings };
 }
 
-/** Preserves the original HumanSoft workbook formatting, formulas, validation lists and 64 import columns. */
+/** Preserves the original HRMic workbook formatting, formulas, validation lists and 64 import columns. */
 export function buildEmployeeImportTemplate(baseWorkbook: Buffer, employees: EmployeeImportRow[]): Buffer {
   const entries = readZip(baseWorkbook);
   const sheetEntry = entries.find((entry) => entry.name === "xl/worksheets/sheet1.xml");

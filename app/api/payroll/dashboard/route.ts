@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { getActiveCompany } from "@/lib/active-company";
+import { companyPeriodKey } from "@/lib/payroll/company-period";
 import { prisma } from "@/lib/prisma";
 
 type DashboardEmployeeGroup = "monthly" | "daily" | "partTime" | "contract";
@@ -49,10 +51,11 @@ export async function GET(request: Request) {
   const calendarStart = new Date(Date.UTC(year, month - 1, 1));
 
   try {
+    const company = await getActiveCompany();
     // A saved period is shared by the modal, dashboard and individual salary
     // calculation.  The end date is stored as an inclusive DATE value.
     const savedPeriod = await prisma.payrollRun.findUnique({
-      where: { period: `${year}-${String(month).padStart(2, "0")}` },
+      where: { period: companyPeriodKey(`${year}-${String(month).padStart(2, "0")}`, company?.id) },
       select: { periodStart: true, periodEnd: true },
     });
     const periodStart = savedPeriod?.periodStart ?? defaultPeriodStart;
@@ -63,6 +66,7 @@ export async function GET(request: Request) {
     // status alone.
     const payrollEmployeeWhere = {
       deletedAt: null,
+      ...(company ? { companyId: company.id } : {}),
       hireDate: { lte: periodEnd },
       OR: [{ terminationDate: null }, { terminationDate: { gte: periodStart } }],
     };
@@ -92,12 +96,14 @@ export async function GET(request: Request) {
       prisma.employee.count({
         where: {
           deletedAt: null,
+          ...(company ? { companyId: company.id } : {}),
           hireDate: { gte: periodStart, lte: periodEnd },
         },
       }),
       prisma.employee.count({
         where: {
           deletedAt: null,
+          ...(company ? { companyId: company.id } : {}),
           terminationDate: { gte: periodStart, lte: periodEnd },
         },
       }),

@@ -27,6 +27,7 @@ model User {
   Company      Company?    @relation(fields: [companyId], references: [id])
   Tenant       Tenant      @relation(fields: [tenantId], references: [id])
   UserRole     UserRole[]
+  UserCompanyAccess UserCompanyAccess[]
 
   @@index([companyId])
   @@index([status])
@@ -221,6 +222,9 @@ model Company {
   registrationNumber String?
   telephone          String?
   website            String?
+  portalUrl          String?
+  planName           String          @default("Standard")
+  employeeLimit      Int?
   Branch             Branch[]
   BusinessUnit       BusinessUnit[]
   Tenant             Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -231,6 +235,7 @@ model Company {
   Position           Position[]
   Team               Team[]
   User               User[]
+  UserCompanyAccess  UserCompanyAccess[]
   WorkLocation       WorkLocation[]
 
   @@index([status])
@@ -707,19 +712,22 @@ model PayrollItem {
 }
 
 model PayrollRun {
-  id          String        @id @db.Uuid
-  period      String        @unique
-  periodStart DateTime?     @db.Date
-  periodEnd   DateTime?     @db.Date
-  status      PayrollStatus @default(draft)
-  runAt       DateTime?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime
-  deletedAt   DateTime?
-  deletedBy   String?       @db.Uuid
-  createdBy   String?       @db.Uuid
-  updatedBy   String?       @db.Uuid
-  PayrollItem PayrollItem[]
+  id             String        @id @db.Uuid
+  period         String        @unique
+  periodStart    DateTime?     @db.Date
+  periodEnd      DateTime?     @db.Date
+  paymentDate    DateTime?     @db.Date
+  taxPaymentDate DateTime?     @db.Date
+  status         PayrollStatus @default(draft)
+  runAt          DateTime?
+  closedAt       DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime
+  deletedAt      DateTime?
+  deletedBy      String?       @db.Uuid
+  createdBy      String?       @db.Uuid
+  updatedBy      String?       @db.Uuid
+  PayrollItem    PayrollItem[]
 }
 
 model Permission {
@@ -974,6 +982,19 @@ model UserRole {
   @@index([roleId])
 }
 
+model UserCompanyAccess {
+  userId    String            @db.Uuid
+  companyId String            @db.Uuid
+  role      CompanyAccessRole @default(owner)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+  Company   Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  User      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, companyId])
+  @@index([companyId])
+}
+
 model WorkLocation {
   id         String           @id @db.Uuid
   companyId  String           @db.Uuid
@@ -1031,6 +1052,12 @@ enum BranchType {
   hq
   branch
   office
+}
+
+enum CompanyAccessRole {
+  owner
+  admin
+  member
 }
 
 enum BusinessUnitType {

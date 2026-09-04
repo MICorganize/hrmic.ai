@@ -18,7 +18,6 @@ import {
   History,
   List,
   Menu,
-  Power,
   RotateCcw,
   Search,
   Send,
@@ -40,6 +39,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { FALLBACK_USER_IMAGE_ORIGIN, SUPPORT_ASSET_ORIGIN, USER_IMAGE_ORIGIN } from "@/lib/external-assets";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------- Data ---------------------------------- */
@@ -100,6 +100,16 @@ const PERSON_TABS = [
   "ประวัติการแก้ไข",
   "ตั้งค่ารายบุคคล",
 ];
+
+const RESET_MENU_ITEMS = [
+  { id: "btn-normal-person-full-reset-menu-all", label: "รีเซ็ตค่าตั้งต้น" },
+  { id: "btn-normal-person-full-reset-menu-holiday", label: "รีเซ็ตค่าตั้งต้นเฉพาะวันหยุด" },
+  { id: "btn-normal-person-full-reset-menu-cycle", label: "รีเซ็ตค่าตั้งต้นเฉพาะกะการทำงาน" },
+  { id: "btn-normal-person-full-reset-menu-time", label: "จัดการเวลาการทำงาน" },
+  { id: "btn-normal-person-full-reset-menu-fix", label: "ซ่อมเวลาเฉพาะวันที่ควบกะการทำงาน" },
+  { id: "btn-normal-person-full-reset-menu-employeedata", label: "ปรับปรุงข้อมูลพนักงาน" },
+  { id: "btn-normal-person-full-reset-menu-reloadcompanyconfig", label: "โหลดข้อมูลการตั้งค่าใหม่" },
+] as const;
 
 const DOCUMENT_SUBMISSION_TABS = ["โอที", "ลางาน", "เพิ่มเวลา", "วันหยุด", "กะการทำงาน"];
 
@@ -405,6 +415,63 @@ function formatPayrollPeriod(startDate: string, endDate: string) {
   return `ตั้งแต่วันที่ ${compactDate(startDate)} จนถึงวันที่ ${compactDate(endDate)}`;
 }
 
+function formatCalculationDayDate(value: string) {
+  const [year = "", month = "", day = ""] = value.split("-");
+  return year && month && day ? `${day}/${month}/${year}` : "";
+}
+
+function CalculationConfirmationModal({
+  open,
+  startDate,
+  endDate,
+  message,
+  dialogId,
+  confirmButtonId,
+  cancelButtonId,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  startDate: string;
+  endDate: string;
+  message: string;
+  dialogId: string;
+  confirmButtonId: string;
+  cancelButtonId: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!open) return null;
+
+  return createPortal(
+    <div className="swal2-container fixed inset-0 z-[1300] flex items-center justify-center overflow-y-auto bg-black/[0.4] p-[8.75px]">
+      <div aria-labelledby="swal2-title" aria-describedby="swal2-content" className="swal2-popup swal2-modal message-alert swal2-icon-warning swal2-show flex w-[330px] flex-col justify-center rounded-[5px] bg-white p-[12.5px] font-[Kanit,sans-serif] text-[10px] font-normal leading-[15.715px] tracking-[-0.1px] text-black/[0.87]" tabIndex={-1} role="dialog" aria-live="assertive" aria-modal="true" id={dialogId}>
+        <div className="swal2-header flex flex-col items-center px-[18px]">
+          <div className="swal2-icon swal2-warning swal2-icon-show mb-[18.75px] mt-[12.5px] flex size-[50px] box-content items-center justify-center rounded-full border-[2.4px] border-[#facea8] font-normal text-[#f8bb86]">
+            <div className="swal2-icon-content flex text-[37.5px] font-normal leading-[50px]">!</div>
+          </div>
+          <h2 className="swal2-title message-title mb-[7.5px] flex p-0 text-center font-[Kanit,sans-serif] text-[18.75px] font-semibold leading-[29.4656px] tracking-[-0.1px] text-[#595959]" id="swal2-title">
+            <div className="text-[16px] leading-[25.144px]">ยืนยัน</div>
+          </h2>
+        </div>
+        <div className="swal2-content message-content block px-[18px] text-center text-[11.25px] font-normal text-[#545454]">
+          <div id="swal2-content" className="swal2-html-container block min-h-0 p-0 text-center text-[11.25px] font-normal text-[#545454]">
+            <div className="text-null text-[12px] font-normal leading-[18.4px]">
+              {message}<br />
+              <b className="font-medium">{formatCalculationDayDate(startDate)} - {formatCalculationDayDate(endDate)}</b>
+            </div>
+          </div>
+        </div>
+        <div className="swal2-actions mt-[12.5px] flex h-[32.1125px] w-full items-center justify-center px-4">
+          <button type="button" className="swal2-confirm message-button swal2-styled m-[3.32031px] h-[25.4875px] rounded-[2.65625px] border-0 bg-[#2778c4] px-[11.6875px] py-[6.64062px] font-[Kanit,sans-serif] text-[10.625px] font-medium leading-[12.2188px] tracking-normal text-white transition-colors hover:bg-[#2778c4] focus:outline-none" aria-label="" id={confirmButtonId} onClick={onConfirm}>ยืนยัน</button>
+          <button type="button" className="swal2-cancel message-button swal2-styled m-[3.32031px] h-[25.4875px] rounded-[2.65625px] border-0 bg-[#757575] px-[11.6875px] py-[6.64062px] font-[Kanit,sans-serif] text-[10.625px] font-medium leading-[12.2188px] tracking-normal text-white transition-colors hover:bg-[#757575] focus:outline-none" aria-label="" id={cancelButtonId} onClick={onCancel}>ยกเลิก</button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function PayrollPeriodDatePicker({
   value,
   label,
@@ -443,6 +510,7 @@ function SalaryPeriodSettingsModal({
   open,
   monthValue,
   period,
+  readOnly,
   onClose,
   onSave,
   onReset,
@@ -450,6 +518,7 @@ function SalaryPeriodSettingsModal({
   open: boolean;
   monthValue: string;
   period: SavedPayrollPeriod;
+  readOnly: boolean;
   onClose: () => void;
   onSave: (period: Pick<SavedPayrollPeriod, "startDate" | "endDate">) => Promise<void>;
   onReset: () => Promise<void>;
@@ -518,9 +587,9 @@ function SalaryPeriodSettingsModal({
         <div className="modal-body h-[98.38875px] px-9 py-[22.394375px]">
           <label className="block h-[22px] text-sm font-normal leading-[22.001px] text-black/[0.87]">ตั้งแต่วันที่ - จนถึงวันที่</label>
           <div className="flex h-[31.6px] items-center rounded-[4px] border-[0.8px] border-[#40a9ff] bg-white px-[11px] py-1 text-sm leading-[22.001px] text-black/[0.65] shadow-[0_0_0_2px_rgba(24,144,255,0.2)]">
-            <PayrollPeriodDatePicker value={startDate} label="วันเริ่มต้น" onChange={setStartDate} disabled={saving} />
+            <PayrollPeriodDatePicker value={startDate} label="วันเริ่มต้น" onChange={setStartDate} disabled={saving || readOnly} />
             <span className="flex h-4 w-8 shrink-0 items-center justify-center px-2"><ArrowRight className="size-3.5" /></span>
-            <PayrollPeriodDatePicker value={endDate} label="วันสิ้นสุด" onChange={setEndDate} disabled={saving} />
+            <PayrollPeriodDatePicker value={endDate} label="วันสิ้นสุด" onChange={setEndDate} disabled={saving || readOnly} />
             <span className="ml-1 flex h-[22px] w-3 shrink-0 items-center justify-center text-black/45">
               <Calendar className="size-3" aria-hidden="true" />
             </span>
@@ -530,8 +599,8 @@ function SalaryPeriodSettingsModal({
 
         <footer className="modal-footer flex h-[60.8px] items-center justify-end bg-white p-3 shadow-[0_0_1px_rgba(0,0,0,0.87)]">
           <button type="button" onClick={onClose} disabled={saving} className="mr-2 h-9 rounded-[4px] bg-[#808b9e] px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#909aaa] disabled:cursor-wait disabled:opacity-70">ยกเลิก</button>
-          <button type="button" onClick={() => void resetPeriod()} disabled={saving} className="mr-2 h-9 min-w-16 rounded-[4px] bg-[#ff4c33] px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_0_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#ff654f] disabled:cursor-wait disabled:opacity-70">ลบ</button>
-          <button type="button" onClick={() => void savePeriod()} disabled={saving} className="h-9 rounded-[4px] bg-[#03ae03] px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#039b03] disabled:cursor-wait disabled:opacity-70">{saving ? "กำลังบันทึก" : "บันทึก"}</button>
+          <button type="button" onClick={() => void resetPeriod()} disabled={saving || readOnly} className="mr-2 h-9 min-w-16 rounded-[4px] bg-[#ff4c33] px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_0_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#ff654f] disabled:cursor-not-allowed disabled:opacity-70">ลบ</button>
+          <button type="button" onClick={() => void savePeriod()} disabled={saving || readOnly} className="h-9 rounded-[4px] bg-[#03ae03] px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#039b03] disabled:cursor-not-allowed disabled:opacity-70">{saving ? "กำลังบันทึก" : "บันทึก"}</button>
         </footer>
       </section>
     </div>,
@@ -545,12 +614,18 @@ function PageBanner({
   year,
   monthValue,
   onMonthChange,
+  showAccountingPeriodWarning,
+  isAccountingPeriodClosed,
+  onOpenClosePeriod,
 }: {
   monthLabel: string;
   monthIndex: number;
   year: number;
   monthValue: string;
   onMonthChange: (month: string) => void;
+  showAccountingPeriodWarning: boolean;
+  isAccountingPeriodClosed: boolean;
+  onOpenClosePeriod: () => void;
 }) {
   const [periodSettingsOpen, setPeriodSettingsOpen] = useState(false);
   const [period, setPeriod] = useState<SavedPayrollPeriod>(() => ({ ...monthRange(monthValue), isConfigured: false }));
@@ -598,9 +673,9 @@ function PageBanner({
 
   return (
     <section className="h-[7.5rem] bg-[#61a8ff] px-6 text-sm leading-[22px] tracking-[-0.1px] text-white">
-      <div className="flex h-full items-start justify-between gap-4 pt-6">
+      <div className="flex h-full items-start justify-between pt-6">
         {/* Breadcrumb + title */}
-        <div className="min-w-0">
+        <div className="w-[240.875px] shrink-0">
           <p className="flex items-center gap-0 text-sm leading-[22px] tracking-[-0.1px] text-white/70">
             <span>การประมวลผลเงินเดือน</span>
             <ChevronRight className="size-4" />
@@ -608,6 +683,10 @@ function PageBanner({
           </p>
           <h1 className="inline-block text-[24px] font-normal leading-[37.716px] tracking-[-0.1px] text-white">คำนวณเงินเดือน</h1>
         </div>
+
+        {showAccountingPeriodWarning && (
+          <AccountingPeriodWarning monthLabel={monthLabel} onOpenClosePeriod={onOpenClosePeriod} />
+        )}
 
         {/* Month picker + period (Element: stacked column, ~320px) */}
         <div className="w-80 shrink-0 pt-[2.05px]">
@@ -617,22 +696,30 @@ function PageBanner({
             <span className="flex min-w-0 flex-1 justify-center whitespace-nowrap text-sm leading-[22px] tracking-[-0.1px] text-white">
               {formatPayrollPeriod(period.startDate, period.endDate)}
             </span>
-            <button
-              type="button"
-              onClick={() => setPeriodSettingsOpen(true)}
-              className="size-6 shrink-0 rounded-full p-0 font-semibold text-white transition-colors hover:bg-white/20"
-              aria-label="ตั้งค่างวด"
-              title="ตั้งค่างวด"
-            >
-              <Settings className="size-5" />
-            </button>
+            {!isAccountingPeriodClosed && (
+              <button
+                type="button"
+                onClick={() => setPeriodSettingsOpen(true)}
+                className="size-6 shrink-0 rounded-full p-0 font-semibold text-white transition-colors hover:bg-white/20"
+                aria-label="ตั้งค่างวด"
+                title="ตั้งค่างวด"
+              >
+                <Settings className="size-5" />
+              </button>
+            )}
           </div>
+          {isAccountingPeriodClosed && (
+            <div className="flex h-9 items-center justify-center bg-[rgba(0,80,180,0.18)] text-sm font-semibold leading-[22px] tracking-[-0.1px] text-[#ff402f]">
+              ปิดงวดบัญชี
+            </div>
+          )}
         </div>
       </div>
       <SalaryPeriodSettingsModal
         open={periodSettingsOpen}
         monthValue={monthValue}
         period={period}
+        readOnly={isAccountingPeriodClosed}
         onClose={() => setPeriodSettingsOpen(false)}
         onSave={savePeriod}
         onReset={resetPeriod}
@@ -676,9 +763,49 @@ function TabsBar({ activeTab, onChange }: { activeTab: string; onChange: (tab: s
   );
 }
 
+function AccountingPeriodWarning({
+  monthLabel,
+  onOpenClosePeriod,
+}: {
+  monthLabel: string;
+  onOpenClosePeriod: () => void;
+}) {
+  return (
+    <div
+      className="warning-container mx-px h-[68px] flex-1 overflow-hidden rounded-[4px]"
+      role="status"
+    >
+      <div className="warning h-[68px] bg-[#fdff82] p-3 font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] tracking-[-0.1px] text-black">
+        <label>
+          คุณกำลังคำนวณเงินเดือนของเดือน &quot;{monthLabel}&quot; หากคำนวณเงินเดือนเสร็จแล้ว กรุณาปิดงวดบัญชีด้วย ปิดงวดบัญชี{" "}
+          <a
+            id="link-salary-normal-warning"
+            href="#close-period-accounting"
+            onClick={(event) => {
+              event.preventDefault();
+              onOpenClosePeriod();
+            }}
+            className="cursor-pointer text-[#039be5] no-underline hover:text-[#039be5] hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#039be5]"
+          >
+            คลิกที่นี่
+          </a>
+        </label>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------ Tab: Dashboard ----------------------------- */
 
-function DashboardContent({ stats, monthLabel }: { stats: DashboardStats; monthLabel: string }) {
+function DashboardContent({
+  stats,
+  monthLabel,
+  isAccountingPeriodClosed,
+}: {
+  stats: DashboardStats;
+  monthLabel: string;
+  isAccountingPeriodClosed: boolean;
+}) {
   const employeeTypeStats = [
     { label: "พนักงานรายเดือน", count: stats.employeeTypes.monthly },
     { label: "พนักงานรายวัน", count: stats.employeeTypes.daily },
@@ -714,8 +841,12 @@ function DashboardContent({ stats, monthLabel }: { stats: DashboardStats; monthL
             <DashboardDivider />
             <div className="flex gap-6">
               <DashboardNumber count={stats.salaryEmployees} caption="(ฐานข้อมูลเงินเดือน)" />
-              <span className="self-center [font-size:3vw] font-normal leading-[56px] text-[rgba(0,0,0,0.87)]">=</span>
-              <DashboardNumber count={stats.totalEmployees} caption="(ฐานข้อมูลพนักงาน)" />
+              {!isAccountingPeriodClosed && (
+                <>
+                  <span className="self-center [font-size:3vw] font-normal leading-[56px] text-[rgba(0,0,0,0.87)]">=</span>
+                  <DashboardNumber count={stats.totalEmployees} caption="(ฐานข้อมูลพนักงาน)" />
+                </>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -738,10 +869,10 @@ function DashboardContent({ stats, monthLabel }: { stats: DashboardStats; monthL
               </div>
 
               <div className="mr-3 flex flex-1 flex-col items-start justify-center text-[17px] leading-[26.7155px] text-[rgba(0,0,0,0.87)]">
-                {employeeTypeStats.map((s) => (
-                  <div key={s.label} className="flex w-full items-start gap-3 first:gap-4">
-                    <span className="flex-1">{s.label}</span>
-                    <span className="shrink-0">{s.count} คน</span>
+                {employeeTypeStats.map((s, index) => (
+                  <div key={s.label} className={cn("flex w-full items-start gap-3 first:gap-4", index === 0 && "relative -top-[3px]", index < 3 && "mb-[3px]")}>
+                    <span className="flex-1 whitespace-nowrap">{s.label}</span>
+                    <span className="w-[32.125px] shrink-0 whitespace-nowrap text-left">{s.count} คน</span>
                   </div>
                 ))}
               </div>
@@ -765,17 +896,19 @@ function DashboardContent({ stats, monthLabel }: { stats: DashboardStats; monthL
       </div>
 
       {/* คำแนะนำ */}
-      <div className="flex">
-      <Card className="m-3 h-[144px] flex-[1_1_0%] rounded-lg border-0 shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)]">
-        <CardContent className="h-full p-[16px_8px]">
-          <DashboardCardHeader title="คำแนะนำ" monthLabel={monthLabel} />
-          <div className="flex h-[34px]"><DashboardDivider /></div>
-          <div className="mb-3 flex h-[44.275px] items-center justify-center rounded-[4px] bg-[#fdff82] p-2 text-[18px] font-normal leading-[28.287px] text-black shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)]">
-              ใช้ได้เฉพาะแพ็คเกจ Professional เท่านั้น
-          </div>
-        </CardContent>
-      </Card>
-      </div>
+      {!isAccountingPeriodClosed && (
+        <div className="flex">
+          <Card className="m-3 h-[144px] flex-[1_1_0%] rounded-lg border-0 shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)]">
+            <CardContent className="h-full p-[16px_8px]">
+              <DashboardCardHeader title="คำแนะนำ" monthLabel={monthLabel} />
+              <div className="flex h-[34px]"><DashboardDivider /></div>
+              <div className="mb-3 flex h-[44.275px] items-center justify-center rounded-[4px] bg-[#fdff82] p-2 text-[18px] font-normal leading-[28.287px] text-black shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)]">
+                ใช้ได้เฉพาะแพ็คเกจ Professional เท่านั้น
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
@@ -807,7 +940,8 @@ function DashboardNumber({ count, caption }: { count: number; caption: string })
 
 /* ----------------------------- Tab: รายบุคคล ------------------------------ */
 
-function CellEditIcon({ onClick }: { onClick: (event: React.MouseEvent<HTMLButtonElement>) => void }) {
+function CellEditIcon({ onClick, hidden = false }: { onClick: (event: React.MouseEvent<HTMLButtonElement>) => void; hidden?: boolean }) {
+  if (hidden) return null;
   return (
     <button
       type="button"
@@ -1392,7 +1526,7 @@ function WorkTimeEditDialog({
   );
 }
 
-function WorkTimeTable({ rows, naDates, employeeId, employeeName, showCalculatedAttendance, onSaved }: { rows: WorkDay[]; naDates: string[]; employeeId: string; employeeName: string; showCalculatedAttendance: boolean; onSaved: (data: { rows?: WorkDay[]; naDates?: string[] }) => void }) {
+function WorkTimeTable({ rows, naDates, employeeId, employeeName, showCalculatedAttendance, isAccountingPeriodClosed, onSaved }: { rows: WorkDay[]; naDates: string[]; employeeId: string; employeeName: string; showCalculatedAttendance: boolean; isAccountingPeriodClosed: boolean; onSaved: (data: { rows?: WorkDay[]; naDates?: string[] }) => void }) {
   const cellClass = "relative !p-2 !align-baseline border-b border-r border-[#d3d3d3] text-[#212121] last:border-r-0";
   const [editingDay, setEditingDay] = useState<WorkDay | null>(null);
   const [editingDayType, setEditingDayType] = useState<{ day: WorkDay; anchor: Pick<DOMRect, "left" | "top" | "width"> } | null>(null);
@@ -1538,7 +1672,7 @@ function WorkTimeTable({ rows, naDates, employeeId, employeeName, showCalculated
                 )}
               >
                 <TableCell className={cellClass}>
-                  <CellEditIcon onClick={(event) => {
+                  <CellEditIcon hidden={isAccountingPeriodClosed} onClick={(event) => {
                     event.stopPropagation();
                     setEditingShift(null);
                     setEditingWorkTime(null);
@@ -1552,7 +1686,7 @@ function WorkTimeTable({ rows, naDates, employeeId, employeeName, showCalculated
                   </p>
                 </TableCell>
                 <TableCell className={cellClass}>
-                  <CellEditIcon onClick={(event) => {
+                  <CellEditIcon hidden={isAccountingPeriodClosed} onClick={(event) => {
                     event.stopPropagation();
                     setEditingDayType(null);
                     setEditingWorkTime(null);
@@ -1575,7 +1709,7 @@ function WorkTimeTable({ rows, naDates, employeeId, employeeName, showCalculated
                   </p>
                 </TableCell>
                 <TableCell className={cellClass}>
-                  <CellEditIcon onClick={(event) => {
+                  <CellEditIcon hidden={isAccountingPeriodClosed} onClick={(event) => {
                     event.stopPropagation();
                     setEditingDayType(null);
                     setEditingShift(null);
@@ -1600,7 +1734,7 @@ function WorkTimeTable({ rows, naDates, employeeId, employeeName, showCalculated
                   ))}
                 </TableCell>
                 <TableCell className={cellClass}>
-                  <CellEditIcon onClick={(event) => {
+                  <CellEditIcon hidden={isAccountingPeriodClosed} onClick={(event) => {
                     event.stopPropagation();
                     setEditingDayType(null);
                     setEditingShift(null);
@@ -1611,7 +1745,7 @@ function WorkTimeTable({ rows, naDates, employeeId, employeeName, showCalculated
                   {d.overtime && <p className="text-[13px] leading-[20.43px] text-[#212121]">{d.overtime}</p>}
                 </TableCell>
                 <TableCell className={cellClass}>
-                  <CellEditIcon onClick={(event) => {
+                  <CellEditIcon hidden={isAccountingPeriodClosed} onClick={(event) => {
                     event.stopPropagation();
                     setEditingDayType(null);
                     setEditingShift(null);
@@ -1622,7 +1756,7 @@ function WorkTimeTable({ rows, naDates, employeeId, employeeName, showCalculated
                   {d.leave && <p className="text-[13px] leading-[20.43px] text-[#212121]">{d.leave}</p>}
                 </TableCell>
                 <TableCell className={cellClass}>
-                  <CellEditIcon onClick={() => setEditingDay(d)} />
+                  <CellEditIcon hidden={isAccountingPeriodClosed} onClick={() => setEditingDay(d)} />
                   {d.note && <p className="text-[13px] leading-[20.43px] text-[#212121]">{d.note}</p>}
                 </TableCell>
               </TableRow>;
@@ -2116,7 +2250,7 @@ function CalculationResultTable({
 
   const renderRow = (row: CalculationResultRow, rowIndex: number) => row.emphasis === "group" ? (
     <tr key={rowIndex} className="text-base font-bold text-black">
-      <th colSpan={headers.length} className="bg-[#81d4fa] px-2 py-2 text-left leading-[25.1361875px]">{row.cells[0]}</th>
+      <th colSpan={headers.length} className="bg-[#81d4fa] px-2 py-2 text-left leading-[25.144px]">{row.cells[0]}</th>
     </tr>
   ) : row.emphasis === "empty" ? (
     <tr key={rowIndex}>
@@ -2150,9 +2284,9 @@ function CalculationResultTable({
   );
 
   return (
-    <section className={cn("min-w-0 self-start overflow-hidden rounded-[8px] bg-white font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)]", heightClassName)}>
+    <section className={cn("min-w-0 self-start overflow-hidden rounded-[8px] bg-white font-[Kanit,sans-serif] text-sm leading-[22.001px] tracking-[-0.1px] text-[rgba(0,0,0,0.65)]", heightClassName)}>
       <h3 className="border-x-[0.8px] border-t-[0.8px] border-[#f0f0f0] px-4 py-4 text-left text-[20px] font-bold leading-[31.43px] text-[rgba(0,0,0,0.65)]">{title}</h3>
-      <div className={cn("overflow-x-auto border-l-[0.8px] border-t-[0.8px] border-[#f0f0f0]", isTimeSummary && "h-[398.4px]", isIncomeExpenseSummary && "h-[809.475px]")}>
+      <div className={cn("overflow-hidden border-l-[0.8px] border-t-[0.8px] border-[#f0f0f0]", isTimeSummary && "h-[398.4px]", isIncomeExpenseSummary && "h-[808.675px]")}>
       <table className="table-fixed border-separate border-spacing-0 text-left" style={{ width: `${widths.reduce((total, width) => total + Number.parseFloat(width), 0)}px`, minWidth: "100%" }}>
         <colgroup>
           {widths.map((width, index) => <col key={index} style={{ width, minWidth: width }} />)}
@@ -2160,7 +2294,7 @@ function CalculationResultTable({
         <thead>
           <tr className="h-[54.8px] bg-[#61a8ff] text-center">
             {headers.map((header, index) => (
-              <th key={header} className={cn("border-b border-r border-[#f0f0f0] px-4 text-center font-medium text-white", index === headers.length - 1 && "text-center")}>
+              <th key={header} className={cn("border-b border-r border-[#f0f0f0] px-4 py-4 text-center font-medium text-white", index === headers.length - 1 && "text-center")}>
                 {header}
               </th>
             ))}
@@ -2217,7 +2351,7 @@ function CalculationResultContent({ payroll }: { payroll: PersonalPayrollData | 
   const expenseRows = [
     ["ST0005", "Expense", "กองทุนกู้ยืม กยศ.", "0.00 บาท"],
     ["social_insurance", "Auto", "ประกันสังคม", formatPayrollAmount(socialSecurity)],
-    ["provident_fund", "Auto", "กองทุนสำรองเลี้ยงชีพ", formatPayrollAmount(providentFund)],
+    ...(providentFund > 0 ? [["provident_fund", "Auto", "กองทุนสำรองเลี้ยงชีพ", formatPayrollAmount(providentFund)]] : []),
     ["ST0026", "Expense", "ปรับเงินหักอื่นๆ", "0.00 บาท"],
     ["tax", "Auto", "ภาษี", formatPayrollAmount(tax)],
     ["ST0025", "Auto", "สาย", "0.00 บาท"],
@@ -2227,7 +2361,7 @@ function CalculationResultContent({ payroll }: { payroll: PersonalPayrollData | 
   const incomeExpenseRows: CalculationResultRow[] = [
     { cells: ["รายรับ"], emphasis: "group" },
     ...incomeRows.map((row, index) => ({
-      cells: [String(index + 1), <span key={row[0]} className="flex items-center justify-between"><span>{row[0]}</span>{row[0] !== "ST0031" && <span className="inline-flex h-4 w-[27.3375px] items-center justify-center rounded-[5px] bg-[rgba(255,93,24,0.5)] p-0 text-center text-[10px] font-medium leading-[15.715px] text-[rgba(0,0,0,0.65)]">Tax</span>}</span>, row[1], row[2], row[3]],
+      cells: [String(index + 1), <span key={row[0]} className="flex items-center justify-between"><span>{row[0]}</span>{row[0] !== "ST0031" && <span className="inline-flex h-4 w-[27.3375px] items-center justify-center rounded-[5px] bg-[rgba(255,93,24,0.5)] px-[6px] py-[3px] text-center text-[10px] font-medium leading-[15.715px] text-[rgba(0,0,0,0.65)]">Tax</span>}</span>, row[1], row[2], row[3]],
     })),
     { cells: ["รวมรายรับ", "0.00 บาท"], emphasis: "total" },
     { cells: ["รายจ่าย"], emphasis: "group" },
@@ -2627,7 +2761,7 @@ function EditHistoryContent({ history }: { history: PersonalPayrollData["history
   );
 }
 
-function PersonContent({ monthKey }: { monthKey: string }) {
+function PersonContent({ monthKey, isAccountingPeriodClosed }: { monthKey: string; isAccountingPeriodClosed: boolean }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedCode, setSelectedCode] = useState<string | null>(null);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(null);
@@ -2638,10 +2772,20 @@ function PersonContent({ monthKey }: { monthKey: string }) {
   const [employeeProfile, setEmployeeProfile] = useState<EmployeeProfile | null>(null);
   const [payroll, setPayroll] = useState<PersonalPayrollData | null>(null);
   const [payrollSaving, setPayrollSaving] = useState(false);
+  const [calculationMenuOpen, setCalculationMenuOpen] = useState(false);
+  const [calculationDayDialogOpen, setCalculationDayDialogOpen] = useState(false);
+  const [calculationMonthDialogOpen, setCalculationMonthDialogOpen] = useState(false);
+  const [resetMenuOpen, setResetMenuOpen] = useState(false);
   // Selecting the same employee is a deliberate refresh action too. The ID
   // alone would not change, so effects that depend only on it would not run.
   const [employeeSelectionVersion, setEmployeeSelectionVersion] = useState(0);
   const personTabListRef = useRef<HTMLDivElement>(null);
+  const calculationMenuRef = useRef<HTMLDivElement>(null);
+  const calculationTriggerRef = useRef<HTMLButtonElement>(null);
+  const calculationDayItemRef = useRef<HTMLButtonElement>(null);
+  const calculationMonthItemRef = useRef<HTMLButtonElement>(null);
+  const resetMenuRef = useRef<HTMLDivElement>(null);
+  const resetTriggerRef = useRef<HTMLButtonElement>(null);
   const [personTabPagination, setPersonTabPagination] = useState({ before: false, after: false });
 
   const syncPersonTabPagination = () => {
@@ -2796,6 +2940,99 @@ function PersonContent({ monthKey }: { monthKey: string }) {
     return () => document.removeEventListener("click", closeEmployeeList);
   }, []);
 
+  useEffect(() => {
+    if (!calculationMenuOpen) return;
+
+    const focusFrame = window.requestAnimationFrame(() => calculationDayItemRef.current?.focus());
+
+    const closeMenu = (event: MouseEvent) => {
+      if (!calculationMenuRef.current?.contains(event.target as Node)) {
+        setCalculationMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setCalculationMenuOpen(false);
+        calculationTriggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("mousedown", closeMenu);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("mousedown", closeMenu);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [calculationMenuOpen]);
+
+  useEffect(() => {
+    if (!resetMenuOpen) return;
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      resetMenuRef.current?.querySelector<HTMLButtonElement>("[role='menuitem']")?.focus();
+    });
+    const closeMenu = (event: MouseEvent) => {
+      if (!resetMenuRef.current?.parentElement?.contains(event.target as Node)) {
+        setResetMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setResetMenuOpen(false);
+        resetTriggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("mousedown", closeMenu);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      document.removeEventListener("mousedown", closeMenu);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [resetMenuOpen]);
+
+  const handleCalculationMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const menuItems = [calculationDayItemRef.current, calculationMonthItemRef.current].filter(
+      (item): item is HTMLButtonElement => item !== null
+    );
+    const currentIndex = menuItems.indexOf(document.activeElement as HTMLButtonElement);
+
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      menuItems[(currentIndex + direction + menuItems.length) % menuItems.length]?.focus();
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      menuItems[0]?.focus();
+    } else if (event.key === "End") {
+      event.preventDefault();
+      menuItems.at(-1)?.focus();
+    } else if (event.key === "Tab") {
+      setCalculationMenuOpen(false);
+    }
+  };
+
+  const handleResetMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const menuItems = Array.from(resetMenuRef.current?.querySelectorAll<HTMLButtonElement>("[role='menuitem']") ?? []);
+    const currentIndex = menuItems.indexOf(document.activeElement as HTMLButtonElement);
+
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      menuItems[(currentIndex + direction + menuItems.length) % menuItems.length]?.focus();
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      menuItems[0]?.focus();
+    } else if (event.key === "End") {
+      event.preventDefault();
+      menuItems.at(-1)?.focus();
+    } else if (event.key === "Tab") {
+      setResetMenuOpen(false);
+    }
+  };
+
   const fallbackProfile = selectedCode
     ? {
         code: selectedCode,
@@ -2817,9 +3054,11 @@ function PersonContent({ monthKey }: { monthKey: string }) {
       }
     : null;
   const profile = employeeProfile ?? fallbackProfile;
+  const calculationPeriodRange = monthRange(monthKey);
+  const calculationDayStartDate = calculationPeriodRange.startDate;
 
   const runPayrollAction = async (action: "calculate" | "reset") => {
-    if (!selectedEmployeeId || payrollSaving) return;
+    if (!selectedEmployeeId || payrollSaving || isAccountingPeriodClosed) return;
     setPayrollSaving(true);
     try {
       const response = await fetch("/api/payroll/personal", {
@@ -2837,7 +3076,29 @@ function PersonContent({ monthKey }: { monthKey: string }) {
   };
 
   return (
-    <div>
+    <div
+      onClickCapture={(event) => {
+        if (!isAccountingPeriodClosed) return;
+        const target = event.target;
+        if (target instanceof Element && target.closest("[data-payroll-employee-select-trigger], [data-employee-select-panel]")) {
+          return;
+        }
+        if (target instanceof Element && target.closest("button, input, select, textarea")) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
+      onKeyDownCapture={(event) => {
+        const target = event.target;
+        if (target instanceof Element && target.closest("[data-payroll-employee-select-trigger], [data-employee-select-panel]")) {
+          return;
+        }
+        if (isAccountingPeriodClosed && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
+    >
       {/* งวดเต็ม sub-tab */}
       <div className="relative flex h-12 border-b-2 border-[#1890ff]">
         <button
@@ -2873,35 +3134,132 @@ function PersonContent({ monthKey }: { monthKey: string }) {
         {/* คำนวณ / รีเซ็ต — available after an employee is selected */}
         {selectedCode && (
           <div className="flex flex-1 items-end justify-end gap-0">
-            <button
-              id="btn-normal-person-full-cal-menu"
-              type="button"
-              onClick={() => void runPayrollAction("calculate")}
-              disabled={payrollSaving}
-              className="group relative mr-1 flex h-9 items-center rounded-[4px] border-0 [border-style:none] bg-white px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-white"
-            >
-              <span>{payrollSaving ? "กำลังคำนวณ" : "คำนวณ"}</span>
-              <svg aria-hidden="true" viewBox="0 0 24 24" className="size-6 shrink-0 fill-current">
-                <path d="M19 8l-4 4h3c0 1.65-1.35 3-3 3-.52 0-1.01-.14-1.43-.38l-1.46 1.46A4.96 4.96 0 0 0 15 17c2.76 0 5-2.24 5-5h3l-4-4zM6 12c0-1.65 1.35-3 3-3 .52 0 1.01.14 1.43.38l1.46-1.46A4.96 4.96 0 0 0 9 7c-2.76 0-5 2.24-5 5H1l4 4 4-4H6z" />
-              </svg>
-              <span aria-hidden="true" className="pointer-events-none absolute -top-2.5 right-0 hidden size-4 items-center justify-center rounded-full bg-[#ffa500] text-[16px] leading-5 text-white group-hover:flex">?</span>
-            </button>
-            <button
-              id="btn-normal-person-full-reset-menu"
-              type="button"
-              onClick={() => void runPayrollAction("reset")}
-              disabled={payrollSaving || !payroll?.calculation}
-              className="group relative flex h-9 items-center rounded-[4px] border-0 [border-style:none] bg-white px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-white"
-            >
-              <span>รีเซ็ต</span>
-              <svg aria-hidden="true" viewBox="0 0 24 24" className="size-6 shrink-0 fill-current">
-                <path d="M13 3c-4.97 0-9 4.03-9 9H1l4 4 4-4H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.95-2.05l-1.41 1.41A8.96 8.96 0 0 0 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9z" />
-              </svg>
-              <span aria-hidden="true" className="pointer-events-none absolute -top-2.5 right-0 hidden size-4 items-center justify-center rounded-full bg-[#ffa500] text-[16px] leading-5 text-white group-hover:flex">?</span>
-            </button>
+            <div ref={calculationMenuRef} className="relative mr-1">
+              <button
+                id="btn-normal-person-full-cal-menu"
+                ref={calculationTriggerRef}
+                type="button"
+                onClick={() => {
+                  setResetMenuOpen(false);
+                  setCalculationMenuOpen((open) => !open);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setCalculationMenuOpen(true);
+                  }
+                }}
+                disabled={payrollSaving || isAccountingPeriodClosed}
+                aria-busy={payrollSaving}
+                aria-haspopup="menu"
+                aria-expanded={calculationMenuOpen}
+                aria-controls="btn-normal-person-full-cal-menu-panel"
+                className="group relative flex h-9 w-[100.5625px] items-center rounded-[4px] border-0 [border-style:none] bg-white px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-white disabled:cursor-default disabled:bg-black/[0.1] disabled:text-white disabled:shadow-[0_0_0_0_rgba(0,0,0,0.2),0_0_0_0_rgba(0,0,0,0.14),0_0_0_0_rgba(0,0,0,0.12)]"
+              >
+                <span>คำนวณ</span>
+                <svg aria-hidden="true" viewBox="0 0 24 24" className="size-6 shrink-0 fill-current">
+                  <path d="M19 8l-4 4h3c0 1.65-1.35 3-3 3-.52 0-1.01-.14-1.43-.38l-1.46 1.46A4.96 4.96 0 0 0 15 17c2.76 0 5-2.24 5-5h3l-4-4zM6 12c0-1.65 1.35-3 3-3 .52 0 1.01.14 1.43.38l1.46-1.46A4.96 4.96 0 0 0 9 7c-2.76 0-5 2.24-5 5H1l4 4 4-4H6z" />
+                </svg>
+                <span aria-hidden="true" className="pointer-events-none absolute -top-2.5 right-0 hidden size-4 items-center justify-center rounded-full bg-[#ffa500] text-[16px] leading-5 text-white group-hover:flex">?</span>
+              </button>
+              {calculationMenuOpen && (
+                <div id="btn-normal-person-full-cal-menu-panel" role="menu" aria-label="ตัวเลือกการคำนวณ" onKeyDown={handleCalculationMenuKeyDown} className="mat-menu-content ng-tns-c99-79 absolute left-0 top-full z-[1000] h-[112px] w-[121.825px] overflow-hidden rounded-[4px] bg-white py-2 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.2),0_4px_5px_rgba(0,0,0,0.14),0_1px_10px_rgba(0,0,0,0.12)]">
+                  <button id="btn-normal-person-full-cal-menu-calday" ref={calculationDayItemRef} type="button" role="menuitem" tabIndex={0} aria-disabled={payrollSaving || isAccountingPeriodClosed} disabled={payrollSaving || isAccountingPeriodClosed} onClick={() => { setCalculationMenuOpen(false); calculationTriggerRef.current?.focus(); setCalculationDayDialogOpen(true); }} className="mat-focus-indicator mat-menu-item ng-tns-c99-79 block h-12 w-full px-4 text-left font-[Kanit,sans-serif] text-sm font-normal leading-[48px] text-black/[0.87] transition-colors hover:bg-black/[0.04] focus:bg-black/[0.04] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50">
+                    คำนวณวันนี้
+                  </button>
+                  <button id="btn-normal-person-full-cal-menu-calmonth" ref={calculationMonthItemRef} type="button" role="menuitem" tabIndex={0} aria-disabled={payrollSaving || isAccountingPeriodClosed} disabled={payrollSaving || isAccountingPeriodClosed} onClick={() => { setCalculationMenuOpen(false); calculationTriggerRef.current?.focus(); setCalculationMonthDialogOpen(true); }} className="mat-focus-indicator mat-menu-item ng-tns-c99-79 block h-12 w-full px-4 text-left font-[Kanit,sans-serif] text-sm font-normal leading-[48px] text-black/[0.87] transition-colors hover:bg-black/[0.04] focus:bg-black/[0.04] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50">
+                    คำนวณทั้งเดือน
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="relative">
+              <button
+                id="btn-normal-person-full-reset-menu"
+                ref={resetTriggerRef}
+                type="button"
+                onClick={() => {
+                  setCalculationMenuOpen(false);
+                  setResetMenuOpen((open) => !open);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setResetMenuOpen(true);
+                  }
+                }}
+                disabled={payrollSaving || isAccountingPeriodClosed}
+                aria-busy={payrollSaving}
+                aria-haspopup="menu"
+                aria-expanded={resetMenuOpen}
+                aria-controls="btn-normal-person-full-reset-menu-panel"
+                className="group relative flex h-9 items-center rounded-[4px] border-0 [border-style:none] bg-white px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-white disabled:cursor-default disabled:bg-black/[0.1] disabled:text-white disabled:shadow-[0_0_0_0_rgba(0,0,0,0.2),0_0_0_0_rgba(0,0,0,0.14),0_0_0_0_rgba(0,0,0,0.12)]"
+              >
+                <span>รีเซ็ต</span>
+                <svg aria-hidden="true" viewBox="0 0 24 24" className="size-6 shrink-0 fill-current">
+                  <path d="M13 3c-4.97 0-9 4.03-9 9H1l4 4 4-4H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.95-2.05l-1.41 1.41A8.96 8.96 0 0 0 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9z" />
+                </svg>
+                <span aria-hidden="true" className="pointer-events-none absolute -top-2.5 right-0 hidden size-4 items-center justify-center rounded-full bg-[#ffa500] text-[16px] leading-5 text-white group-hover:flex">?</span>
+              </button>
+              {resetMenuOpen && (
+                <div id="btn-normal-person-full-reset-menu-panel" ref={resetMenuRef} role="menu" aria-label="ตัวเลือกการรีเซ็ต" onKeyDown={handleResetMenuKeyDown} className="mat-menu-content ng-tns-c99-80 absolute right-0 top-full z-[1000] h-[352px] min-w-[112px] w-max max-w-[280px] overflow-hidden rounded-[4px] bg-white py-2 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.2),0_4px_5px_rgba(0,0,0,0.14),0_1px_10px_rgba(0,0,0,0.12)]">
+                  {RESET_MENU_ITEMS.map((item) => (
+                    <button
+                      key={item.id}
+                      id={item.id}
+                      type="button"
+                      role="menuitem"
+                      tabIndex={0}
+                      aria-disabled={payrollSaving}
+                      disabled={payrollSaving || isAccountingPeriodClosed}
+                      onClick={() => {
+                        setResetMenuOpen(false);
+                        if (item.id === "btn-normal-person-full-reset-menu-all") {
+                          void runPayrollAction("reset");
+                        } else if (item.id === "btn-normal-person-full-reset-menu-time") {
+                          setSubTab(PERSON_TABS[0]);
+                        }
+                      }}
+                      className="mat-focus-indicator mat-menu-item ng-tns-c99-80 block h-12 w-full px-4 text-left font-[Kanit,sans-serif] text-sm font-normal leading-[48px] text-black/[0.87] transition-colors hover:bg-black/[0.04] focus:bg-black/[0.04] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
+
+      <CalculationConfirmationModal
+        open={calculationDayDialogOpen}
+        startDate={calculationDayStartDate}
+        endDate={dateKey(new Date())}
+        message="ระบบจะคำนวณตั้งแต่วันที่เริ่มรอบการคำนวณเงินเดือน จนถึงวันที่กดคำนวณวันนี้"
+        dialogId="div-alert-salary-cal-day"
+        confirmButtonId="btn-confirm-salary-cal-day"
+        cancelButtonId="btn-cancel-salary-cal-day"
+        onCancel={() => setCalculationDayDialogOpen(false)}
+        onConfirm={() => {
+          setCalculationDayDialogOpen(false);
+          void runPayrollAction("calculate");
+        }}
+      />
+      <CalculationConfirmationModal
+        open={calculationMonthDialogOpen}
+        startDate={calculationPeriodRange.startDate}
+        endDate={calculationPeriodRange.endDate}
+        message="ระบบจะทำการคำนวนเงินเดือนตั้งแต่วันเริ่มจนถึงวันสิ้นสุดรอบการคำนวณเงินเดือน"
+        dialogId="div-alert-salary-cal-end"
+        confirmButtonId="btn-confirm-salary-cal-end"
+        cancelButtonId="btn-cancel-salary-cal-end"
+        onCancel={() => setCalculationMonthDialogOpen(false)}
+        onConfirm={() => {
+          setCalculationMonthDialogOpen(false);
+          void runPayrollAction("calculate");
+        }}
+      />
 
       {profile ? (
         <>
@@ -2909,12 +3267,12 @@ function PersonContent({ monthKey }: { monthKey: string }) {
           <section className="content-header my-2 flex overflow-hidden rounded-lg bg-white p-2 shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)]">
             <div className="m-3 flex shrink-0 flex-col items-center justify-center">
               <img
-                src="https://web-core.humansoft.co.th/images/userPlaceHolder.png"
+                src={`${USER_IMAGE_ORIGIN}/images/userPlaceHolder.png`}
                 alt="avatar"
                 className="size-24 rounded-full"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src =
-                    "https://api.humansoft.co.th/images/userPlaceHolder.png";
+                    `${FALLBACK_USER_IMAGE_ORIGIN}/images/userPlaceHolder.png`;
                 }}
               />
             </div>
@@ -3014,6 +3372,7 @@ function PersonContent({ monthKey }: { monthKey: string }) {
                 employeeId={selectedEmployeeId ?? ""}
                 employeeName={selectedEmployee?.name ?? ""}
                 showCalculatedAttendance={Boolean(payroll?.calculation)}
+                isAccountingPeriodClosed={isAccountingPeriodClosed}
                 onSaved={(data) => setWork({ rows: data.rows ?? [], naDates: data.naDates ?? [] })}
               />
             ) : subTab === "ยื่นเอกสาร" ? (
@@ -3031,7 +3390,7 @@ function PersonContent({ monthKey }: { monthKey: string }) {
             ) : subTab === "ประวัติการแก้ไข" ? (
               <EditHistoryContent history={payroll?.history ?? []} />
             ) : subTab === "ตั้งค่ารายบุคคล" ? (
-              <IndividualSettingsContent employeeId={selectedEmployeeId} />
+              <IndividualSettingsContent employeeId={selectedEmployeeId} monthKey={monthKey} />
             ) : (
               <div className="p-5">
                 <div className="flex h-48 items-center justify-center rounded-md border border-dashed border-border text-sm text-muted-foreground">
@@ -3196,7 +3555,7 @@ const DEFAULT_INDIVIDUAL_SHIFT_HOLIDAY_SETTINGS: IndividualShiftHolidaySettings 
   weeklyDayTypes: ["วันทำงาน", "วันทำงาน", "วันทำงาน", "วันทำงาน", "วันทำงาน", "วันหยุดพนักงาน", "วันหยุดพนักงาน"],
 };
 
-function IndividualSettingsContent({ employeeId }: { employeeId: string | null }) {
+function IndividualSettingsContent({ employeeId, monthKey }: { employeeId: string | null; monthKey: string }) {
   const [openSections, setOpenSections] = useState<string[]>(["general", "worktime", "shift", "constant", "automatic", "fund", "tax", "debt"]);
   const [autoItems, setAutoItems] = useState<string[]>([]);
   const [generalSettings, setGeneralSettings] = useState<IndividualGeneralSettings>(DEFAULT_INDIVIDUAL_GENERAL_SETTINGS);
@@ -3322,7 +3681,7 @@ function IndividualSettingsContent({ employeeId }: { employeeId: string | null }
       const response = await fetch("/api/payroll/individual-general-settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ employeeId, ...generalSettings }),
+        body: JSON.stringify({ employeeId, month: monthKey, ...generalSettings }),
       });
       const data = await response.json() as { settings?: IndividualGeneralSettings; error?: string };
       if (!response.ok) throw new Error(data.error ?? "Unable to save individual general settings");
@@ -3343,7 +3702,7 @@ function IndividualSettingsContent({ employeeId }: { employeeId: string | null }
       const response = await fetch("/api/payroll/individual-work-time", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ employeeId, ...setting }),
+        body: JSON.stringify({ employeeId, month: monthKey, ...setting }),
       });
       const data = await response.json() as { settings?: IndividualWorkTimeSetting[]; error?: string };
       if (!response.ok) throw new Error(data.error ?? "Unable to save individual work-time settings");
@@ -3368,8 +3727,8 @@ function IndividualSettingsContent({ employeeId }: { employeeId: string | null }
     setShiftHolidayError(null);
     try {
       const payload = section === "shift"
-        ? { employeeId, section, selectedShift: shiftHolidaySettings.selectedShift, weeklyShifts: shiftHolidaySettings.weeklyShifts }
-        : { employeeId, section, selectedDayType: shiftHolidaySettings.selectedDayType, weeklyDayTypes: shiftHolidaySettings.weeklyDayTypes };
+        ? { employeeId, month: monthKey, section, selectedShift: shiftHolidaySettings.selectedShift, weeklyShifts: shiftHolidaySettings.weeklyShifts }
+        : { employeeId, month: monthKey, section, selectedDayType: shiftHolidaySettings.selectedDayType, weeklyDayTypes: shiftHolidaySettings.weeklyDayTypes };
       const response = await fetch("/api/payroll/individual-shift-holiday-settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -3564,6 +3923,7 @@ function IndividualSettingsContent({ employeeId }: { employeeId: string | null }
         <IndividualOvertimeSettingDialog
           key={editingOvertimeRule}
           employeeId={employeeId}
+          monthKey={monthKey}
           ruleNumber={editingOvertimeRule}
           title={INDIVIDUAL_OT_ROWS[editingOvertimeRule - 1]?.[0] ?? "โอทีล่วงเวลา (x1.0)"}
           onClose={() => setEditingOvertimeRule(null)}
@@ -3656,6 +4016,7 @@ function IndividualWorkTimeSettingDialog({
 
 function IndividualOvertimeSettingDialog({
   employeeId,
+  monthKey,
   ruleNumber,
   title,
   setting,
@@ -3663,6 +4024,7 @@ function IndividualOvertimeSettingDialog({
   onSaved,
 }: {
   employeeId: string | null;
+  monthKey: string;
   ruleNumber: number;
   title: string;
   setting: IndividualOvertimeSetting;
@@ -3701,6 +4063,7 @@ function IndividualOvertimeSettingDialog({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           employeeId,
+          month: monthKey,
           ruleNumber,
           enabled,
           startMinutes,
@@ -3870,19 +4233,46 @@ function IndividualWeekSchedule({
 
 /* ---------------------------- Tab: รายองค์กร ------------------------------ */
 
-function OrganizationContent() {
+function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodClosed: boolean }) {
   const [calcEnabled, setCalcEnabled] = useState(true);
   const [salaryVisible, setSalaryVisible] = useState(false);
+  const [salaryMenuOpen, setSalaryMenuOpen] = useState(false);
   const [subTab, setSubTab] = useState(ORG_SUB_TABS[0]);
   const [innerTab, setInnerTab] = useState(ORG_INNER_TABS[0]);
   const [selected, setSelected] = useState<string[]>(ORG_EMPLOYEES.map((e) => e.code));
   const innerTabRef = useRef<HTMLDivElement>(null);
-  const orgCellClass = "!p-2 border-b border-r border-[#f0f0f0] bg-white last:border-r-0";
+  const salaryMenuRef = useRef<HTMLDivElement>(null);
+  const salaryMenuTriggerRef = useRef<HTMLButtonElement>(null);
+  const orgCellClass = "!h-[52.8px] !p-2 border-0 bg-transparent align-middle font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-black/[0.65]";
+
+  useEffect(() => {
+    if (!salaryMenuOpen) return;
+
+    const closeMenu = (event: MouseEvent) => {
+      if (!salaryMenuRef.current?.contains(event.target as Node)) {
+        setSalaryMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setSalaryMenuOpen(false);
+        salaryMenuTriggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("mousedown", closeMenu);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeMenu);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [salaryMenuOpen]);
 
   const allChecked =
     ORG_EMPLOYEES.length > 0 && ORG_EMPLOYEES.every((e) => selected.includes(e.code));
 
   function toggleAll() {
+    if (isAccountingPeriodClosed) return;
     if (allChecked) {
       setSelected([]);
     } else {
@@ -3891,11 +4281,33 @@ function OrganizationContent() {
   }
 
   function toggleRow(code: string) {
+    if (isAccountingPeriodClosed) return;
     setSelected((prev) => (prev.includes(code) ? prev.filter((c) => c !== code) : [...prev, code]));
   }
 
   return (
-    <div className="space-y-0">
+    <div
+      className="space-y-0"
+      aria-readonly={isAccountingPeriodClosed}
+      onClickCapture={(event) => {
+        if (!isAccountingPeriodClosed) return;
+        if ((event.target as Element).closest("button, input, select, textarea")) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
+      onKeyDownCapture={(event) => {
+        if (isAccountingPeriodClosed && (event.key === "Enter" || event.key === " ")) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
+    >
+      {isAccountingPeriodClosed && (
+        <div role="status" className="mx-6 mt-3 rounded border border-[#ffe58f] bg-[#fffbe6] px-4 py-2 text-sm text-[rgba(0,0,0,0.65)]">
+          งวดบัญชีนี้ปิดแล้ว ข้อมูลการคำนวณและการแก้ไขเป็นแบบอ่านอย่างเดียว
+        </div>
+      )}
       {/* Sub-tabs: งวดเต็ม / รวมทุกงวด / เปรียบเทียบ */}
       <div role="tablist" aria-label="รูปแบบการคำนวณเงินเดือนทั้งองค์กร" className="flex h-12 border-b border-black/[0.12] bg-white">
           {ORG_SUB_TABS.map((tab) => {
@@ -3937,13 +4349,17 @@ function OrganizationContent() {
       <div className="mx-6 mb-[22px] mt-6 flex flex-wrap items-start justify-between gap-2">
         {/* Filters */}
         <div className="flex flex-1 flex-wrap items-start gap-2">
-          {["โครงสร้างองค์กร", "ตำแหน่ง", "ประเภทพนักงาน"].map((f) => (
+          {[
+            { label: "โครงสร้างองค์กร", width: "w-[159.4125px]" },
+            { label: "ตำแหน่ง", width: "w-[109.225px]" },
+            { label: "ประเภทพนักงาน", width: "w-[153.4625px]" },
+          ].map((filter) => (
             <button
-              key={f}
+              key={filter.label}
               type="button"
-              className="inline-flex h-10 items-center gap-2 rounded-[2px] border border-[#d9d9d9] bg-white px-3 font-[Kanit,sans-serif] text-sm font-normal leading-[22px] text-black/[0.87] shadow-none transition-colors hover:border-[#61a8ff] hover:bg-white"
+              className={cn("inline-flex h-10 items-center justify-between rounded-[20px] border-[0.8px] border-[#d9d9d9] bg-white px-4 font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-black/[0.65] shadow-[0_2px_0_rgba(0,0,0,0.016)] transition-colors hover:border-[#40a9ff] hover:bg-white", filter.width)}
             >
-              {f}
+              {filter.label}
               <ChevronDown className="size-[14px] stroke-[2.5] text-black" />
             </button>
           ))}
@@ -4030,46 +4446,76 @@ function OrganizationContent() {
       {/* Tab content */}
       {innerTab === "รายชื่อพนักงาน" ? (
         <div id="normal-organization-employee" className="flex">
-          <div className="m-6 flex flex-1 flex-col gap-2">
+          <div className="m-6 flex flex-1 flex-col">
             {/* Toggle + เปิด/ปิดข้อมูลเงินเดือน */}
-            <div className="mb-2 flex flex-wrap items-center justify-end gap-3">
-              <div className="mr-3 flex items-center gap-2 text-sm text-black/[.87]">
+            <div className="mb-2 flex items-center justify-end">
+              <div className="mr-3 flex h-[25.1375px] items-center justify-center font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-black/[0.87]">
                 <button
                   type="button"
                   role="switch"
                   aria-checked={calcEnabled}
                   onClick={() => setCalcEnabled((v) => !v)}
                   className={cn(
-                    "relative inline-flex h-[22px] w-11 items-center rounded-full transition-colors",
+                    "relative top-[0.74375px] mr-2 inline-block h-[22px] w-11 rounded-[100px] border-[0.8px] border-transparent p-0 transition-colors",
                     calcEnabled ? "bg-[#1890ff]" : "bg-[#bfbfbf]"
                   )}
                 >
                   <span
                     className={cn(
-                      "inline-block size-[18px] translate-x-0.5 rounded-full bg-white shadow transition-transform",
-                      calcEnabled && "translate-x-[22px]"
+                      "absolute left-[1px] top-px size-[18px] rounded-[18px] bg-white shadow-[0_2px_4px_rgba(0,35,11,0.2)] transition-transform duration-[360ms] [transition-timing-function:cubic-bezier(0.78,0.14,0.15,0.86)]",
+                      calcEnabled && "translate-x-[24px]"
                     )}
                   />
                 </button>
-                <span className="mr-2">เปิด/ปิด การคำนวณเงินเดือนของพนักงาน</span>
-                <CircleHelp className="size-4 shrink-0 fill-[#61a8ff] text-[#61a8ff]" />
+                <span className="mr-2 h-[22px] w-[237.65px] whitespace-nowrap">เปิด/ปิด การคำนวณเงินเดือนของพนักงาน</span>
+                <svg aria-hidden="true" viewBox="64 64 896 896" className="size-3 shrink-0 fill-black/[0.54] text-black/[0.54]">
+                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 708c-22.1 0-40-17.9-40-40s17.9-40 40-40 40 17.9 40 40-17.9 40-40 40zm62.9-219.5a48.3 48.3 0 00-30.9 44.8V620c0 4.4-3.6 8-8 8h-48c-4.4 0-8-3.6-8-8v-21.5c0-23.1 6.7-45.9 19.9-64.9 12.9-18.6 30.9-32.8 52.1-40.9 34-13.1 56-41.6 56-72.7 0-44.1-43.1-80-96-80s-96 35.9-96 80v7.6c0 4.4-3.6 8-8 8h-48c-4.4 0-8-3.6-8-8V420c0-39.3 17.2-76 48.4-103.3C430.4 290.4 470 276 512 276s81.6 14.5 111.6 40.7C654.8 344 672 380.7 672 420c0 57.8-38.1 109.8-97.1 132.5z" />
+                </svg>
               </div>
-              <button
-                type="button"
-                onClick={() => setSalaryVisible((v) => !v)}
-                className="inline-flex h-9 items-center gap-1.5 rounded-sm bg-white px-4 text-sm font-medium text-black/[.87] shadow-[0_2px_2px_0_rgba(0,0,0,.14),0_3px_1px_-2px_rgba(0,0,0,.2),0_1px_5px_0_rgba(0,0,0,.12)] transition-colors hover:bg-black/[.04]"
-              >
-                เปิด/ปิดข้อมูลเงินเดือน
-                <Power className="size-4" />
-              </button>
+              <div ref={salaryMenuRef} className="relative h-9 w-[193.9875px]">
+                <button
+                  ref={salaryMenuTriggerRef}
+                  type="button"
+                  aria-haspopup="menu"
+                  aria-expanded={salaryMenuOpen}
+                  aria-controls="normal-organization-salary-menu"
+                  onClick={() => setSalaryMenuOpen((open) => !open)}
+                  onKeyDown={(event) => {
+                    if (event.key === "ArrowDown") {
+                      event.preventDefault();
+                      setSalaryMenuOpen(true);
+                    }
+                  }}
+                  className="mat-focus-indicator mat-menu-trigger mat-raised-button mat-button-base ng-tns-c606-159 ng-star-inserted block h-9 w-full rounded-[4px] border-0 bg-white px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-black/[0.87] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-black/[0.04] focus:outline-none"
+                >
+                  <span className="mat-button-wrapper inline">
+                    เปิด/ปิดข้อมูลเงินเดือน{" "}
+                    <svg aria-hidden="true" viewBox="0 0 24 24" className="relative top-[0.3625px] ml-[0.95px] inline-block size-6 align-middle fill-current">
+                      <path d="M13 3h-2v10h2V3zm4.83 2.17-1.42 1.42A7.93 7.93 0 0 1 20 12c0 4.41-3.59 8-8 8s-8-3.59-8-8c0-2.21.9-4.21 2.35-5.65L4.93 4.93A9.93 9.93 0 0 0 2 12c0 5.52 4.48 10 10 10s10-4.48 10-10c0-2.76-1.12-5.26-2.93-7.07z" />
+                    </svg>
+                  </span>
+                </button>
+                {salaryMenuOpen && (
+                  <div id="normal-organization-salary-menu" role="menu" aria-label="เปิดหรือปิดข้อมูลเงินเดือน" className="mat-menu-panel ng-tns-c99-161 absolute bottom-0 left-0 z-[1000] h-28 w-[137.45px] overflow-hidden rounded-[4px] bg-white p-0 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.2),0_4px_5px_rgba(0,0,0,0.14),0_1px_10px_rgba(0,0,0,0.12)]">
+                    <div className="mat-menu-content ng-tns-c99-161 py-2">
+                      <button type="button" role="menuitem" onClick={() => { setSalaryVisible(true); setSalaryMenuOpen(false); }} className="mat-focus-indicator mat-menu-item ng-tns-c99-161 block h-12 w-full px-4 text-left font-[Kanit,sans-serif] text-sm font-normal leading-[48px] text-black/[0.87] transition-colors hover:bg-black/[0.04] focus:bg-black/[0.04] focus:outline-none">
+                        เปิดข้อมูลเงินเดือน
+                      </button>
+                      <button type="button" role="menuitem" onClick={() => { setSalaryVisible(false); setSalaryMenuOpen(false); }} className="mat-focus-indicator mat-menu-item ng-tns-c99-161 block h-12 w-full px-4 text-left font-[Kanit,sans-serif] text-sm font-normal leading-[48px] text-black/[0.87] transition-colors hover:bg-black/[0.04] focus:bg-black/[0.04] focus:outline-none">
+                        ปิดข้อมูลเงินเดือน
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Table */}
-            <div className="max-h-[80vh] overflow-auto border border-[#f0f0f0]">
+            <div className="max-h-[80vh] overflow-auto border border-[#f0f0f0] bg-white">
               <Table className="min-w-[1100px] table-fixed text-sm leading-[22px]">
               <TableHeader className="sticky top-0 z-10 bg-[#61a8ff]">
                 <TableRow className="hover:bg-transparent">
-                  <BlueTableHead className="h-auto w-[5%] py-4 text-center">
+                  <BlueTableHead className="h-12 w-[5%] px-4 py-2 text-center font-[Kanit,sans-serif] text-sm font-semibold leading-[22px]">
                     <span className="inline-flex h-[22px] items-center">
                       <input
                         type="checkbox"
@@ -4079,7 +4525,7 @@ function OrganizationContent() {
                       />
                     </span>
                   </BlueTableHead>
-                  <BlueTableHead className="h-auto w-[5%] py-4 text-center">ลำดับ</BlueTableHead>
+                  <BlueTableHead className="h-12 w-[5%] px-4 py-2 text-center font-[Kanit,sans-serif] text-sm font-semibold leading-[22px]">ลำดับ</BlueTableHead>
                   <BlueTableHead className="h-auto w-[8%] py-4 text-center">รหัสพนักงาน</BlueTableHead>
                   <BlueTableHead className="h-auto w-[16%] py-4 text-center">
                     <span className="inline-flex items-center gap-1">
@@ -4099,7 +4545,7 @@ function OrganizationContent() {
                 {ORG_EMPLOYEES.map((e, i) => (
                   <TableRow
                     key={e.code}
-                    className="bg-white hover:bg-white"
+                    className={cn("h-[52.8px] border-0 hover:bg-inherit", i % 2 === 0 ? "bg-[#f2fafe]" : "bg-white")}
                   >
                     <TableCell className={cn(orgCellClass, "text-center")}>
                       <span className="inline-flex h-[22px] items-center">
@@ -4111,14 +4557,14 @@ function OrganizationContent() {
                         />
                       </span>
                     </TableCell>
-                    <TableCell className={cn(orgCellClass, "text-center text-foreground")}>{i + 1}</TableCell>
-                    <TableCell className={cn(orgCellClass, "text-center font-medium text-foreground")}>{e.code}</TableCell>
-                    <TableCell className={cn(orgCellClass, "text-foreground")}>{e.name.includes("(") ? e.name : `${e.name} ()`}</TableCell>
-                    <TableCell className={cn(orgCellClass, "text-foreground")}>{e.branch}</TableCell>
-                    <TableCell className={cn(orgCellClass, "text-foreground")}>{e.dept}</TableCell>
-                    <TableCell className={cn(orgCellClass, "text-foreground")}>{e.position}</TableCell>
-                    <TableCell className={cn(orgCellClass, "text-center text-foreground")}>เต็มงวด</TableCell>
-                    <TableCell className={cn(orgCellClass, "text-center text-foreground")}>
+                    <TableCell className={cn(orgCellClass, "text-center")}>{i + 1}</TableCell>
+                    <TableCell className={cn(orgCellClass, "text-center")}>{e.code}</TableCell>
+                    <TableCell className={orgCellClass}>{e.name.includes("(") ? e.name : `${e.name} ()`}</TableCell>
+                    <TableCell className={orgCellClass}>{e.branch}</TableCell>
+                    <TableCell className={orgCellClass}>{e.dept}</TableCell>
+                    <TableCell className={orgCellClass}>{e.position}</TableCell>
+                    <TableCell className={cn(orgCellClass, "text-center")}>เต็มงวด</TableCell>
+                    <TableCell className={cn(orgCellClass, "text-center")}>
                       {salaryVisible ? "เปิด" : "ปิด"}
                     </TableCell>
                     <TableCell className={cn(orgCellClass, "text-center")}>
@@ -4138,7 +4584,7 @@ function OrganizationContent() {
             </div>
 
             {/* Pagination */}
-            <div className="flex items-center justify-end gap-1.5">
+            <div className="mt-2 flex items-center justify-end gap-1.5">
               <button
                 type="button"
                 disabled
@@ -4271,13 +4717,270 @@ function ReportDownloadButton({ type, disabled = false }: { type: ReportAction; 
   );
 }
 
-function ClosePeriodContent() {
+type ClosePeriodState = {
+  paymentDate: string;
+  taxPaymentDate: string;
+  isClosed: boolean;
+  closedAt: string | null;
+  employeeCount: number;
+};
+
+function formatClosePeriodDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "-";
+  const [year, month, day] = value.split("-").map(Number);
+  return `${String(day).padStart(2, "0")} ${MONTHS_TH[month - 1]} ${year}`;
+}
+
+const EMPTY_CLOSE_PERIOD_STATE: ClosePeriodState = {
+  paymentDate: "",
+  taxPaymentDate: "",
+  isClosed: false,
+  closedAt: null,
+  employeeCount: 0,
+};
+
+type ClosePeriodDialogType = "save" | "close" | null;
+
+function ClosePeriodConfirmationModal({
+  action,
+  busy,
+  error,
+  onCancel,
+  onConfirm,
+}: {
+  action: ClosePeriodDialogType;
+  busy: boolean;
+  error: string;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!action) return null;
+
+  const isClosing = action === "close";
+  if (!isClosing) {
+    return createPortal(
+      <div className="swal2-container fixed inset-0 z-[1300] flex items-center justify-center overflow-y-auto bg-black/[0.4] p-[8.75px]" role="dialog" aria-modal="true" aria-labelledby="close-period-confirmation-title">
+        <div aria-describedby="close-period-confirmation-content" className="swal2-popup swal2-modal message-alert swal2-icon-warning swal2-show flex w-[330px] flex-col justify-center rounded-[5px] bg-white p-[12.5px] font-[Kanit,sans-serif] text-[10px] font-normal leading-[15.715px] tracking-[-0.1px] text-black/[0.87]" tabIndex={-1} aria-live="assertive">
+          <div className="swal2-header flex flex-col items-center px-[18px]">
+            <div className="swal2-icon swal2-warning swal2-icon-show mb-[18.75px] mt-[12.5px] flex size-[50px] box-content items-center justify-center rounded-full border-[2.4px] border-[#facea8] font-normal text-[#f8bb86]">
+              <div className="swal2-icon-content flex text-[37.5px] font-normal leading-[50px]">!</div>
+            </div>
+            <h2 id="close-period-confirmation-title" className="swal2-title message-title mb-[7.5px] flex p-0 text-center font-[Kanit,sans-serif] text-[18.75px] font-semibold leading-[29.4656px] tracking-[-0.1px] text-[#595959]">
+              <span className="text-[16px] leading-[25.144px]">ยืนยัน</span>
+            </h2>
+          </div>
+          <div className="swal2-content message-content block px-[18px] text-center text-[11.25px] font-normal text-[#545454]">
+            <div id="close-period-confirmation-content" className="swal2-html-container block min-h-0 p-0 text-center text-[11.25px] font-normal text-[#545454]">
+              <p className="m-0 text-[12px] font-normal leading-[18.4px]">ต้องการบันทึกวันที่จ่าย</p>
+              {error && <p role="alert" className="mt-2 text-[11.25px] leading-4 text-[#d9363e]">{error}</p>}
+            </div>
+          </div>
+          <div className="swal2-actions mt-[12.5px] flex h-[32.1125px] w-full items-center justify-center px-4">
+            <button type="button" onClick={onConfirm} disabled={busy} className="swal2-confirm message-button swal2-styled m-[3.32031px] h-[25.4875px] rounded-[2.65625px] border-0 bg-[#2778c4] px-[11.6875px] py-[6.64062px] font-[Kanit,sans-serif] text-[10.625px] font-medium leading-[12.2188px] tracking-normal text-white transition-colors hover:bg-[#2778c4] focus:outline-none disabled:cursor-wait disabled:opacity-70">
+              {busy ? "กรุณารอสักครู่..." : "ยืนยัน"}
+            </button>
+            <button type="button" onClick={onCancel} disabled={busy} className="swal2-cancel message-button swal2-styled m-[3.32031px] h-[25.4875px] rounded-[2.65625px] border-0 bg-[#757575] px-[11.6875px] py-[6.64062px] font-[Kanit,sans-serif] text-[10.625px] font-medium leading-[12.2188px] tracking-normal text-white transition-colors hover:bg-[#757575] focus:outline-none disabled:cursor-not-allowed disabled:opacity-70">ยกเลิก</button>
+          </div>
+        </div>
+      </div>,
+      document.body
+    );
+  }
+
+  return createPortal(
+    <div className="swal2-container fixed inset-0 z-[1300] flex items-center justify-center overflow-y-auto bg-black/[0.4] p-[8.75px]" role="dialog" aria-modal="true" aria-describedby="close-period-confirmation-content">
+      <div className="swal2-popup swal2-modal swal2-icon-warning swal2-show flex w-[330px] flex-col justify-center rounded-[5px] bg-white p-[12.5px] font-[Kanit,sans-serif] text-[10px] font-normal leading-[15.715px] tracking-[-0.1px] text-black/[0.87]" tabIndex={-1} aria-live="assertive">
+        <div className="swal2-header flex flex-col items-center px-[18px]">
+          <div className="swal2-icon swal2-warning swal2-icon-show mb-[18.75px] mt-[12.5px] flex size-[50px] box-content items-center justify-center rounded-full border-[2.4px] border-[#facea8] font-normal text-[#f8bb86]">
+            <div className="swal2-icon-content flex text-[37.5px] font-normal leading-[50px]">!</div>
+          </div>
+        </div>
+        <div className="swal2-content block px-[18px] text-center text-[11.25px] font-normal text-[#545454]">
+          <div id="close-period-confirmation-content" className="swal2-html-container block min-h-0 p-0 text-left text-[12px] font-normal leading-[18.4px] text-[#545454]">
+            <p className="m-0">ระบบจะทำการปิดงวดบัญชี คำนวณเงินเดือน</p>
+            <p className="m-0 font-medium">**ทำให้ไม่สามารถคำนวณเงินเดือน ในเดือนนี้ได้</p>
+            <p className="m-0">ถ้ามีงวดแยก จะปิดงวดแยกอัตโนมัติ</p>
+            <p className="mb-0 mt-[7.5px]">กรุณาตรวจสอบรายการดังนี้ก่อนปิดงวด</p>
+            <ul className="m-0 list-disc pl-[18px]">
+              <li>การอนุมัติเอกสารต่างๆ</li>
+              <li>เวลาการทำงาน</li>
+              <li>ผลการคำนวณเงินเดือน</li>
+            </ul>
+            {error && <p role="alert" className="mb-0 mt-[7.5px] text-[#d9363e]">{error}</p>}
+          </div>
+        </div>
+        <div className="swal2-actions mt-[12.5px] flex h-[32.1125px] w-full items-center justify-center px-4">
+          <button type="button" onClick={onConfirm} disabled={busy} className="swal2-confirm message-button swal2-styled m-[3.32031px] h-[25.4875px] rounded-[2.65625px] border-0 bg-[#2778c4] px-[11.6875px] py-[6.64062px] font-[Kanit,sans-serif] text-[10.625px] font-medium leading-[12.2188px] tracking-normal text-white transition-colors hover:bg-[#2778c4] focus:outline-none disabled:cursor-wait disabled:opacity-70">
+            {busy ? "กรุณารอสักครู่..." : "ยืนยัน"}
+          </button>
+          <button type="button" onClick={onCancel} disabled={busy} className="swal2-cancel message-button swal2-styled m-[3.32031px] h-[25.4875px] rounded-[2.65625px] border-0 bg-[#757575] px-[11.6875px] py-[6.64062px] font-[Kanit,sans-serif] text-[10.625px] font-medium leading-[12.2188px] tracking-normal text-white transition-colors hover:bg-[#757575] focus:outline-none disabled:cursor-not-allowed disabled:opacity-70">ยกเลิก</button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function ClosePeriodContent({
+  monthKey,
+  onClosePeriod,
+  onPeriodClosed,
+}: {
+  monthKey: string;
+  onClosePeriod: (state: ClosePeriodState) => void;
+  onPeriodClosed: () => void;
+}) {
   const [payDate, setPayDate] = useState("");
   const [taxDate, setTaxDate] = useState("");
+  const [closePeriodState, setClosePeriod] = useState<ClosePeriodState>(EMPTY_CLOSE_PERIOD_STATE);
+  const [dialogAction, setDialogAction] = useState<ClosePeriodDialogType>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadClosePeriod = async () => {
+    const response = await fetch(`/api/payroll/close-period?month=${encodeURIComponent(monthKey)}`, { cache: "no-store" });
+    const data = (await response.json().catch(() => null)) as ClosePeriodState | { error?: string } | null;
+    if (!response.ok) throw new Error(data && "error" in data ? data.error : "ไม่สามารถค้นหาข้อมูลงวดบัญชีได้");
+    const nextState = data as ClosePeriodState;
+    setClosePeriod(nextState);
+    setPayDate(nextState.paymentDate);
+    setTaxDate(nextState.taxPaymentDate);
+    onClosePeriod(nextState);
+    return nextState;
+  };
+
+  useEffect(() => {
+    void loadClosePeriod().catch((cause) => setError(cause instanceof Error ? cause.message : "ไม่สามารถโหลดข้อมูลงวดบัญชีได้"));
+    // The selected payroll month is the sole input for this query.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [monthKey]);
+
+  async function saveDates() {
+    if (!payDate || !taxDate) {
+      setError("กรุณาระบุวันที่จ่ายและวันที่จ่ายภาษีให้ครบถ้วน");
+      return;
+    }
+    setIsLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/payroll/close-period", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month: monthKey, paymentDate: payDate, taxPaymentDate: taxDate }),
+      });
+      const data = (await response.json().catch(() => null)) as ClosePeriodState | { error?: string } | null;
+      if (!response.ok) throw new Error(data && "error" in data ? data.error : "ไม่สามารถบันทึกวันที่จ่ายได้");
+      const nextState = data as ClosePeriodState;
+      setClosePeriod(nextState);
+      setDialogAction(null);
+      onClosePeriod(nextState);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "ไม่สามารถบันทึกวันที่จ่ายได้");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function closePeriod() {
+    setIsLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/payroll/close-period", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ month: monthKey }),
+      });
+      const data = (await response.json().catch(() => null)) as ClosePeriodState | { error?: string } | null;
+      if (!response.ok) throw new Error(data && "error" in data ? data.error : "ไม่สามารถปิดงวดบัญชีได้");
+      const nextState = data as ClosePeriodState;
+      setClosePeriod(nextState);
+      setDialogAction(null);
+      onClosePeriod(nextState);
+      onPeriodClosed();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "ไม่สามารถปิดงวดบัญชีได้");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function unlockPeriod() {
+    if (isLoading || !closePeriodState.isClosed) return;
+    setIsLoading(true);
+    setError("");
+    try {
+      const response = await fetch(`/api/payroll/close-period?month=${encodeURIComponent(monthKey)}`, {
+        method: "DELETE",
+      });
+      const data = (await response.json().catch(() => null)) as ClosePeriodState | { error?: string } | null;
+      if (!response.ok) throw new Error(data && "error" in data ? data.error : "ไม่สามารถปลดล็อกงวดบัญชีได้");
+      const nextState = data as ClosePeriodState;
+      setClosePeriod(nextState);
+      setPayDate(nextState.paymentDate);
+      setTaxDate(nextState.taxPaymentDate);
+      onClosePeriod(nextState);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "ไม่สามารถปลดล็อกงวดบัญชีได้");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function search() {
+    setIsLoading(true);
+    setError("");
+    try {
+      await loadClosePeriod();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "ไม่สามารถค้นหาข้อมูลงวดบัญชีได้");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const reportCount = closePeriodState.employeeCount ? `${closePeriodState.employeeCount} คน` : "";
 
   return (
     <div className="space-y-[22px] px-2 pt-2">
       <Card className="shadow-sm">
+        {closePeriodState.isClosed ? (
+          <CardContent className="card-data-container flex h-[88px] w-full flex-row items-end px-6 py-6">
+            <div className="flex flex-1 flex-col items-start justify-center">
+              <div className="m-1 flex flex-col items-center justify-center">
+                <button
+                  type="button"
+                  className="put-in-button inline-flex h-8 items-center gap-2 rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-black/[0.65] shadow-[0_2px_0_rgba(0,0,0,0.016)] hover:bg-white"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="size-6" focusable="false">
+                    <path fill="currentColor" d="M9.99967 14.3266L12.7563 11.5708L12.1663 10.9808L10.4163 12.7308V8.81415H9.58301V12.7308L7.83301 10.9808L7.24301 11.5708L9.99967 14.3266ZM4.16634 6.50665V15.3208C4.16634 15.4703 4.2144 15.593 4.31051 15.6891C4.40662 15.7853 4.52967 15.8333 4.67967 15.8333H15.3205C15.47 15.8333 15.5927 15.7853 15.6888 15.6891C15.785 15.593 15.833 15.4703 15.833 15.3208V6.50665H4.16634ZM4.80801 16.6666C4.43467 16.6666 4.09551 16.5141 3.79051 16.2091C3.48551 15.9041 3.33301 15.5653 3.33301 15.1925V6.23831C3.33301 6.07609 3.35884 5.92331 3.41051 5.77998C3.46217 5.63665 3.53995 5.5047 3.64384 5.38415L4.94217 3.82581C5.06273 3.66304 5.21356 3.54026 5.39467 3.45748C5.57579 3.3747 5.76995 3.33331 5.97717 3.33331H13.9905C14.1972 3.33331 14.3938 3.3747 14.5805 3.45748C14.7672 3.54026 14.9208 3.66276 15.0413 3.82498L16.3555 5.41665C16.4594 5.5372 16.5372 5.67192 16.5888 5.82081C16.6405 5.96915 16.6663 6.1247 16.6663 6.28748V15.1916C16.6663 15.5644 16.5138 15.9033 16.2088 16.2083C15.9038 16.5133 15.565 16.6658 15.1922 16.6658L4.80801 16.6666ZM4.48301 5.67331H15.4997L14.3913 4.34165C14.3375 4.28831 14.2758 4.24581 14.2063 4.21415C14.1369 4.18248 14.0647 4.16665 13.9897 4.16665H5.99301C5.91856 4.16665 5.84634 4.18276 5.77634 4.21498C5.70634 4.2472 5.64523 4.28998 5.59301 4.34331L4.48301 5.67331Z" />
+                  </svg>
+                  <span>เก็บเข้าแฟ้ม</span>
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-1 flex-col items-end justify-center" />
+            <div className="card-input-body flex flex-1 flex-col items-end justify-center">
+              <div className="flex items-start gap-2.5">
+                <div className="flex flex-col gap-1">
+                  <div className="date-label box-border flex h-8 w-[220px] flex-none items-center rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-[#f5f5f5] px-[11px] py-1 text-start font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] tracking-[-0.1px] text-black/[0.87]">
+                    <label>วันที่จ่าย: {formatClosePeriodDate(closePeriodState.paymentDate)}</label>
+                  </div>
+                </div>
+                <div className="date-label box-border flex h-8 w-[220px] flex-none items-center rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-[#f5f5f5] px-[11px] py-1 text-start font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] tracking-[-0.1px] text-black/[0.87]">
+                  <label>วันที่จ่ายภาษี: {formatClosePeriodDate(closePeriodState.taxPaymentDate)}</label>
+                </div>
+                <button
+                  type="button"
+                  disabled={isLoading}
+                  onClick={() => void unlockPeriod()}
+                  className="unlock-btn flex h-8 flex-col items-center justify-center gap-[10px] whitespace-nowrap rounded-[4px] border-[0.8px] border-[#1890ff] bg-white px-[15px] py-1 text-center font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-[#1890ff] shadow-[0_2px_0_rgba(0,0,0,0.016)] hover:bg-white"
+                >
+                  {isLoading ? "กรุณารอสักครู่..." : "ปลดล็อก"}
+                </button>
+              </div>
+            </div>
+          </CardContent>
+        ) : (
         <CardContent className="flex min-h-[6.5rem] flex-wrap items-end justify-between gap-4 px-[23px] pb-[25px] pt-5">
           <div className="flex flex-wrap items-end gap-2.5">
             <label className="grid gap-0 text-sm font-normal leading-[22px] text-[rgba(0,0,0,0.87)]">
@@ -4300,14 +5003,15 @@ function ClosePeriodContent() {
                 className="h-[34px] w-[180px] rounded border border-[#d9d9d9] bg-white px-[11px] py-1 text-sm font-normal leading-[22px] text-[rgba(0,0,0,0.65)] outline-none focus:border-[#61a8ff]"
               />
             </label>
-            <button type="button" className="h-[34px] rounded bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#029902]">
+            <button type="button" disabled={isLoading || closePeriodState.isClosed} onClick={() => { setError(""); setDialogAction("save"); }} className="h-[34px] rounded bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#029902] disabled:cursor-not-allowed disabled:opacity-60">
               บันทึก
             </button>
           </div>
-          <button type="button" className="h-[34px] rounded bg-[#2299ff] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#1687df]">
+            <button type="button" disabled={isLoading || closePeriodState.isClosed} onClick={() => { setError(""); setDialogAction("close"); }} className="h-[34px] rounded bg-[#2299ff] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#1687df] disabled:cursor-not-allowed disabled:opacity-60">
             ปิดงวดบัญชี
           </button>
         </CardContent>
+        )}
       </Card>
 
       <Card className="shadow-sm">
@@ -4338,10 +5042,12 @@ function ClosePeriodContent() {
 
           <div className="mt-[13px] flex h-9 flex-wrap items-stretch justify-between gap-3">
             <p className="ml-[3px] flex items-center text-xs leading-[18.858px] text-[#e97777]">กรุณากดปุ่มนำไปใช้หลังจากเลือกตัวกรองข้อมูล (Filter)</p>
-            <button type="button" className="relative -left-px h-9 rounded bg-[#2299ff] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#1687df]">
-              ค้นหา
+            <button type="button" disabled={isLoading} onClick={() => void search()} className="relative -left-px h-9 rounded bg-[#2299ff] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#1687df] disabled:cursor-wait disabled:opacity-70">
+              {isLoading ? "กรุณารอสักครู่..." : "ค้นหา"}
             </button>
           </div>
+
+          {error && !dialogAction && <p role="alert" className="mt-2 text-sm text-[#d9363e]">{error}</p>}
 
           <div className="mt-[21px] -ml-[13px] mr-[-12px] w-[calc(100%+23px)] overflow-hidden rounded-sm border border-[#e5e9ed]">
             <Table className="table-fixed text-sm leading-[22px]">
@@ -4365,7 +5071,11 @@ function ClosePeriodContent() {
                         {group.heading}
                       </TableCell>
                     </TableRow>
-                    {group.reports.map((report) => (
+                    {group.reports.map((report) => {
+                      const available = closePeriodState.isClosed || report.available;
+                      const note = closePeriodState.isClosed ? undefined : report.note;
+                      const count = report.count ? reportCount : undefined;
+                      return (
                       <TableRow key={report.title} className="h-[67px] bg-white hover:bg-white">
                         <TableCell className={cn(
                           "h-[67px] border-b border-[#f0f0f0] px-2 align-middle text-base font-medium leading-5 text-[rgba(0,0,0,0.65)]",
@@ -4373,16 +5083,16 @@ function ClosePeriodContent() {
                         )}>
                           {report.integration ? (
                             <img
-                              src={`https://micorganize.humansoft.co.th/assets/images/logos/partner/${report.integration === "peak" ? "PEAK_LOGO-1.png" : "accrevo-1.png"}`}
+                              src={`${SUPPORT_ASSET_ORIGIN}/assets/images/logos/partner/${report.integration === "peak" ? "PEAK_LOGO-1.png" : "accrevo-1.png"}`}
                               alt={report.title}
                               className={report.integration === "peak" ? "relative -top-px h-10 w-[135px] object-contain" : "h-[29px] w-[83px] object-contain"}
                             />
                           ) : (
-                            <span className={cn("relative inline-block", report.note ? "-top-0.5" : "-top-1")}>{report.title}</span>
+                            <span className={cn("relative inline-block", note ? "-top-0.5" : "-top-1")}>{report.title}</span>
                           )}
-                          {report.note && <span className="block text-xs font-normal leading-[18.858px] text-[#e97777]">{report.note}</span>}
+                          {note && <span className="block text-xs font-normal leading-[18.858px] text-[#e97777]">{note}</span>}
                         </TableCell>
-                        <TableCell className="h-[67px] border-b border-[#f0f0f0] px-2 py-3 text-center align-middle text-base font-medium leading-5 text-[rgba(0,0,0,0.65)]"><span className="relative -top-1">{report.count}</span></TableCell>
+                        <TableCell className="h-[67px] border-b border-[#f0f0f0] px-2 py-3 text-center align-middle text-base font-medium leading-5 text-[rgba(0,0,0,0.65)]"><span className="relative -top-1">{count}</span></TableCell>
                         <TableCell className="h-[67px] border-b border-[#f0f0f0] px-2 py-3 align-middle">
                           {report.integration ? (
                             <div className="flex justify-end gap-2">
@@ -4396,13 +5106,14 @@ function ClosePeriodContent() {
                           ) : (
                             <div className="flex justify-end gap-2">
                               {report.actions.map((type) => (
-                                <ReportDownloadButton key={type} type={type} disabled={!report.available} />
+                                <ReportDownloadButton key={type} type={type} disabled={!available} />
                               ))}
                             </div>
                           )}
                         </TableCell>
                       </TableRow>
-                    ))}
+                      );
+                    })}
                   </Fragment>
                 ))}
               </TableBody>
@@ -4410,6 +5121,13 @@ function ClosePeriodContent() {
           </div>
         </CardContent>
       </Card>
+      <ClosePeriodConfirmationModal
+        action={dialogAction}
+        busy={isLoading}
+        error={error}
+        onCancel={() => { if (!isLoading) { setDialogAction(null); setError(""); } }}
+        onConfirm={() => void (dialogAction === "close" ? closePeriod() : saveDates())}
+      />
     </div>
   );
 }
@@ -4707,6 +5425,7 @@ export default function PayrollCalculationPage() {
   const [activeTab, setActiveTab] = useState(TABS[0]);
   const [selectedMonth, setSelectedMonth] = useState(() => new Date(2026, 7, 1)); // สิงหาคม 2026
   const [dashboardStats, setDashboardStats] = useState<DashboardStats>(EMPTY_DASHBOARD_STATS);
+  const [isAccountingPeriodClosed, setIsAccountingPeriodClosed] = useState(false);
 
   const monthIndex = selectedMonth.getMonth();
   const year = selectedMonth.getFullYear();
@@ -4735,6 +5454,50 @@ export default function PayrollCalculationPage() {
     return () => controller.abort();
   }, [monthKey]);
 
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadClosePeriodState() {
+      try {
+        const response = await fetch(`/api/payroll/close-period?month=${encodeURIComponent(monthKey)}`, {
+          signal: controller.signal,
+          cache: "no-store",
+        });
+        if (!response.ok) throw new Error("Close-period request failed");
+        const state = (await response.json()) as ClosePeriodState;
+        setIsAccountingPeriodClosed(state.isClosed);
+      } catch (error) {
+        if ((error as { name?: string }).name !== "AbortError") {
+          console.error("Unable to load close-period state:", error);
+        }
+      }
+    }
+
+    void loadClosePeriodState();
+    const refreshWhenReturningToPage = () => {
+      if (!document.hidden) void loadClosePeriodState();
+    };
+    const syncFromAnotherTab = (event: StorageEvent) => {
+      if (event.key === `payroll-close-period:${monthKey}`) void loadClosePeriodState();
+    };
+    window.addEventListener("focus", refreshWhenReturningToPage);
+    document.addEventListener("visibilitychange", refreshWhenReturningToPage);
+    window.addEventListener("storage", syncFromAnotherTab);
+    return () => {
+      controller.abort();
+      window.removeEventListener("focus", refreshWhenReturningToPage);
+      document.removeEventListener("visibilitychange", refreshWhenReturningToPage);
+      window.removeEventListener("storage", syncFromAnotherTab);
+    };
+  }, [monthKey]);
+
+  const applyClosePeriodState = (state: ClosePeriodState) => {
+    setIsAccountingPeriodClosed(state.isClosed);
+    if (state.isClosed) {
+      window.localStorage.setItem(`payroll-close-period:${monthKey}`, state.closedAt ?? new Date().toISOString());
+    }
+  };
+
   const monthLabel = `${MONTHS_TH[monthIndex]} ${year}`;
   return (
     <div>
@@ -4743,6 +5506,9 @@ export default function PayrollCalculationPage() {
         monthIndex={monthIndex}
         year={year}
         monthValue={monthKey}
+        showAccountingPeriodWarning={!isAccountingPeriodClosed}
+        isAccountingPeriodClosed={isAccountingPeriodClosed}
+        onOpenClosePeriod={() => setActiveTab("ปิดงวดบัญชี")}
         onMonthChange={(month) => {
           const [selectedYear, selectedMonthIndex] = month.split("-").map(Number);
           if (selectedYear && selectedMonthIndex) setSelectedMonth(new Date(selectedYear, selectedMonthIndex - 1, 1));
@@ -4761,10 +5527,18 @@ export default function PayrollCalculationPage() {
             : "px-4 pt-3 sm:px-6 lg:px-6"
         )}
       >
-        {activeTab === "Dashboard" && <DashboardContent stats={dashboardStats} monthLabel={monthLabel} />}
-        {activeTab === "คำนวณเงินเดือนรายบุคคล" && <PersonContent monthKey={monthKey} />}
-        {activeTab === "คำนวณเงินเดือนทั้งองค์กร" && <OrganizationContent />}
-        {activeTab === "ปิดงวดบัญชี" && <ClosePeriodContent />}
+        {activeTab === "Dashboard" && <DashboardContent stats={dashboardStats} monthLabel={monthLabel} isAccountingPeriodClosed={isAccountingPeriodClosed} />}
+        {activeTab === "คำนวณเงินเดือนรายบุคคล" && <PersonContent monthKey={monthKey} isAccountingPeriodClosed={isAccountingPeriodClosed} />}
+        {activeTab === "คำนวณเงินเดือนทั้งองค์กร" && <OrganizationContent isAccountingPeriodClosed={isAccountingPeriodClosed} />}
+        {activeTab === "ปิดงวดบัญชี" && (
+          <div id="close-period-accounting">
+            <ClosePeriodContent
+              monthKey={monthKey}
+              onClosePeriod={applyClosePeriodState}
+              onPeriodClosed={() => setActiveTab("Dashboard")}
+            />
+          </div>
+        )}
         {activeTab === "สรุปตั้งค่าทั้งองค์กร" && <OrganizationSettingsSummary />}
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { getActiveCompany } from "@/lib/active-company";
 import { prisma } from "@/lib/prisma";
 
 const GROUPS = ["monthly", "daily", "partTime", "contract"] as const;
@@ -52,6 +53,8 @@ function invalid(message: string) {
 }
 
 async function activeCompany(companyId?: string | null) {
+  const selectedCompany = await getActiveCompany();
+  if (selectedCompany) return { id: selectedCompany.id };
   if (companyId) {
     return prisma.company.findFirst({
       where: { id: companyId, deletedAt: null },

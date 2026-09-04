@@ -1,13 +1,28 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   CalendarDays,
   ChevronDown,
 } from "lucide-react";
 
 import { HRMicWordmark } from "@/components/hrmic-wordmark";
+import { SUPPORT_ASSET_ORIGIN } from "@/lib/external-assets";
 import { cn } from "@/lib/utils";
+
+type EmployeeSummary = {
+  total: number;
+  byGender: { male: number; female: number; other: number };
+  byEmploymentType: Record<string, number>;
+  byNationality: { nationality: string; count: number }[];
+};
+
+const EMPTY_EMPLOYEE_SUMMARY: EmployeeSummary = {
+  total: 0,
+  byGender: { male: 0, female: 0, other: 0 },
+  byEmploymentType: {},
+  byNationality: [],
+};
 
 function DateControl({ children = "ส.ค. 2026", wide = false }: { children?: React.ReactNode; wide?: boolean }) {
   return (
@@ -50,17 +65,17 @@ function SalaryHistory() {
   );
 }
 
-function EmployeeAge() {
+function EmployeeAge({ summary }: { summary: EmployeeSummary }) {
   const ages = ["มากกว่า 60 ปี", "46 - 60 ปี", "31 - 45 ปี", "21 - 30 ปี", "15 - 20 ปี", "ไม่ระบุวันเกิด"];
   return (
     <Card className="h-[188px] p-[15.2px]">
       <div className="flex items-center justify-between"><h2 className="text-base font-bold leading-[25.144px] text-[#414852]">จำนวนพนักงาน/ช่วงอายุ</h2><DateControl /></div>
       <div className="mt-3 grid grid-cols-[158px_1fr] gap-3">
         <div className="grid grid-cols-3 text-center">
-          <div><p className="text-[29px] leading-none text-[#8ec5fc]">♂</p><b className="text-xl text-[#63aff1]">1</b></div>
-          <div><p className="text-[29px] leading-none text-[#ef9fbd]">♀</p><b className="text-xl text-[#de789f]">0</b></div>
-          <div><p className="text-[29px] leading-none text-[#999]">⚥</p><b className="text-xl text-[#777]">0</b></div>
-          <p className="col-span-3 mt-3 text-[20px] font-semibold text-[#4d555e]">รวม <span className="text-[#61aef1]">1</span> คน</p>
+          <div><p className="text-[29px] leading-none text-[#8ec5fc]">♂</p><b className="text-xl text-[#63aff1]">{summary.byGender.male}</b></div>
+          <div><p className="text-[29px] leading-none text-[#ef9fbd]">♀</p><b className="text-xl text-[#de789f]">{summary.byGender.female}</b></div>
+          <div><p className="text-[29px] leading-none text-[#999]">⚥</p><b className="text-xl text-[#777]">{summary.byGender.other}</b></div>
+          <p className="col-span-3 mt-3 text-[20px] font-semibold text-[#4d555e]">รวม <span className="text-[#61aef1]">{summary.total}</span> คน</p>
         </div>
         <div>
           <div className="mb-2 flex justify-end gap-4 text-xs text-[#555d66]"><span className="inline-flex items-center gap-1"><i className="size-3 rounded-full bg-[#0b9df4]" />เพศชาย</span><span className="inline-flex items-center gap-1"><i className="size-3 rounded-full bg-[#f77b84]" />เพศหญิง</span><span className="inline-flex items-center gap-1"><i className="size-3 rounded-full bg-[#818181]" />ไม่ระบุ</span></div>
@@ -71,21 +86,23 @@ function EmployeeAge() {
   );
 }
 
-function Donut({ color, items }: { color: string; items: { name: string; value: string; dot: string }[] }) {
+function Donut({ color, items, total }: { color: string; items: { name: string; value: string; dot: string }[]; total: number }) {
   return (
     <div className="flex items-center gap-3">
-      <div className="relative size-[108px] shrink-0 rounded-full" style={{ background: `conic-gradient(${color} 0 360deg, #dcedfb 0)` }}><div className="absolute inset-[15px] grid place-items-center rounded-full bg-white text-[16px] font-semibold text-[#353b42]">1 คน</div></div>
+      <div className="relative size-[108px] shrink-0 rounded-full" style={{ background: `conic-gradient(${color} 0 360deg, #dcedfb 0)` }}><div className="absolute inset-[15px] grid place-items-center rounded-full bg-white text-[16px] font-semibold text-[#353b42]">{total} คน</div></div>
       <div className="min-w-0 space-y-0.5 text-[13px] leading-4 text-[#515963]">{items.map((item) => <p key={item.name} className="flex items-center gap-1"><i className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.dot }} /><span>{item.name}</span><span className="ml-auto">{item.value}</span></p>)}</div>
     </div>
   );
 }
 
-function SummaryCard({ title, type }: { title: string; type: "employee" | "nationality" }) {
+function SummaryCard({ title, type, summary }: { title: string; type: "employee" | "nationality"; summary: EmployeeSummary }) {
   const employee = [
-    { name: "พนักงานรายเดือน", value: "1 คน", dot: "#9fd6f9" }, { name: "พนักงานเหมาจ่าย", value: "0 คน", dot: "#0d5ca8" }, { name: "พนักงานรายวัน", value: "0 คน", dot: "#f7a44d" }, { name: "พนักงานพาร์ตไทม์", value: "0 คน", dot: "#e9d66b" },
+    { name: "พนักงานรายเดือน", value: `${summary.byEmploymentType.permanent ?? 0} คน`, dot: "#9fd6f9" }, { name: "พนักงานเหมาจ่าย", value: `${summary.byEmploymentType.contract ?? 0} คน`, dot: "#0d5ca8" }, { name: "พนักงานรายวัน", value: `${summary.byEmploymentType.dailyWage ?? 0} คน`, dot: "#f7a44d" }, { name: "พนักงานพาร์ตไทม์", value: `${summary.byEmploymentType.partTime ?? 0} คน`, dot: "#e9d66b" },
   ];
-  const nationality = [{ name: "ไทย", value: "1 คน", dot: "#159cf0" }, { name: "ต่างชาติ", value: "0 คน", dot: "#ff9d22" }, { name: "ไม่ระบุสัญชาติ / บุคคลพื้นที่สูง", value: "0 คน", dot: "#83d2f4" }];
-  return <Card className="h-[188px] p-[15.2px]"><div className="mb-2 flex items-center justify-between"><h2 className="text-base font-bold leading-[25.144px] text-[#414852]">{title}</h2><DateControl /></div><Donut color={type === "employee" ? "#9fd6f9" : "#159cf0"} items={type === "employee" ? employee : nationality} /></Card>;
+  const nationality = summary.byNationality.length
+    ? summary.byNationality.slice(0, 3).map((item, index) => ({ name: item.nationality, value: `${item.count} คน`, dot: ["#159cf0", "#ff9d22", "#83d2f4"][index] }))
+    : [{ name: "ไม่มีข้อมูล", value: "0 คน", dot: "#159cf0" }];
+  return <Card className="h-[188px] p-[15.2px]"><div className="mb-2 flex items-center justify-between"><h2 className="text-base font-bold leading-[25.144px] text-[#414852]">{title}</h2><DateControl /></div><Donut color={type === "employee" ? "#9fd6f9" : "#159cf0"} total={summary.total} items={type === "employee" ? employee : nationality} /></Card>;
 }
 
 function SmallChartCard({ title, className }: { title: ReactNode; className?: string }) {
@@ -107,15 +124,15 @@ function SummaryLine({ label, value, detail }: { label: string; value: string; d
   );
 }
 
-function SalarySummary() {
+function SalarySummary({ summary }: { summary: EmployeeSummary }) {
   return (
     <Card className="h-[388px] p-[15.2px]">
       <div className="flex items-start justify-between"><h2 className="text-base font-bold leading-[25.144px] text-[#414852]">เงินเดือน</h2><DateControl>ปี 2026</DateControl></div>
       <div className="mt-9 grid grid-cols-2 gap-8 border-b border-[#e8edf1] pb-7">
-        <div><p className="text-sm text-[#69737e]">เงินเดือน</p><p className="mt-2 text-[29px] font-medium leading-none text-[#1a9dec]">75,000 <span className="text-base">บาท</span></p></div>
+        <div><p className="text-sm text-[#69737e]">เงินเดือน</p><p className="mt-2 text-[29px] font-medium leading-none text-[#1a9dec]">— <span className="text-base">บาท</span></p></div>
         <div><p className="text-sm text-[#69737e]">เดือน ส.ค.</p><p className="mt-2 text-[29px] font-medium leading-none text-[#69737e]">0 <span className="text-base">บาท</span></p></div>
       </div>
-      <div className="mt-4"><SummaryLine label="พนักงานรายเดือน" value="1 คน" /><SummaryLine label="พนักงานรายวัน" value="0 คน" /><SummaryLine label="พนักงานพาร์ตไทม์" value="0 คน" /></div>
+      <div className="mt-4"><SummaryLine label="พนักงานรายเดือน" value={`${summary.byEmploymentType.permanent ?? 0} คน`} /><SummaryLine label="พนักงานรายวัน" value={`${summary.byEmploymentType.dailyWage ?? 0} คน`} /><SummaryLine label="พนักงานพาร์ตไทม์" value={`${summary.byEmploymentType.partTime ?? 0} คน`} /></div>
     </Card>
   );
 }
@@ -153,14 +170,14 @@ function ServiceHeader() {
           <div className="flex w-full">
             <div className="flex w-3/5 justify-end">
               <div className="flex w-1/3 items-center justify-center gap-[10px]">
-                <div className="mr-[10px] flex items-center justify-center"><img src="https://micorganize.humansoft.co.th/assets/images/logos/widget/hms_new.svg" alt="" className="size-10 rounded-full" /></div>
-                <div className="flex flex-col items-center text-xs leading-[18px] text-[#313131]"><span className="font-semibold text-[#008cff]">Customer Service</span><span>Humansoft Team&nbsp;</span><a href="tel:1537" className="text-[#008cff]">1537</a></div>
+                <div className="mr-[10px] flex items-center justify-center"><img src={`${SUPPORT_ASSET_ORIGIN}/assets/images/logos/widget/hms_new.svg`} alt="" className="size-10 rounded-full" /></div>
+                <div className="flex flex-col items-center text-xs leading-[18px] text-[#313131]"><span className="font-semibold text-[#008cff]">Customer Service</span><span>HRMic Team&nbsp;</span><a href="tel:1537" className="text-[#008cff]">1537</a></div>
               </div>
             </div>
             <div className="flex w-2/5 items-end justify-end gap-3 text-xs text-[#313131]">
-              <div className="mr-3 flex w-[200px] cursor-pointer flex-col items-center justify-center"><img src="https://micorganize.humansoft.co.th/assets/images/logos/widget/messenger.svg" alt="icon phone" className="size-[35px]" /><span>HumanSoft</span></div>
-              <div className="mr-3 flex w-[200px] cursor-pointer flex-col items-center justify-center"><img src="https://micorganize.humansoft.co.th/assets/images/logos/widget/line.svg" alt="icon phone" className="size-[35px]" /><span>@Humansoft</span></div>
-              <div className="flex w-[200px] cursor-pointer flex-col items-center justify-center"><img src="https://micorganize.humansoft.co.th/assets/images/logos/widget/livechat.svg" alt="icon phone" className="size-[35px]" /><span>Live Chat</span></div>
+              <div className="mr-3 flex w-[200px] cursor-pointer flex-col items-center justify-center"><img src={`${SUPPORT_ASSET_ORIGIN}/assets/images/logos/widget/messenger.svg`} alt="icon phone" className="size-[35px]" /><span>HRMic</span></div>
+              <div className="mr-3 flex w-[200px] cursor-pointer flex-col items-center justify-center"><img src={`${SUPPORT_ASSET_ORIGIN}/assets/images/logos/widget/line.svg`} alt="icon phone" className="size-[35px]" /><span>@HRMic</span></div>
+              <div className="flex w-[200px] cursor-pointer flex-col items-center justify-center"><img src={`${SUPPORT_ASSET_ORIGIN}/assets/images/logos/widget/livechat.svg`} alt="icon phone" className="size-[35px]" /><span>Live Chat</span></div>
             </div>
           </div>
         </div>
@@ -175,13 +192,25 @@ function ServiceHeader() {
 }
 
 export default function DashboardPage() {
+  const [summary, setSummary] = useState<EmployeeSummary>(EMPTY_EMPLOYEE_SUMMARY);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/employee?view=summary", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((data: EmployeeSummary | null) => {
+        if (!cancelled && data) setSummary(data);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-[#e9f3fc] [font-family:Anuphan,var(--font-kanit),sans-serif]">
       <ServiceHeader />
       <div className="grid gap-3 px-[34px] py-[18px] lg:grid-cols-[1fr_1fr]">
         <div className="space-y-3"><SalaryHistory /><SmallChartCard title={<>เงินเดือน<br />ตามสำนักงาน</>} /></div>
-        <div className="space-y-3"><EmployeeAge /><div className="grid gap-3 sm:grid-cols-2"><SummaryCard title="ประเภทพนักงาน" type="employee" /><SummaryCard title="สัญชาติ" type="nationality" /></div><SmallChartCard title="เข้าใหม่/ลาออก" /></div>
-        <SalarySummary />
+        <div className="space-y-3"><EmployeeAge summary={summary} /><div className="grid gap-3 sm:grid-cols-2"><SummaryCard title="ประเภทพนักงาน" type="employee" summary={summary} /><SummaryCard title="สัญชาติ" type="nationality" summary={summary} /></div><SmallChartCard title="เข้าใหม่/ลาออก" /></div>
+        <SalarySummary summary={summary} />
         <DocumentsSummary />
         <div className="grid gap-3 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-4">
           <CompactSummaryCard title="ภาษี ภงด.1" rows={[{ label: "ประจำเดือน ส.ค.", value: "0.00", detail: "บาท" }, { label: "ภาษี ภงด.3", value: "0.00", detail: "บาท" }, { label: "ภาษี ภงด.1ก", value: "0.00", detail: "บาท" }]} />

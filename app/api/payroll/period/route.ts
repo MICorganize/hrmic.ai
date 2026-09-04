@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { getActiveCompany } from "@/lib/active-company";
+import { companyPeriodKey } from "@/lib/payroll/company-period";
 import { prisma } from "@/lib/prisma";
+import { CLOSED_PAYROLL_PERIOD_MESSAGE, isPayrollPeriodClosed } from "@/lib/payroll/period-lock";
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
@@ -53,8 +56,10 @@ export async function GET(request: Request) {
   if (!month) return NextResponse.json({ error: "รูปแบบเดือนต้องเป็น YYYY-MM" }, { status: 400 });
 
   try {
+    const company = await getActiveCompany();
+    const period = companyPeriodKey(month, company?.id);
     const run = await prisma.payrollRun.findUnique({
-      where: { period: month },
+      where: { period },
       select: { periodStart: true, periodEnd: true },
     });
     return NextResponse.json(responsePeriod(month, run));
@@ -79,12 +84,17 @@ export async function PUT(request: Request) {
   }
 
   try {
+    const company = await getActiveCompany();
+    const period = companyPeriodKey(month, company?.id);
+    if (await isPayrollPeriodClosed(period)) {
+      return NextResponse.json({ error: CLOSED_PAYROLL_PERIOD_MESSAGE }, { status: 409 });
+    }
     const now = new Date();
     const run = await prisma.payrollRun.upsert({
-      where: { period: month },
+      where: { period },
       create: {
         id: crypto.randomUUID(),
-        period: month,
+        period,
         periodStart: startDate,
         periodEnd: endDate,
         updatedAt: now,
@@ -104,8 +114,13 @@ export async function DELETE(request: Request) {
   if (!month) return NextResponse.json({ error: "รูปแบบเดือนต้องเป็น YYYY-MM" }, { status: 400 });
 
   try {
+    const company = await getActiveCompany();
+    const period = companyPeriodKey(month, company?.id);
+    if (await isPayrollPeriodClosed(period)) {
+      return NextResponse.json({ error: CLOSED_PAYROLL_PERIOD_MESSAGE }, { status: 409 });
+    }
     await prisma.payrollRun.updateMany({
-      where: { period: month },
+      where: { period },
       data: { periodStart: null, periodEnd: null, updatedAt: new Date() },
     });
     return NextResponse.json(defaultPeriod(month));

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { CLOSED_PAYROLL_PERIOD_MESSAGE, isPayrollPeriodClosed } from "@/lib/payroll/period-lock";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,7 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const employeeId = typeof body?.employeeId === "string" ? body.employeeId.trim() : "";
+  const month = typeof body?.month === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(body.month) ? body.month : null;
   const section = body?.section;
   const selectedShift = body?.selectedShift;
   const weeklyShifts = body?.weeklyShifts;
@@ -57,7 +59,7 @@ export async function PATCH(request: Request) {
 
   const isShiftUpdate = section === "shift";
   const isDayUpdate = section === "day";
-  if (!employeeId ||
+  if (!employeeId || !month ||
     (isShiftUpdate && (!isOneOf(selectedShift, SHIFT_CODES) || !isWeeklyList(weeklyShifts, SHIFT_CODES))) ||
     (isDayUpdate && (!isOneOf(selectedDayType, DAY_TYPES) || !isWeeklyList(weeklyDayTypes, DAY_TYPES))) ||
     (!isShiftUpdate && !isDayUpdate)) {
@@ -72,6 +74,9 @@ export async function PATCH(request: Request) {
     : null;
 
   try {
+    if (await isPayrollPeriodClosed(month)) {
+      return NextResponse.json({ error: CLOSED_PAYROLL_PERIOD_MESSAGE }, { status: 409 });
+    }
     const employee = await prisma.employee.findFirst({ where: { id: employeeId, deletedAt: null }, select: { id: true } });
     if (!employee) return NextResponse.json({ error: "ไม่พบข้อมูลพนักงาน" }, { status: 404 });
 

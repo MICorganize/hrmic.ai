@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import type { Gender, MaritalStatus, EmploymentType } from "@/generated/prisma/client";
 
+import { auth } from "@/auth";
+import { getActiveCompany } from "@/lib/active-company";
 import { prisma } from "@/lib/prisma";
 
 /* ---------------------------------- Maps ---------------------------------- */
@@ -31,6 +33,21 @@ const EMPLOYMENT_TYPE_GROUP_MAP: Record<string, EmploymentType> = {
   partTime: "partTime",
   contract: "contract",
 };
+
+type CompanyScope = {
+  id: string;
+  name: string;
+  code: string | null;
+};
+
+function hasTenantManagementRole(roles: Array<{ code: string; name: string }>) {
+  return roles.some(({ code, name }) => {
+    const normalizedCode = code.toLowerCase();
+    const normalizedName = name.toLowerCase();
+    return ["admin", "administrator", "owner", "super_admin", "superadmin"].includes(normalizedCode)
+      || ["admin", "administrator", "owner", "ผู้ดูแลระบบ"].includes(normalizedName);
+  });
+}
 
 /* --------------------------------- Helpers -------------------------------- */
 
@@ -167,17 +184,20 @@ const EMPLOYEE_TYPE_LABELS: Record<string, string> = {
 };
 
 /** Builds company → branch → department → employees from real DB records. */
-async function buildOrgTree(employees: EmployeeTreeRow[]): Promise<OrgTreeNode[]> {
+async function buildOrgTree(employees: EmployeeTreeRow[], companyId?: string): Promise<OrgTreeNode[]> {
   const [companies, branches, departments] = await Promise.all([
     prisma.company.findMany({
+      where: { deletedAt: null, ...(companyId ? { id: companyId } : {}) },
       select: { id: true, name: true, companyCode: true },
       orderBy: { name: "asc" },
     }),
     prisma.branch.findMany({
+      where: { deletedAt: null, ...(companyId ? { companyId } : {}) },
       select: { id: true, name: true, code: true, companyId: true },
       orderBy: { name: "asc" },
     }),
     prisma.department.findMany({
+      where: { deletedAt: null, ...(companyId ? { companyId } : {}) },
       select: { id: true, name: true, code: true, companyId: true, branchId: true },
       // The employee selector displays department codes (D001, D002, …),
       // so order them by that visible code instead of department name.
@@ -289,10 +309,10 @@ function formatDate(date: Date): string {
   return `${d}/${m}/${date.getUTCFullYear()}`;
 }
 
-async function getEmployeeSummary() {
+async function getEmployeeSummary(companyId?: string) {
   // Keep the dashboard payload small. The organisation tree contains every
   // employee and is fetched only when the employee picker is opened.
-  const activeEmployees = { deletedAt: null };
+  const activeEmployees = { deletedAt: null, ...(companyId ? { companyId } : {}) };
   const [total, genderCounts, nationalityCounts, branchCounts, employmentTypeCounts, timeline] = await Promise.all([
     prisma.employee.count({ where: activeEmployees }),
     prisma.employee.groupBy({ by: ["gender"], where: activeEmployees, _count: { _all: true } }),
@@ -300,10 +320,11 @@ async function getEmployeeSummary() {
     prisma.employee.groupBy({ by: ["branchId"], where: activeEmployees, _count: { _all: true } }),
     prisma.employment.groupBy({
       by: ["employmentType"],
-      where: { Employee: { deletedAt: null } },
+      where: { Employee: activeEmployees },
       _count: { _all: true },
     }),
     prisma.employeeTimeline.findMany({
+      where: { Employee: activeEmployees },
       orderBy: { eventDate: "desc" },
       take: 20,
       select: {
@@ -372,9 +393,9 @@ async function getEmployeeSummary() {
   };
 }
 
-async function getOrganizationTree() {
+async function getOrganizationTree(companyId?: string) {
   const employees = await prisma.employee.findMany({
-    where: { deletedAt: null },
+    where: { deletedAt: null, ...(companyId ? { companyId } : {}) },
     orderBy: [{ employeeCode: "asc" }, { employeeNumber: "asc" }],
     select: {
       id: true,
@@ -393,21 +414,50 @@ async function getOrganizationTree() {
     },
   });
 
-  return buildOrgTree(employees);
+  return buildOrgTree(employees, companyId);
 }
 
 export async function GET(request: Request) {
   try {
-    const view = new URL(request.url).searchParams.get("view");
+    const searchParams = new URL(request.url).searchParams;
+    const view = searchParams.get("view");
+    const requestedCompanyId = searchParams.get("companyId")?.trim() || undefined;
+    const activeCompany = await getActiveCompany();
+    const companyId = requestedCompanyId ?? activeCompany?.id;
     const headers = { "Cache-Control": "private, max-age=30, stale-while-revalidate=60" };
 
-    if (view === "summary") return NextResponse.json(await getEmployeeSummary(), { headers });
-    if (view === "tree") return NextResponse.json({ orgTree: await getOrganizationTree() }, { headers });
+    let companyScope: CompanyScope | undefined = !requestedCompanyId || requestedCompanyId === activeCompany?.id ? activeCompany ?? undefined : undefined;
+    if (companyId && !companyScope) {
+      const session = await auth();
+      if (!session?.user?.id) return NextResponse.json({ error: "กรุณาเข้าสู่ระบบก่อนใช้งาน" }, { status: 401 });
+
+      const user = await prisma.user.findFirst({
+        where: { id: session.user.id, status: "active", deletedAt: null },
+        select: { id: true, tenantId: true, UserRole: { select: { Role: { select: { code: true, name: true } } } } },
+      });
+      if (!user) return NextResponse.json({ error: "กรุณาเข้าสู่ระบบก่อนใช้งาน" }, { status: 401 });
+
+      const isTenantAdmin = hasTenantManagementRole(user.UserRole.map(({ Role }) => Role));
+      const company = await prisma.company.findFirst({
+        where: {
+          id: companyId,
+          tenantId: user.tenantId,
+          deletedAt: null,
+          ...(isTenantAdmin ? {} : { UserCompanyAccess: { some: { userId: user.id } } }),
+        },
+        select: { id: true, name: true, companyCode: true },
+      });
+      if (!company) return NextResponse.json({ error: "คุณไม่มีสิทธิ์เข้าถึงบริษัทนี้" }, { status: 403 });
+      companyScope = { id: company.id, name: company.name, code: company.companyCode };
+    }
+
+    if (view === "summary") return NextResponse.json({ ...(await getEmployeeSummary(companyScope?.id)), company: companyScope ?? null }, { headers });
+    if (view === "tree") return NextResponse.json({ orgTree: await getOrganizationTree(companyScope?.id), company: companyScope ?? null }, { headers });
 
     // Preserve the original response for any existing callers while new pages
     // opt into the much smaller, task-specific payloads above.
-    const [summary, orgTree] = await Promise.all([getEmployeeSummary(), getOrganizationTree()]);
-    return NextResponse.json({ ...summary, orgTree }, { headers });
+    const [summary, orgTree] = await Promise.all([getEmployeeSummary(companyScope?.id), getOrganizationTree(companyScope?.id)]);
+    return NextResponse.json({ ...summary, orgTree, company: companyScope ?? null }, { headers });
   } catch (err) {
     console.error("GET /api/employee failed:", err);
     return NextResponse.json({ error: "ไม่สามารถโหลดข้อมูลพนักงานได้" }, { status: 500 });
@@ -429,6 +479,10 @@ export async function POST(request: Request) {
     const company = organization?.company;
     if (!company) {
       return NextResponse.json({ error: "ไม่พบบริษัทในระบบ กรุณาตรวจสอบโครงสร้างองค์กร" }, { status: 400 });
+    }
+    const activeCompany = await getActiveCompany();
+    if (activeCompany && company.id !== activeCompany.id) {
+      return NextResponse.json({ error: "ไม่สามารถเพิ่มพนักงานนอกบริษัทที่กำลังใช้งานได้" }, { status: 403 });
     }
     const branchId = organization.branchId;
     const departmentId = organization.departmentId;

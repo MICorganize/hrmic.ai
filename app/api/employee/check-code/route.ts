@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { getActiveCompany } from "@/lib/active-company";
 
 export async function GET(request: Request) {
   try {
@@ -11,8 +12,9 @@ export async function GET(request: Request) {
       return NextResponse.json({ duplicate: false });
     }
 
+    const company = await getActiveCompany();
     const existing = await prisma.employee.findFirst({
-      where: { employeeCode: code, deletedAt: null },
+      where: { employeeCode: code, deletedAt: null, ...(company ? { companyId: company.id } : {}) },
       select: { id: true, employeeNumber: true, firstNameTH: true, lastNameTH: true },
     });
 

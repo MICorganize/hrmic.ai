@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { CLOSED_PAYROLL_PERIOD_MESSAGE, isPayrollPeriodClosed } from "@/lib/payroll/period-lock";
 
 export const dynamic = "force-dynamic";
 
@@ -103,6 +104,7 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const employeeId = typeof body?.employeeId === "string" ? body.employeeId.trim() : "";
+  const month = typeof body?.month === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(body.month) ? body.month : null;
   const type = body?.type;
   const countMin = integer(body?.countMin);
   const countMax = integer(body?.countMax);
@@ -122,7 +124,7 @@ export async function PATCH(request: Request) {
 
   const hasValidMoneyMin = body?.moneyMin === null || moneyMin !== null;
   const hasValidMoneyMax = body?.moneyMax === null || moneyMax !== null;
-  if (!employeeId || !isWorkTimeType(type) || typeof body?.enabled !== "boolean" || typeof body?.isPaid !== "boolean" || countMin === null || countMax === null || countMin > 600 || countMax > 600 || !countMethod || !hasValidMoneyMin || !hasValidMoneyMax || moneyMin !== null && moneyMin > 15 || moneyMax !== null && moneyMax > 15 || calculationTargets === null || normalizedCalculationDayTypes === null) {
+  if (!employeeId || !month || !isWorkTimeType(type) || typeof body?.enabled !== "boolean" || typeof body?.isPaid !== "boolean" || countMin === null || countMax === null || countMin > 600 || countMax > 600 || !countMethod || !hasValidMoneyMin || !hasValidMoneyMax || moneyMin !== null && moneyMin > 15 || moneyMax !== null && moneyMax > 15 || calculationTargets === null || normalizedCalculationDayTypes === null) {
     return NextResponse.json({ error: "ข้อมูลการตั้งค่าเวลาการทำงานไม่ถูกต้อง" }, { status: 400 });
   }
   if (countMax !== 0 && countMax < countMin || moneyMin !== null && moneyMax !== null && moneyMax !== 0 && moneyMax < moneyMin) {
@@ -145,6 +147,9 @@ export async function PATCH(request: Request) {
   };
 
   try {
+    if (await isPayrollPeriodClosed(month)) {
+      return NextResponse.json({ error: CLOSED_PAYROLL_PERIOD_MESSAGE }, { status: 409 });
+    }
     const employee = await prisma.employee.findFirst({ where: { id: employeeId, deletedAt: null }, select: { id: true } });
     if (!employee) return NextResponse.json({ error: "ไม่พบข้อมูลพนักงาน" }, { status: 404 });
 

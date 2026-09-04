@@ -6,6 +6,12 @@ function withPrefix(value: string, prefix: string) {
   return value.startsWith(prefix) ? value : `${prefix}${value}`;
 }
 
+function normalizeSearchQuery(value: string) {
+  return value
+    .replace(/^(?:แขวง|ตำบล|เขต|อำเภอ|จังหวัด)\s*/i, "")
+    .trim();
+}
+
 function formatLocationLabel({
   subdistrict,
   district,
@@ -27,11 +33,15 @@ function formatLocationLabel({
 export async function GET(request: NextRequest) {
   const query = request.nextUrl.searchParams.get("q")?.trim() ?? "";
   if (!query) return NextResponse.json([]);
+  const normalizedQuery = normalizeSearchQuery(query);
 
   const locations = await prisma.subdistrict.findMany({
     where: {
       OR: [
         { nameTH: { contains: query, mode: "insensitive" } },
+        ...(normalizedQuery && normalizedQuery !== query
+          ? [{ nameTH: { contains: normalizedQuery, mode: "insensitive" as const } }]
+          : []),
         { postalCode: { contains: query } },
       ],
     },

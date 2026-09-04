@@ -22,7 +22,6 @@ import {
   Contact,
   Crosshair,
   Database,
-  DollarSign,
   Download,
   FileCheck,
   FileClock,
@@ -42,7 +41,6 @@ import {
   Pencil,
   PiggyBank,
   Plus,
-  RefreshCw,
   Search,
   Settings,
   ShieldUser,
@@ -60,6 +58,8 @@ import { UserDropdown } from "@/components/layouts/UserDropdown";
 
 type IconComponent = ComponentType<{ className?: string }>;
 
+type ActiveCompany = { id: string; name: string; code: string | null };
+
 type NavChild = {
   href: string;
   label: string;
@@ -76,13 +76,15 @@ type NavItem = {
   children?: NavChild[];
 };
 
-/** Circular arrows around a dollar sign (currency exchange). */
+/** Matches the reference `currency_exchange` navigation icon. */
 function CurrencyExchangeIcon({ className }: { className?: string }) {
   return (
-    <span className={cn("relative inline-flex shrink-0 items-center justify-center", className)}>
-      <RefreshCw className="size-full" />
-      <DollarSign className="absolute size-[45%]" strokeWidth={2.5} />
-    </span>
+    <svg aria-hidden="true" className={cn("shrink-0", className)} viewBox="0 0 20 20" fill="none">
+      <path
+        fill="currentColor"
+        d="M10.0007 19.1666C8.4451 19.1666 7.01454 18.8125 5.70898 18.1041C4.40343 17.3958 3.33398 16.4514 2.50065 15.2708V17.5H0.833984V12.5H5.83398V14.1666H3.77148C4.43815 15.1666 5.31662 15.9722 6.4069 16.5833C7.49718 17.1944 8.6951 17.5 10.0007 17.5C11.0423 17.5 12.018 17.3021 12.9277 16.9062C13.8375 16.5104 14.6291 15.9757 15.3027 15.3021C15.9763 14.6285 16.5111 13.8368 16.9069 12.9271C17.3027 12.0173 17.5007 11.0416 17.5007 9.99998H19.1673C19.1673 11.2639 18.9277 12.4514 18.4486 13.5625C17.9694 14.6736 17.3132 15.6458 16.4798 16.4791C15.6465 17.3125 14.6743 17.9687 13.5632 18.4479C12.452 18.9271 11.2645 19.1666 10.0007 19.1666ZM9.25065 15.8333V14.75C8.59787 14.5972 8.06662 14.316 7.6569 13.9062C7.24718 13.4965 6.9451 12.9583 6.75065 12.2916L8.12565 11.75C8.29232 12.3194 8.55273 12.7465 8.9069 13.0312C9.26107 13.316 9.66732 13.4583 10.1257 13.4583C10.584 13.4583 10.9763 13.3507 11.3027 13.1354C11.6291 12.9201 11.7923 12.5833 11.7923 12.125C11.7923 11.7222 11.6222 11.3958 11.2819 11.1458C10.9416 10.8958 10.334 10.6111 9.45899 10.2916C8.63954 9.99998 8.03885 9.65276 7.6569 9.24998C7.27496 8.8472 7.08398 8.31942 7.08398 7.66665C7.08398 7.0972 7.2819 6.57984 7.67774 6.11456C8.07357 5.64929 8.61176 5.3472 9.29232 5.20831V4.16665H10.7507V5.20831C11.2507 5.24998 11.7055 5.45137 12.1152 5.81248C12.525 6.17359 12.8062 6.5972 12.959 7.08331L11.6257 7.62498C11.5145 7.30554 11.334 7.03817 11.084 6.8229C10.834 6.60762 10.4868 6.49998 10.0423 6.49998C9.55621 6.49998 9.18468 6.60415 8.92774 6.81248C8.67079 7.02081 8.54232 7.30554 8.54232 7.66665C8.54232 8.02776 8.70204 8.31248 9.02148 8.52081C9.34093 8.72915 9.91732 8.9722 10.7507 9.24998C11.7507 9.61109 12.4173 10.0347 12.7507 10.5208C13.084 11.0069 13.2507 11.5416 13.2507 12.125C13.2507 12.5278 13.1812 12.8819 13.0423 13.1875C12.9034 13.493 12.7194 13.7535 12.4902 13.9687C12.2611 14.184 11.9937 14.3576 11.6882 14.4896C11.3826 14.6215 11.0562 14.7222 10.709 14.7916V15.8333H9.25065ZM0.833984 9.99998C0.833984 8.73609 1.07357 7.54859 1.55273 6.43748C2.0319 5.32637 2.68815 4.35415 3.52148 3.52081C4.35482 2.68748 5.32704 2.03123 6.43815 1.55206C7.54926 1.0729 8.73676 0.833313 10.0007 0.833313C11.5562 0.833313 12.9868 1.18748 14.2923 1.89581C15.5979 2.60415 16.6673 3.54859 17.5007 4.72915V2.49998H19.1673V7.49998H14.1673V5.83331H16.2298C15.5632 4.83331 14.6847 4.02776 13.5944 3.41665C12.5041 2.80554 11.3062 2.49998 10.0007 2.49998C8.95898 2.49998 7.98329 2.6979 7.07357 3.09373C6.16385 3.48956 5.37218 4.02429 4.69857 4.6979C4.02496 5.37151 3.49023 6.16317 3.0944 7.0729C2.69857 7.98262 2.50065 8.95831 2.50065 9.99998H0.833984Z"
+      />
+    </svg>
   );
 }
 
@@ -201,9 +203,9 @@ const NAV_ITEMS: NavItem[] = [
       {
         href: "/salary/calculate/normal",
         label: "การคำนวณเงินเดือน",
-        icon: DollarSign,
+        icon: CurrencyExchangeIcon,
         children: [
-          { href: "/salary/calculate/normal", label: "คำนวณเงินเดือน", icon: DollarSign },
+          { href: "/salary/calculate/normal", label: "คำนวณเงินเดือน", icon: CurrencyExchangeIcon },
           { href: "/salary/calculate/special", label: "คำนวณงวดพิเศษ", icon: CalendarClock },
           { href: "/salary/calculate/ot", label: "คำนวณงวดโอที", icon: Clock },
           { href: "/salary/calculate/work-time", label: "คำนวณงวดเวลาการทำงาน", icon: Timer },
@@ -364,10 +366,8 @@ const NAV_ITEMS: NavItem[] = [
 
 /* --------------------------------- Favorites --------------------------------- */
 
-const FAVORITES_KEY = "humansoft:favorites";
-const FAVORITES_INITIALIZED_KEY = "humansoft:favorites:initialized";
-const FAVORITES_SEED_VERSION_KEY = "humansoft:favorites:seed-version";
-const FAVORITES_SEED_VERSION = "2";
+const FAVORITES_KEY = "hrmic:favorites";
+const LEGACY_FAVORITES_KEY = ["human", "soft:favorites"].join("");
 const MAX_FAVORITES = 8;
 
 /** A flat, deduped list of every page a user can favorite, grouped by section. */
@@ -399,23 +399,22 @@ const EMPTY_FAVORITES: string[] = [];
 // hydration; after hydration React swaps to the real client snapshot.
 let favoritesCache: string[] | null = null;
 const favoritesListeners = new Set<() => void>();
+let favoritesStorageListenerAttached = false;
+
+function normalizeFavorites(value: unknown): string[] {
+  return Array.isArray(value)
+    ? [...new Set(value.filter((item): item is string => typeof item === "string"))].slice(0, MAX_FAVORITES)
+    : [];
+}
 
 function readFavorites(): string[] {
   if (typeof window === "undefined") return EMPTY_FAVORITES;
   try {
-    const raw = window.localStorage.getItem(FAVORITES_KEY);
-    const usesCurrentSeed =
-      window.localStorage.getItem(FAVORITES_SEED_VERSION_KEY) === FAVORITES_SEED_VERSION;
-    // Seed the shared Portal store with the eight welcome shortcuts. The version
-    // keeps old, empty browser state from opening a blank panel on other routes,
-    // while still allowing an explicit empty list after the user has edited it.
-    const parsed = raw ? JSON.parse(raw) : [];
-    if (!usesCurrentSeed && Array.isArray(parsed) && parsed.length === 0) {
-      return DASHBOARD_STARTER_FAVORITES;
-    }
-    return Array.isArray(parsed)
-      ? [...new Set(parsed.filter((v): v is string => typeof v === "string"))].slice(0, MAX_FAVORITES)
-      : [];
+    const raw = window.localStorage.getItem(FAVORITES_KEY) ?? window.localStorage.getItem(LEGACY_FAVORITES_KEY);
+    // New browsers receive the welcome shortcuts once. An explicit empty array
+    // remains empty because it is stored as a real value rather than treated as
+    // an uninitialized state.
+    return raw === null ? DASHBOARD_STARTER_FAVORITES : normalizeFavorites(JSON.parse(raw));
   } catch {
     return [];
   }
@@ -433,17 +432,23 @@ function getFavoritesServerSnapshot(): string[] {
 
 function subscribeFavorites(listener: () => void) {
   favoritesListeners.add(listener);
+  if (typeof window !== "undefined" && !favoritesStorageListenerAttached) {
+    window.addEventListener("storage", (event) => {
+      if (event.key !== FAVORITES_KEY && event.key !== LEGACY_FAVORITES_KEY) return;
+      favoritesCache = readFavorites();
+      favoritesListeners.forEach((callback) => callback());
+    });
+    favoritesStorageListenerAttached = true;
+  }
   return () => {
     favoritesListeners.delete(listener);
   };
 }
 
 function writeFavorites(next: string[]) {
-  favoritesCache = next;
+  favoritesCache = normalizeFavorites(next);
   try {
-    window.localStorage.setItem(FAVORITES_KEY, JSON.stringify(next));
-    window.localStorage.setItem(FAVORITES_INITIALIZED_KEY, "true");
-    window.localStorage.setItem(FAVORITES_SEED_VERSION_KEY, FAVORITES_SEED_VERSION);
+    window.localStorage.setItem(FAVORITES_KEY, JSON.stringify(favoritesCache));
   } catch {
     // storage unavailable — favorites just won't persist
   }
@@ -456,6 +461,19 @@ function useFavorites() {
     getFavoritesSnapshot,
     getFavoritesServerSnapshot
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      // Persist first-time defaults and migrate the previous storage key without
+      // replacing a user's previously selected (including empty) list.
+      if (window.localStorage.getItem(FAVORITES_KEY) === null) {
+        writeFavorites(favoritesCache ?? readFavorites());
+      }
+    } catch {
+      // Storage can be unavailable in privacy-restricted browser sessions.
+    }
+  }, []);
 
   return {
     favorites,
@@ -486,7 +504,7 @@ function isItemActive(item: NavItem, pathname: string) {
 function findExpandedParent(pathname: string): string | null {
   const activeItem = NAV_ITEMS.find((item) => item.children && isItemActive(item, pathname));
 
-  // Humansoft treats the organization child drawer as a transient menu picker.
+  // The organization child drawer is a transient menu picker.
   // A direct organization-structure route therefore starts with the drawer
   // closed rather than reopening it over the destination page.
   return activeItem?.href === "/organization" ? null : activeItem?.href ?? null;
@@ -608,7 +626,7 @@ function SubmenuPanel({
 
 type FavoriteItem = { href: string; label: string; icon: IconComponent; section: string };
 
-// The Humansoft welcome screen ships with this practical starter set. Keep it
+// The welcome screen ships with this practical starter set. Keep it
 // visible on the dashboard even before a newly created workspace has saved its
 // own shortcuts, so the landing page does not open with an empty favourites
 // section.
@@ -803,9 +821,7 @@ function SidebarContent({
     <div className="flex h-full flex-col">
       {/* Logo header */}
       <div className="flex h-[5.875rem] shrink-0 items-center justify-between gap-2 px-5">
-        <span className="truncate text-[2.82rem] font-bold tracking-[-0.06em] text-white">
-          HRMic<span className="text-[#ff9700]">.ai</span>
-        </span>
+        <span className="truncate text-[2.82rem] font-bold tracking-[-0.06em] text-white">HRMic<span className="text-[#ff9700]">.ai</span></span>
         <div className="flex shrink-0 items-center gap-1">
           {onClose && (
             <button
@@ -955,6 +971,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [expanded, setExpanded] = useState<string | null>(() => findExpandedParent(pathname));
   const [prevPathname, setPrevPathname] = useState(pathname);
   const [submenuCollapsed, setSubmenuCollapsed] = useState(() => isReportLeafPage(pathname));
+  const [activeCompany, setActiveCompany] = useState<ActiveCompany | null>(null);
   const favorites = useFavorites();
   const allMenuItems = useMemo(() => flattenMenuItems(), []);
   const favoriteItems = useMemo(
@@ -1006,8 +1023,29 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [sidePanelOpen]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void fetch("/api/active-company", { cache: "no-store" })
+      .then(async (response) => response.ok ? (await response.json()) as { company: ActiveCompany | null } : { company: null })
+      .then(({ company }) => {
+        if (!cancelled) setActiveCompany(company);
+      })
+      .catch(() => {
+        if (!cancelled) setActiveCompany(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
+
   return (
-    <div className={cn("min-h-screen bg-background", pathname === "/dashboard" && "h-screen overflow-hidden")}>
+    <div
+      className={cn(
+        "min-h-screen bg-background",
+        pathname === "/organization/companies" && "bg-[#f5f5f5]",
+        pathname === "/dashboard" && "h-screen overflow-hidden"
+      )}
+    >
       {/* Desktop sidebar */}
       <aside
         className={cn(
@@ -1147,9 +1185,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               aria-haspopup="menu"
             >
               <span className="flex min-w-0 flex-col leading-tight">
-                <span className="truncate text-base font-medium text-foreground">MIC</span>
+                <span className="truncate text-base font-medium text-foreground">{activeCompany?.code ?? "MIC"}</span>
                 <span className="truncate text-xs font-medium text-muted-foreground">
-                  MIC ORGANIZE CO., LTD.
+                  {activeCompany?.name ?? "MIC ORGANIZE CO., LTD."}
                 </span>
               </span>
               <ChevronDown className="size-4 shrink-0 text-foreground/60 transition-transform group-hover:text-foreground" />

@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import type { AttendanceStatus, LeaveType, WorkDayType } from "@/generated/prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { getActiveCompany } from "@/lib/active-company";
+import { companyPeriodKey } from "@/lib/payroll/company-period";
+import { CLOSED_PAYROLL_PERIOD_MESSAGE, isPayrollPeriodClosed } from "@/lib/payroll/period-lock";
 
 export const dynamic = "force-dynamic";
 
@@ -20,12 +23,12 @@ function parseMonth(value: string | null) {
   return { year, month };
 }
 
-async function payrollPeriod(month: { year: number; month: number }) {
+async function payrollPeriod(month: { year: number; month: number }, companyId?: string) {
   const defaultStart = new Date(Date.UTC(month.year, month.month - 1, 1));
   const defaultEnd = new Date(Date.UTC(month.year, month.month, 1));
   const periodKey = `${month.year}-${String(month.month).padStart(2, "0")}`;
   const savedPeriod = await prisma.payrollRun.findUnique({
-    where: { period: periodKey },
+    where: { period: companyPeriodKey(periodKey, companyId) },
     select: { periodStart: true, periodEnd: true },
   });
   if (!savedPeriod?.periodStart || !savedPeriod.periodEnd) {
@@ -108,9 +111,10 @@ export async function GET(request: Request) {
   }
 
   try {
-    const { periodStart, periodEnd } = await payrollPeriod(selectedMonth);
+    const company = await getActiveCompany();
+    const { periodStart, periodEnd } = await payrollPeriod(selectedMonth, company?.id);
     const employee = await prisma.employee.findFirst({
-      where: { id: employeeId, deletedAt: null },
+      where: { id: employeeId, deletedAt: null, ...(company ? { companyId: company.id } : {}) },
       select: {
         id: true,
         employeeCode: true,
@@ -221,13 +225,19 @@ export async function PATCH(request: Request) {
   const leaveType = typeof body?.leaveType === "string" && body.leaveType ? body.leaveType : null;
   const reason = typeof body?.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
   const dayType = typeof body?.dayType === "string" ? body.dayType : null;
+  const activeCompany = await getActiveCompany();
+  const employeeWhere = { id: employeeId, deletedAt: null, ...(activeCompany ? { companyId: activeCompany.id } : {}) };
+
+  if (date && await isPayrollPeriodClosed(dateKey(date).slice(0, 7))) {
+    return NextResponse.json({ error: CLOSED_PAYROLL_PERIOD_MESSAGE }, { status: 409 });
+  }
 
   if (action === "setTime") {
     if (!employeeId || !date || !slot || !addedTime) {
       return NextResponse.json({ error: "กรุณาระบุเวลาในรูปแบบ HH:mm" }, { status: 400 });
     }
     try {
-      const employee = await prisma.employee.findFirst({ where: { id: employeeId, deletedAt: null }, select: { id: true } });
+      const employee = await prisma.employee.findFirst({ where: employeeWhere, select: { id: true } });
       if (!employee) return NextResponse.json({ error: "ไม่พบข้อมูลพนักงาน" }, { status: 404 });
       const attendance = await prisma.attendanceRecord.findUnique({
         where: { employeeId_date: { employeeId, date } },
@@ -262,7 +272,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "ข้อมูลเวลาทำงานไม่ถูกต้อง" }, { status: 400 });
     }
     try {
-      const employee = await prisma.employee.findFirst({ where: { id: employeeId, deletedAt: null }, select: { id: true } });
+      const employee = await prisma.employee.findFirst({ where: employeeWhere, select: { id: true } });
       if (!employee) return NextResponse.json({ error: "ไม่พบข้อมูลพนักงาน" }, { status: 404 });
       const attendance = await prisma.attendanceRecord.findUnique({ where: { employeeId_date: { employeeId, date } }, select: { id: true } });
       if (attendance) {
@@ -284,7 +294,7 @@ export async function PATCH(request: Request) {
     }
 
     try {
-      const employee = await prisma.employee.findFirst({ where: { id: employeeId, deletedAt: null }, select: { id: true } });
+      const employee = await prisma.employee.findFirst({ where: employeeWhere, select: { id: true } });
       if (!employee) return NextResponse.json({ error: "ไม่พบข้อมูลพนักงาน" }, { status: 404 });
 
       const attendance = await prisma.attendanceRecord.findUnique({
@@ -323,7 +333,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: "ประเภทวันทำงานไม่ถูกต้อง" }, { status: 400 });
     }
     try {
-      const employee = await prisma.employee.findFirst({ where: { id: employeeId, deletedAt: null }, select: { id: true } });
+      const employee = await prisma.employee.findFirst({ where: employeeWhere, select: { id: true } });
       if (!employee) return NextResponse.json({ error: "ไม่พบข้อมูลพนักงาน" }, { status: 404 });
       const selectedDayType = dayType as WorkDayType;
       await prisma.attendanceRecord.upsert({
@@ -361,7 +371,7 @@ export async function PATCH(request: Request) {
   const selectedLeaveType = leaveType as LeaveType | null;
 
   try {
-    const employee = await prisma.employee.findFirst({ where: { id: employeeId, deletedAt: null }, select: { id: true } });
+    const employee = await prisma.employee.findFirst({ where: employeeWhere, select: { id: true } });
     if (!employee) return NextResponse.json({ error: "ไม่พบข้อมูลพนักงาน" }, { status: 404 });
 
     await prisma.$transaction(async (tx) => {

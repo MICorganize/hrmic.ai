@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { EmploymentType, Gender, Status } from "@/generated/prisma/client";
 
+import { getActiveCompany } from "@/lib/active-company";
 import { parseEmployeeImportWorkbook, type EmployeeImportUploadRow } from "@/lib/excel/employeeImportTemplate";
 import { prisma } from "@/lib/prisma";
 
@@ -12,6 +13,17 @@ type ImportSummary = {
   updated: number;
   deleted: number;
   errors: { row: number; message: string }[];
+};
+
+type AddressLocationRecord = {
+  id: string;
+  nameTH: string;
+  postalCode: string | null;
+  District: {
+    id: string;
+    nameTH: string;
+    Province: { id: string; nameTH: string };
+  };
 };
 
 function text(row: EmployeeImportUploadRow, column: string) {
@@ -60,6 +72,40 @@ function employeeName(row: EmployeeImportUploadRow) {
   return `${text(row, "D")} ${text(row, "E")}`.trim();
 }
 
+function normalizeLocationName(value: string, prefixes: string[]) {
+  const normalized = value.trim().replace(/\s+/g, " ");
+  if (!normalized) return "";
+  const prefixPattern = prefixes.map((prefix) => prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  return normalized.replace(new RegExp(`^(?:${prefixPattern})\\s*`, "i"), "").trim().toLocaleLowerCase("th-TH");
+}
+
+function resolveAddressLocation(
+  values: { subdistrict: string; district: string; province: string },
+  locations: AddressLocationRecord[]
+) {
+  const subdistrict = normalizeLocationName(values.subdistrict, ["แขวง", "ตำบล"]);
+  const district = normalizeLocationName(values.district, ["เขต", "อำเภอ"]);
+  const province = normalizeLocationName(values.province, ["จังหวัด"]);
+  if (!subdistrict || !district || !province) return null;
+
+  const match = locations.find(
+    (location) =>
+      normalizeLocationName(location.nameTH, []) === subdistrict &&
+      normalizeLocationName(location.District.nameTH, []) === district &&
+      normalizeLocationName(location.District.Province.nameTH, []) === province
+  );
+  if (!match) return null;
+  return {
+    subdistrict: match.nameTH,
+    district: match.District.nameTH,
+    province: match.District.Province.nameTH,
+    postalCode: match.postalCode,
+    subdistrictId: match.id,
+    districtId: match.District.id,
+    provinceId: match.District.Province.id,
+  };
+}
+
 async function nextEmployeeNumber() {
   const numbers = await prisma.employee.findMany({ select: { employeeNumber: true } });
   const max = numbers.reduce((current, { employeeNumber }) => {
@@ -69,11 +115,19 @@ async function nextEmployeeNumber() {
   return max + 1;
 }
 
-async function importEmployees(rows: EmployeeImportUploadRow[], filename: string): Promise<ImportSummary> {
-  const [defaultCompany, departments, positions] = await Promise.all([
-    prisma.company.findFirst({ where: { deletedAt: null }, orderBy: { name: "asc" } }),
-    prisma.department.findMany({ where: { deletedAt: null }, select: { id: true, companyId: true, branchId: true, code: true, name: true } }),
-    prisma.position.findMany({ where: { deletedAt: null }, select: { id: true, companyId: true, code: true, name: true } }),
+async function importEmployees(rows: EmployeeImportUploadRow[], filename: string, companyId?: string): Promise<ImportSummary> {
+  const [defaultCompany, departments, positions, locations] = await Promise.all([
+    prisma.company.findFirst({ where: { deletedAt: null, ...(companyId ? { id: companyId } : {}) }, orderBy: { name: "asc" } }),
+    prisma.department.findMany({ where: { deletedAt: null, ...(companyId ? { companyId } : {}) }, select: { id: true, companyId: true, branchId: true, code: true, name: true } }),
+    prisma.position.findMany({ where: { deletedAt: null, ...(companyId ? { companyId } : {}) }, select: { id: true, companyId: true, code: true, name: true } }),
+    prisma.subdistrict.findMany({
+      select: {
+        id: true,
+        nameTH: true,
+        postalCode: true,
+        District: { select: { id: true, nameTH: true, Province: { select: { id: true, nameTH: true } } } },
+      },
+    }),
   ]);
   if (!defaultCompany) throw new Error("ไม่พบบริษัทที่ใช้งานได้ในระบบ");
 
@@ -103,7 +157,7 @@ async function importEmployees(rows: EmployeeImportUploadRow[], filename: string
         select: { id: true },
       });
       const existing = await prisma.employee.findFirst({
-        where: { employeeCode },
+        where: { employeeCode, companyId: defaultCompany.id },
         include: { Employment: { select: { id: true } } },
       });
       const employeeNumber = existing?.employeeNumber ?? `EMP-${String(nextNumber++).padStart(4, "0")}`;
@@ -169,7 +223,23 @@ async function importEmployees(rows: EmployeeImportUploadRow[], filename: string
       const addressRows = [
         { type: "permanent" as const, addressLine: text(row, "AS"), subdistrict: text(row, "AT"), district: text(row, "AU"), province: text(row, "AV") },
         { type: "current" as const, addressLine: text(row, "AW"), subdistrict: text(row, "AX"), district: text(row, "AY"), province: text(row, "AZ") },
-      ].filter((address) => Object.values(address).some((value) => value && value !== address.type));
+      ]
+        .filter((address) => Object.values(address).some((value) => value && value !== address.type))
+        .map((address) => {
+          const location = resolveAddressLocation(address, locations);
+          return {
+            ...address,
+            ...(location ?? {
+              postalCode: null,
+              subdistrictId: null,
+              districtId: null,
+              provinceId: null,
+            }),
+            subdistrict: location?.subdistrict ?? address.subdistrict,
+            district: location?.district ?? address.district,
+            province: location?.province ?? address.province,
+          };
+        });
       await Promise.all([
         ...(text(row, "AP") || text(row, "AR")
           ? [prisma.bankAccount.create({ data: { id: crypto.randomUUID(), employeeId: employee.id, bankCode: text(row, "AP"), bankName: text(row, "AP"), branchCode: text(row, "AQ") || null, accountNumber: text(row, "AR"), accountName: employeeName(row), updatedAt: now } })]
@@ -214,9 +284,10 @@ async function importEmployees(rows: EmployeeImportUploadRow[], filename: string
 }
 
 export async function GET() {
+  const company = await getActiveCompany();
   const [history, employees] = await Promise.all([
-    prisma.auditLog.findMany({ where: { entityType: "employee_import" }, orderBy: { createdAt: "desc" }, take: 20 }),
-    prisma.employee.findMany({ where: { deletedAt: null }, orderBy: [{ employeeCode: "asc" }, { employeeNumber: "asc" }], take: 100, select: { id: true, employeeCode: true, employeeNumber: true, firstNameTH: true, lastNameTH: true } }),
+    prisma.auditLog.findMany({ where: { entityType: "employee_import", ...(company ? { companyId: company.id } : {}) }, orderBy: { createdAt: "desc" }, take: 20 }),
+    prisma.employee.findMany({ where: { deletedAt: null, ...(company ? { companyId: company.id } : {}) }, orderBy: [{ employeeCode: "asc" }, { employeeNumber: "asc" }], take: 100, select: { id: true, employeeCode: true, employeeNumber: true, firstNameTH: true, lastNameTH: true } }),
   ]);
   return NextResponse.json({
     employees: employees.map((employee) => ({ id: employee.id, code: employee.employeeCode ?? employee.employeeNumber, name: `${employee.firstNameTH} ${employee.lastNameTH}`.trim() })),
@@ -235,7 +306,8 @@ export async function POST(request: Request) {
     if (file.size > MAX_FILE_SIZE) return NextResponse.json({ error: "ไฟล์ต้องมีขนาดไม่เกิน 10 MB" }, { status: 400 });
     if (!file.name.toLowerCase().endsWith(".xlsx")) return NextResponse.json({ error: "รองรับเฉพาะไฟล์ .xlsx" }, { status: 400 });
     const rows = parseEmployeeImportWorkbook(Buffer.from(await file.arrayBuffer()));
-    return NextResponse.json(await importEmployees(rows, file.name));
+    const company = await getActiveCompany();
+    return NextResponse.json(await importEmployees(rows, file.name, company?.id));
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "นำเข้าข้อมูลพนักงานไม่สำเร็จ" }, { status: 400 });
   }
@@ -246,22 +318,24 @@ export async function PATCH(request: Request) {
     const body = await request.json() as { scope?: "department" | "position"; employeeIds?: string[]; targetId?: string };
     const employeeIds = [...new Set(body.employeeIds ?? [])].filter(Boolean);
     if (!body.scope || !body.targetId || employeeIds.length === 0) return NextResponse.json({ error: "กรุณาเลือกรายการและข้อมูลที่ต้องการกำหนด" }, { status: 400 });
+    const company = await getActiveCompany();
+    const employeeWhere = { id: { in: employeeIds }, ...(company ? { companyId: company.id } : {}) };
     if (body.scope === "position") {
-      const position = await prisma.position.findFirst({ where: { id: body.targetId, deletedAt: null } });
+      const position = await prisma.position.findFirst({ where: { id: body.targetId, deletedAt: null, ...(company ? { companyId: company.id } : {}) } });
       if (!position) return NextResponse.json({ error: "ไม่พบตำแหน่งที่เลือก" }, { status: 404 });
-      await prisma.employee.updateMany({ where: { id: { in: employeeIds } }, data: { positionId: position.id } });
+      await prisma.employee.updateMany({ where: employeeWhere, data: { positionId: position.id } });
     } else {
-      let department = await prisma.department.findFirst({ where: { id: body.targetId, deletedAt: null } });
+      let department = await prisma.department.findFirst({ where: { id: body.targetId, deletedAt: null, ...(company ? { companyId: company.id } : {}) } });
       if (!department) {
-        const branch = await prisma.branch.findFirst({ where: { id: body.targetId, deletedAt: null } });
+        const branch = await prisma.branch.findFirst({ where: { id: body.targetId, deletedAt: null, ...(company ? { companyId: company.id } : {}) } });
         if (branch) department = await prisma.department.findFirst({ where: { companyId: branch.companyId, branchId: branch.id, deletedAt: null } });
       }
       if (!department) {
-        const company = await prisma.company.findFirst({ where: { id: body.targetId, deletedAt: null } });
-        if (company) department = await prisma.department.findFirst({ where: { companyId: company.id, deletedAt: null } });
+        const targetCompany = await prisma.company.findFirst({ where: { id: company?.id ?? body.targetId, deletedAt: null } });
+        if (targetCompany) department = await prisma.department.findFirst({ where: { companyId: targetCompany.id, deletedAt: null } });
       }
       if (!department) return NextResponse.json({ error: "ไม่พบหน่วยงานที่เลือกหรือไม่มีแผนกในหน่วยงานนั้น" }, { status: 400 });
-      await prisma.employee.updateMany({ where: { id: { in: employeeIds } }, data: { companyId: department.companyId, branchId: department.branchId, departmentId: department.id } });
+      await prisma.employee.updateMany({ where: employeeWhere, data: { companyId: department.companyId, branchId: department.branchId, departmentId: department.id } });
     }
     return NextResponse.json({ success: true });
   } catch {

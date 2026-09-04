@@ -42,9 +42,24 @@ const hasPayrollRunPeriodFields = Boolean(
     (field) => field.name === "periodEnd"
   )
 );
+const hasPayrollRunClosePeriodFields = Boolean(
+  cachedRuntimeModel?._runtimeDataModel?.models?.PayrollRun?.fields?.some(
+    (field) => field.name === "paymentDate"
+  ) && cachedRuntimeModel?._runtimeDataModel?.models?.PayrollRun?.fields?.some(
+    (field) => field.name === "taxPaymentDate"
+  ) && cachedRuntimeModel?._runtimeDataModel?.models?.PayrollRun?.fields?.some(
+    (field) => field.name === "closedAt"
+  )
+);
+const hasCompanyPortalFields = ["portalUrl", "planName", "employeeLimit"].every((fieldName) =>
+  cachedRuntimeModel?._runtimeDataModel?.models?.Company?.fields?.some(
+    (field) => field.name === fieldName
+  )
+);
+const hasUserCompanyAccess = Boolean(cachedPrisma && "userCompanyAccess" in cachedPrisma);
 
 export const prisma =
-  cachedPrisma && hasEmployeeTypeDefinition && hasEmploymentTypeDefinitionField && hasAttendanceDayTypeField && hasIndividualGeneralSetting && hasIndividualOvertimeSetting && hasIndividualShiftHolidaySetting && hasIndividualWorkTimeSetting && hasPayrollRunPeriodFields
+  cachedPrisma && hasEmployeeTypeDefinition && hasEmploymentTypeDefinitionField && hasAttendanceDayTypeField && hasIndividualGeneralSetting && hasIndividualOvertimeSetting && hasIndividualShiftHolidaySetting && hasIndividualWorkTimeSetting && hasPayrollRunPeriodFields && hasPayrollRunClosePeriodFields && hasCompanyPortalFields && hasUserCompanyAccess
     ? cachedPrisma
     : createPrismaClient();
 

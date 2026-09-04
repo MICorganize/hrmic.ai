@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { CLOSED_PAYROLL_PERIOD_MESSAGE, isPayrollPeriodClosed } from "@/lib/payroll/period-lock";
 
 export const dynamic = "force-dynamic";
 
@@ -91,12 +92,13 @@ export async function GET(request: Request) {
 export async function PATCH(request: Request) {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
   const employeeId = typeof body?.employeeId === "string" ? body.employeeId.trim() : "";
+  const month = typeof body?.month === "string" && /^\d{4}-(0[1-9]|1[0-2])$/.test(body.month) ? body.month : null;
   const ruleNumber = integer(body?.ruleNumber, 8);
   const startMinutes = integer(body?.startMinutes, 600);
   const wageRate = rate(body?.wageRate);
   const calculationTargets = targets(body?.calculationTargets);
 
-  if (!employeeId || ruleNumber === null || !RULE_NUMBERS.includes(ruleNumber as (typeof RULE_NUMBERS)[number]) || typeof body?.enabled !== "boolean" || startMinutes === null || !isOneOf(body?.countingChoice, COUNTING_CHOICES) || !isOneOf(body?.payMethod, PAY_METHODS) || wageRate === null || !isOneOf(body?.roundMoney, ROUND_MONEY_OPTIONS) || !isOneOf(body?.maxHours, MAX_HOURS_OPTIONS) || !isOneOf(body?.roundHours, ROUND_HOURS_OPTIONS) || calculationTargets === null) {
+  if (!employeeId || !month || ruleNumber === null || !RULE_NUMBERS.includes(ruleNumber as (typeof RULE_NUMBERS)[number]) || typeof body?.enabled !== "boolean" || startMinutes === null || !isOneOf(body?.countingChoice, COUNTING_CHOICES) || !isOneOf(body?.payMethod, PAY_METHODS) || wageRate === null || !isOneOf(body?.roundMoney, ROUND_MONEY_OPTIONS) || !isOneOf(body?.maxHours, MAX_HOURS_OPTIONS) || !isOneOf(body?.roundHours, ROUND_HOURS_OPTIONS) || calculationTargets === null) {
     return NextResponse.json({ error: "ข้อมูลการตั้งค่าโอทีไม่ถูกต้อง" }, { status: 400 });
   }
 
@@ -113,6 +115,9 @@ export async function PATCH(request: Request) {
   };
 
   try {
+    if (await isPayrollPeriodClosed(month)) {
+      return NextResponse.json({ error: CLOSED_PAYROLL_PERIOD_MESSAGE }, { status: 409 });
+    }
     const employee = await prisma.employee.findFirst({ where: { id: employeeId, deletedAt: null }, select: { id: true } });
     if (!employee) return NextResponse.json({ error: "ไม่พบข้อมูลพนักงาน" }, { status: 404 });
 

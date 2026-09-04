@@ -3,6 +3,8 @@
 import { CalendarDays, Check, ChevronDown, ChevronRight, RefreshCw, Search, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
+import { DOCUMENTATION_ORIGIN } from "@/lib/external-assets";
+
 function Field({ label, placeholder, children }: { label: string; placeholder?: string; children?: ReactNode }) {
   return (
     <label className="block text-sm font-medium text-[#444b51]">
@@ -32,7 +34,7 @@ function DocumentManagementPage({ documentType }: { documentType: "leave" | "ove
         <button type="button" onClick={() => setRequestOpen(true)} className="mt-3 inline-flex h-10 items-center rounded-md bg-white px-4 text-sm font-semibold text-[#4e4e4e] shadow-md hover:bg-slate-50">{requestLabel}</button>
       </section>
       <section className="px-8 py-8">
-        <p className="mb-[2px] text-sm text-[#535b62]">เรียนรู้เพิ่มเติมวิธีการขออนุมัติเอกสารต่างๆ ไปคู่มือที่นี้ <a href="https://www.humansoft.co.th/docs/SubmitDocuments" className="text-[#168fe9] hover:underline">Link</a></p>
+        <p className="mb-[2px] text-sm text-[#535b62]">เรียนรู้เพิ่มเติมวิธีการขออนุมัติเอกสารต่างๆ ไปคู่มือที่นี้ <a href={`${DOCUMENTATION_ORIGIN}/docs/SubmitDocuments`} className="text-[#168fe9] hover:underline">Link</a></p>
         <form onSubmit={(event) => { event.preventDefault(); setSearched(true); }} className={isCompactDocument ? "rounded-b-lg bg-white px-4 pb-4 pt-[14px] shadow-[0_1px_3px_rgba(58,81,106,0.18)]" : "rounded-b-lg bg-white px-4 pb-[27px] pt-5 shadow-[0_1px_3px_rgba(58,81,106,0.18)]"}>
           <h2 className={isCompactDocument ? "mb-[25px] text-[22px] font-medium text-[#2f353a]" : "mb-7 text-[22px] font-medium text-[#2f353a]"}>ค้นหา</h2>
           <div className="grid grid-cols-1 gap-x-2 gap-y-2 md:grid-cols-4"><Field label="โครงสร้างองค์กร" placeholder="โครงสร้างองค์กร" /><Field label="ตำแหน่ง" placeholder="ตำแหน่ง" /><Field label="พนักงาน" placeholder="พนักงาน" /><Field label="Hashtag" placeholder="#Hashtag" /></div>
@@ -80,7 +82,7 @@ function AdvanceManagementPage() {
       </section>
 
       <section className="px-8 py-8">
-        <p className="mb-[2px] text-sm text-[#535b62]">เรียนรู้เพิ่มเติมวิธีการขออนุมัติเอกสารต่างๆ ไปคู่มือที่นี้ <a href="https://www.humansoft.co.th/docs/SubmitDocuments" className="text-[#168fe9] hover:underline">Link</a></p>
+        <p className="mb-[2px] text-sm text-[#535b62]">เรียนรู้เพิ่มเติมวิธีการขออนุมัติเอกสารต่างๆ ไปคู่มือที่นี้ <a href={`${DOCUMENTATION_ORIGIN}/docs/SubmitDocuments`} className="text-[#168fe9] hover:underline">Link</a></p>
         <form onSubmit={(event) => { event.preventDefault(); setSearched(true); }} className="rounded-b-lg bg-white px-2 pb-[14px] pt-[14px] shadow-[0_1px_3px_rgba(58,81,106,0.18)]">
           <h2 className="mb-[25px] text-[22px] font-medium text-[#2f353a]">ค้นหา</h2>
           <div className="grid grid-cols-1 gap-x-2 gap-y-2 md:grid-cols-4"><Field label="โครงสร้างองค์กร" placeholder="โครงสร้างองค์กร" /><Field label="ตำแหน่ง" placeholder="ตำแหน่ง" /><Field label="พนักงาน" placeholder="พนักงาน" /><Field label="Hashtag" placeholder="#Hashtag" /></div>

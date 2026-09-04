@@ -69,7 +69,7 @@ export default function RegisterPage() {
           </div>
 
           <div className="mb-6">
-            <div className="origin-center -translate-y-2 scale-[.64] sm:scale-[.72]"><HRMicWordmark primaryClassName="text-[#315ff4] [text-shadow:0_0_1.5px_#1849db]" /></div>
+            <div className="origin-center -translate-y-6 scale-[.64] sm:scale-[.72]"><HRMicWordmark primaryClassName="text-[#315ff4] [text-shadow:0_0_1.5px_#1849db]" /></div>
             <h1 className="-mt-5 text-2xl font-semibold text-[#333]">{copy.title}</h1>
             <p className="mt-1 text-sm text-[#777]">{copy.subtitle}</p>
           </div>

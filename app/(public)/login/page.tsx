@@ -63,8 +63,9 @@ export default function LoginPage() {
         forgotPassword: "Forgot password?",
         submit: "Log in",
         loading: "Signing in",
-        noAccount: "Don’t have an account?",
+        noAccount: "Don't have an account?",
         register: "Sign up here",
+        companyManagement: "Company Management",
         invalidCredentials: "Incorrect email or password",
         genericError: "Something went wrong. Please try again.",
       }
@@ -86,6 +87,7 @@ export default function LoginPage() {
         loading: "กำลังเข้าสู่ระบบ",
         noAccount: "ยังไม่มีบัญชีผู้ใช้?",
         register: "สมัครใช้งานที่นี่",
+        companyManagement: "เข้าสู่ระบบจัดการบริษัท",
         invalidCredentials: "อีเมลหรือรหัสผ่านไม่ถูกต้อง",
         genericError: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง",
       };
@@ -128,19 +130,19 @@ export default function LoginPage() {
 
   return (
     <main lang={language} className="grid min-h-dvh place-items-center bg-[#f4f5f7] p-4 font-[family:var(--font-kanit)] text-[#454545] sm:p-8">
-      <section className="grid w-full max-w-[960px] overflow-hidden rounded-sm bg-white shadow-[0_4px_24px_rgba(33,41,52,0.14)] lg:min-h-[580px] lg:grid-cols-2">
+      <section className="grid w-full max-w-[960px] overflow-hidden rounded-sm bg-white shadow-[0_4px_24px_rgba(33,41,52,0.14)] lg:grid-cols-2">
         <aside className="hidden min-h-full overflow-hidden bg-[#0259e6] lg:flex lg:items-center">
           <Image src="/images/auth/login-illustration.jpg" alt={copy.imageAlt} width={5209} height={4167} priority className="h-auto w-full" />
         </aside>
 
-        <div className="relative flex min-h-[580px] flex-col justify-center px-7 py-10 sm:px-12">
+        <div className="relative flex flex-col justify-center px-7 py-6 sm:px-12">
           <div className="absolute right-7 top-6 flex items-center gap-1 text-xs text-[#8d949b] sm:right-10">
             <span>{copy.language}</span>
             <button type="button" onClick={() => setLanguage("th")} className={cn("grid size-6 place-items-center rounded-full text-[11px]", language === "th" ? "bg-[#135ee4] text-white" : "text-[#8d949b]")}>TH</button>
             <button type="button" onClick={() => setLanguage("en")} className={cn("grid size-6 place-items-center rounded-full text-[11px]", language === "en" ? "bg-[#135ee4] text-white" : "text-[#8d949b]")}>EN</button>
           </div>
 
-          <div className="mb-7 sm:mb-8">
+          <div className="mb-4 sm:mb-5">
             <div className="origin-center -translate-y-4 scale-[.64] sm:scale-[.72]"><HRMicWordmark primaryClassName="text-[#315ff4] [text-shadow:0_0_1.5px_#1849db]" /></div>
             <h1 className="-mt-4 text-2xl font-semibold text-[#333]">{copy.title}</h1>
             <p className="mt-1 text-sm text-[#777]">{copy.subtitle}</p>
@@ -191,10 +193,13 @@ export default function LoginPage() {
           </form>
 
           <div className="my-6 flex items-center gap-3 text-[11px] uppercase tracking-wide text-[#b1b5ba]"><span className="h-px flex-1 bg-[#e4e6e8]" />HRMic.ai<span className="h-px flex-1 bg-[#e4e6e8]" /></div>
-          <p className="text-center text-sm text-[#757b82]">
+          <p className="-mt-[15px] text-center text-sm text-[#757b82]">
             {copy.noAccount}{" "}
             <Link href="/register" className="font-medium text-[#315ff4] hover:underline">{copy.register}</Link>
           </p>
+          <Link href="/organization/companies" draggable={false} className="mt-4 flex h-10 w-full items-center justify-center rounded-full bg-[#fc9a12] text-[14px] font-medium text-white shadow-sm transition hover:bg-[#e88a0a]">
+            {copy.companyManagement}
+          </Link>
         </div>
       </section>
     </main>

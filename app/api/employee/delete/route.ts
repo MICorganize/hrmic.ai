@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { verifyPassword } from "@/lib/encryption/password";
+import { getActiveCompany } from "@/lib/active-company";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
@@ -53,10 +54,12 @@ export async function POST(request: Request) {
     }
 
     // Check that all employee IDs exist and are not already deleted
+    const company = await getActiveCompany();
     const existingEmployees = await prisma.employee.findMany({
       where: {
         id: { in: employeeIds },
         deletedAt: null,
+        ...(company ? { companyId: company.id } : {}),
       },
       select: { id: true },
     });
@@ -76,6 +79,7 @@ export async function POST(request: Request) {
     const result = await prisma.employee.updateMany({
       where: {
         id: { in: [...existingIds] },
+        ...(company ? { companyId: company.id } : {}),
       },
       data: {
         deletedAt: now,

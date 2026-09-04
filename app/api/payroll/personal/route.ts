@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
+import { getActiveCompany } from "@/lib/active-company";
+import { companyPeriodKey } from "@/lib/payroll/company-period";
+import { CLOSED_PAYROLL_PERIOD_MESSAGE, isPayrollPeriodClosed } from "@/lib/payroll/period-lock";
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
 
@@ -12,10 +15,10 @@ function defaultPeriodDates(month: string) {
   };
 }
 
-async function periodDates(month: string) {
+async function periodDates(month: string, companyId?: string) {
   const defaultPeriod = defaultPeriodDates(month);
   const savedPeriod = await prisma.payrollRun.findUnique({
-    where: { period: month },
+    where: { period: companyPeriodKey(month, companyId) },
     select: { periodStart: true, periodEnd: true },
   });
   if (!savedPeriod?.periodStart || !savedPeriod.periodEnd) return defaultPeriod;
@@ -35,10 +38,10 @@ function isDisabledCalculation(value: string | null | undefined) {
   return !value || /ไม่คิด|none|disable|false/i.test(value);
 }
 
-async function getEmployeeCalculation(employeeId: string, month: string) {
-  const { start, end } = await periodDates(month);
+async function getEmployeeCalculation(employeeId: string, month: string, companyId?: string) {
+  const { start, end } = await periodDates(month, companyId);
   const employee = await prisma.employee.findFirst({
-    where: { id: employeeId, deletedAt: null },
+    where: { id: employeeId, deletedAt: null, ...(companyId ? { companyId } : {}) },
     include: {
       Salary: {
         where: { effectiveDate: { lte: end } },
@@ -128,10 +131,11 @@ export async function GET(request: Request) {
   }
 
   try {
-    const data = await getEmployeeCalculation(employeeId, month);
+    const company = await getActiveCompany();
+    const data = await getEmployeeCalculation(employeeId, month, company?.id);
     if (!data) return NextResponse.json({ error: "ไม่พบพนักงาน" }, { status: 404 });
     const payrollRun = await prisma.payrollRun.findUnique({
-      where: { period: month },
+      where: { period: companyPeriodKey(month, company?.id) },
       include: { PayrollItem: { where: { employeeId } } },
     });
     const item = payrollRun?.PayrollItem[0];
@@ -170,11 +174,16 @@ export async function POST(request: Request) {
   }
 
   try {
-    const data = await getEmployeeCalculation(employeeId, month);
+    const company = await getActiveCompany();
+    const period = companyPeriodKey(month, company?.id);
+    if (await isPayrollPeriodClosed(month)) {
+      return NextResponse.json({ error: CLOSED_PAYROLL_PERIOD_MESSAGE }, { status: 409 });
+    }
+    const data = await getEmployeeCalculation(employeeId, month, company?.id);
     if (!data) return NextResponse.json({ error: "ไม่พบพนักงาน" }, { status: 404 });
 
     if (body.action === "reset") {
-      const run = await prisma.payrollRun.findUnique({ where: { period: month }, select: { id: true } });
+      const run = await prisma.payrollRun.findUnique({ where: { period }, select: { id: true } });
       if (run) {
         await prisma.$transaction([
           prisma.payrollItem.deleteMany({ where: { payrollRunId: run.id, employeeId } }),
@@ -194,8 +203,8 @@ export async function POST(request: Request) {
       await prisma.$transaction(async (tx) => {
         const now = new Date();
         const run = await tx.payrollRun.upsert({
-          where: { period: month },
-          create: { id: crypto.randomUUID(), period: month, status: "processing", updatedAt: now, runAt: now },
+          where: { period },
+          create: { id: crypto.randomUUID(), period, status: "processing", updatedAt: now, runAt: now },
           update: { status: "processing", updatedAt: now, runAt: now },
         });
         await tx.payrollItem.upsert({

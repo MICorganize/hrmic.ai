@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { USER_IMAGE_ORIGIN } from "@/lib/external-assets";
 import {
   Table,
   TableBody,
@@ -70,7 +71,7 @@ type DeletedEmployeeListResponse = {
 /* ---------------------------------- Data ---------------------------------- */
 
 const STATUS_OPTIONS = ["ทั้งหมด", "Active", "Inactive"];
-const PLACEHOLDER_PHOTO = "https://web-core.humansoft.co.th/images/userPlaceHolder.png";
+const PLACEHOLDER_PHOTO = `${USER_IMAGE_ORIGIN}/images/userPlaceHolder.png`;
 
 /* ---------------------------------- Tabs ---------------------------------- */
 
