@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { format, parse } from "date-fns";
+import { addDays, addMonths, addYears, differenceInCalendarDays, format, parse, startOfDay } from "date-fns";
 import { th } from "date-fns/locale/th";
 import {
   Calendar as CalendarIcon,
@@ -23,6 +23,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { formatPhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -114,6 +115,34 @@ function companyIdForOrganization(nodes: OrganizationNode[], selection: string, 
   return undefined;
 }
 
+function calculateAge(birthDate: Date | undefined): string | undefined {
+  if (!birthDate || Number.isNaN(birthDate.getTime())) return undefined;
+
+  const today = startOfDay(new Date());
+  const birthday = startOfDay(birthDate);
+  if (birthday > today) return undefined;
+
+  let years = today.getFullYear() - birthday.getFullYear();
+  let anniversary = addYears(birthday, years);
+  if (anniversary > today) {
+    years -= 1;
+    anniversary = addYears(birthday, years);
+  }
+
+  let months =
+    (today.getFullYear() - anniversary.getFullYear()) * 12 +
+    today.getMonth() -
+    anniversary.getMonth();
+  let monthAnniversary = addMonths(anniversary, months);
+  if (monthAnniversary > today) {
+    months -= 1;
+    monthAnniversary = addMonths(anniversary, months);
+  }
+
+  const days = differenceInCalendarDays(today, monthAnniversary);
+  return `${years} ปี ${months} เดือน ${days} วัน`;
+}
+
 /* ------------------------------ Form fields ------------------------------- */
 
 function FieldShell({
@@ -129,9 +158,9 @@ function FieldShell({
 }) {
   return (
     <div className={cn("p-1", className)}>
-      <label className="mb-1 block font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-[rgba(0,0,0,0.65)]">
+      <label className="block font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-[rgba(0,0,0,0.65)]">
         {label}
-        {required && <span className="text-red-500">*</span>}
+        {required && <span className="text-[#ff0000]"> *</span>}
       </label>
       {children}
     </div>
@@ -152,21 +181,47 @@ function TextInput({
   disabled,
   className,
   name,
+  value,
+  defaultValue,
+  onChange,
+  type = "text",
+  min,
+  step,
+  autoComplete,
+  inputMode,
+  maxLength,
 }: {
   placeholder?: string;
   disabled?: boolean;
   className?: string;
   name?: string;
+  value?: string;
+  defaultValue?: string;
+  onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  type?: React.HTMLInputTypeAttribute;
+  min?: number;
+  step?: number;
+  autoComplete?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  maxLength?: number;
 }) {
   return (
     <input
-      type="text"
+      type={type}
       name={name}
-      placeholder={placeholder}
+      value={value}
+      defaultValue={defaultValue}
+      onChange={onChange}
+      min={min}
+      step={step}
+      autoComplete={autoComplete}
+      inputMode={inputMode}
+      maxLength={maxLength}
+      placeholder={undefined}
       disabled={disabled}
       className={cn(
-      "relative -top-1 h-8 w-full rounded-[4px] border border-[#d9d9d9] bg-white px-3 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none placeholder:text-muted-foreground/60 focus:border-[#2299ff]",
-        disabled && "cursor-not-allowed bg-muted text-muted-foreground",
+      "h-8 w-full rounded-[4px] border border-[#d9d9d9] bg-white px-[11px] py-1 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none placeholder:text-muted-foreground/60 focus:border-[#2299ff]",
+        disabled && "cursor-not-allowed bg-[#f5f5f5] text-[rgba(0,0,0,0.65)]",
         className
       )}
     />
@@ -195,9 +250,9 @@ function SelectInput({
         defaultValue={defaultValue ?? ""}
         disabled={disabled}
         className={cn(
-          "relative -top-1 h-8 w-full appearance-none rounded-[4px] border border-[#d9d9d9] bg-white px-3 pr-8 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none focus:border-[#2299ff]",
+          "h-8 w-full appearance-none rounded-[4px] border border-[#d9d9d9] bg-white px-[11px] pr-8 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none focus:border-[#2299ff]",
           defaultValue ? "text-foreground" : "text-muted-foreground/60",
-          disabled && "cursor-not-allowed bg-muted text-muted-foreground"
+          disabled && "cursor-not-allowed bg-[#f5f5f5] text-[rgba(0,0,0,0.25)]"
         )}
       >
         {!defaultValue && <option value="">{placeholder ? "" : "เลือก"}</option>}
@@ -244,9 +299,9 @@ function EmployeeTypeSelectInput({
         disabled={loading || availableTypes.length === 0}
         required
         className={cn(
-          "h-8 w-full appearance-none rounded-[4px] border border-[#d9d9d9] bg-card px-3 pr-8 text-sm leading-[22px] shadow-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "h-8 w-full appearance-none rounded-[4px] border border-[#d9d9d9] bg-card px-[11px] pr-8 font-[Kanit,sans-serif] text-sm leading-[22.001px] shadow-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           value ? "text-foreground" : "text-muted-foreground/60",
-          "disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+          "disabled:cursor-not-allowed disabled:bg-[#f5f5f5] disabled:text-[rgba(0,0,0,0.25)]"
         )}
       >
         <option value="">
@@ -496,12 +551,16 @@ function DateInput({
   disabled,
   className,
   name,
+  onDateChange,
+  selectedDate,
 }: {
   placeholder?: string;
   defaultValue?: string;
   disabled?: boolean;
   className?: string;
   name?: string;
+  onDateChange?: (date: Date | undefined) => void;
+  selectedDate?: Date;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -516,20 +575,21 @@ function DateInput({
   })();
 
   const [selected, setSelected] = useState<Date | undefined>(initialDate);
+  const resolvedSelectedDate = selectedDate ?? selected;
 
-  const displayText = selected ? format(selected, "dd/MM/yyyy") : "";
+  const displayText = resolvedSelectedDate ? format(resolvedSelectedDate, "dd/MM/yyyy") : "";
 
   return (
     <div className={cn("relative", className)}>
-      <input type="hidden" name={name} value={selected ? format(selected, "MM/dd/yyyy") : ""} />
+      <input type="hidden" name={name} value={resolvedSelectedDate ? format(resolvedSelectedDate, "MM/dd/yyyy") : ""} />
       <Popover open={open} onOpenChange={disabled ? undefined : setOpen}>
         <PopoverTrigger asChild>
           <button
             type="button"
             disabled={disabled}
             className={cn(
-              "relative -top-1 flex h-8 w-full items-center justify-between rounded-[4px] border border-[#d9d9d9] bg-white px-3 pr-9 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none focus:border-[#2299ff]",
-              disabled && "cursor-not-allowed bg-muted text-muted-foreground",
+              "flex h-8 w-full items-center justify-between rounded-[4px] border border-[#d9d9d9] bg-white px-[11px] pr-9 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none focus:border-[#2299ff]",
+              disabled && "cursor-not-allowed bg-[#f5f5f5] text-[rgba(0,0,0,0.65)]",
               !selected && "text-muted-foreground/60"
             )}
           >
@@ -540,17 +600,136 @@ function DateInput({
           </button>
         </PopoverTrigger>
         {!disabled && (
-          <PopoverContent className="w-auto p-0">
+          <PopoverContent
+            side="bottom"
+            align="start"
+            sideOffset={4}
+            avoidCollisions={false}
+            className="w-auto p-0"
+          >
             <Calendar
               mode="single"
-              selected={selected}
+              selected={resolvedSelectedDate}
+              defaultMonth={resolvedSelectedDate}
               onSelect={(day) => {
                 setSelected(day);
+                onDateChange?.(day);
                 setOpen(false);
               }}
               locale={th}
               captionLayout="dropdown-years"
             />
+          </PopoverContent>
+        )}
+      </Popover>
+    </div>
+  );
+}
+
+function MonthPickerInput({
+  placeholder = "เลือกเดือน",
+  defaultValue,
+  disabled,
+  className,
+  name,
+}: {
+  placeholder?: string;
+  defaultValue?: string;
+  disabled?: boolean;
+  className?: string;
+  name?: string;
+}) {
+  const initialDate = (() => {
+    if (!defaultValue) return undefined;
+    try {
+      return parse(defaultValue, "MM/dd/yyyy", new Date());
+    } catch {
+      return undefined;
+    }
+  })();
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<Date | undefined>(initialDate);
+  const [visibleYear, setVisibleYear] = useState((initialDate ?? new Date()).getFullYear());
+
+  const chooseMonth = (month: number) => {
+    setSelected(new Date(visibleYear, month, 1));
+    setOpen(false);
+  };
+
+  return (
+    <div className={cn("relative", className)}>
+      <input type="hidden" name={name} value={selected ? format(selected, "MM/dd/yyyy") : ""} />
+      <Popover
+        open={open}
+        onOpenChange={disabled ? undefined : (nextOpen) => {
+          if (nextOpen) setVisibleYear((selected ?? new Date()).getFullYear());
+          setOpen(nextOpen);
+        }}
+      >
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            disabled={disabled}
+            className={cn(
+              "flex h-8 w-full items-center justify-between rounded-[4px] border border-[#d9d9d9] bg-white px-[11px] pr-9 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none focus:border-[#2299ff]",
+              disabled && "cursor-not-allowed bg-[#f5f5f5] text-[rgba(0,0,0,0.65)]",
+              !selected && "text-muted-foreground/60"
+            )}
+          >
+            <span className="truncate whitespace-pre">{selected ? format(selected, "MMMM  yyyy", { locale: th }) : placeholder}</span>
+            <CalendarIcon className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          </button>
+        </PopoverTrigger>
+        {!disabled && (
+          <PopoverContent
+            side="bottom"
+            align="start"
+            sideOffset={4}
+            avoidCollisions={false}
+            className="w-[272px] p-3"
+          >
+            <div className="grid h-8 grid-cols-[32px_1fr_32px] items-center">
+              <button
+                type="button"
+                aria-label="ปีก่อนหน้า"
+                onClick={() => setVisibleYear((year) => year - 1)}
+                className="flex size-8 items-center justify-center rounded-[4px] text-[rgba(0,0,0,0.65)] hover:bg-[#f5f5f5]"
+              >
+                {"<<"}
+              </button>
+              <span className="text-center font-[Kanit,sans-serif] text-sm font-medium text-[rgba(0,0,0,0.85)]">
+                {visibleYear}
+              </span>
+              <button
+                type="button"
+                aria-label="ปีถัดไป"
+                onClick={() => setVisibleYear((year) => year + 1)}
+                className="flex size-8 items-center justify-center rounded-[4px] text-[rgba(0,0,0,0.65)] hover:bg-[#f5f5f5]"
+              >
+                {">>"}
+              </button>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-1" role="grid" aria-label="เลือกเดือน">
+              {Array.from({ length: 12 }, (_, month) => {
+                const monthDate = new Date(visibleYear, month, 1);
+                const isSelected = selected?.getFullYear() === visibleYear && selected.getMonth() === month;
+                return (
+                  <button
+                    key={month}
+                    type="button"
+                    role="gridcell"
+                    aria-pressed={isSelected}
+                    onClick={() => chooseMonth(month)}
+                    className={cn(
+                      "h-8 rounded-[4px] font-[Kanit,sans-serif] text-sm transition-colors hover:bg-[#e6f7ff]",
+                      isSelected ? "bg-[#1890ff] text-white hover:bg-[#1890ff]" : "text-[rgba(0,0,0,0.65)]"
+                    )}
+                  >
+                    {format(monthDate, "MMM", { locale: th })}
+                  </button>
+                );
+              })}
+            </div>
           </PopoverContent>
         )}
       </Popover>
@@ -581,17 +760,19 @@ function RadioGroup({
           key={opt}
           type="button"
           onClick={() => onChange(opt)}
-          className="flex h-[22px] shrink-0 items-center gap-1 text-sm leading-[22px] text-foreground"
+          className="flex h-[22px] shrink-0 items-center gap-0 font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-[rgba(0,0,0,0.65)]"
         >
           <span
             className={cn(
-              "flex size-3.5 items-center justify-center rounded-full border",
-              opt === value ? "border-primary" : "border-muted-foreground/40"
+              "flex size-4 items-center justify-center rounded-full border",
+              opt === value ? "border-[#1890ff]" : "border-[#d9d9d9]"
             )}
           >
-            {opt === value && <span className="size-2 rounded-full bg-primary" />}
+            {opt === value && <span className="size-2 rounded-full bg-[#1890ff]" />}
           </span>
-          <span className="truncate">{opt}</span>
+          <span className={cn("truncate px-2 tracking-[-0.1px]", opt === "ไม่ระบุ" && "pr-[13.075px]")}>
+            {opt === "ไม่ระบุ" ? " ไม่ระบุ " : opt}
+          </span>
         </button>
       ))}
     </div>
@@ -637,15 +818,17 @@ export default function OrganizationEmployeeCreatePage({
   onCancel,
   onComplete,
   employeeCount,
+  employeeLimit,
 }: {
   onCancel?: () => void;
   onComplete?: () => void;
   employeeCount?: number | null;
+  employeeLimit?: number | null;
 }) {
   const router = useRouter();
   const currentEmployeeCount = employeeCount ?? 1;
-  const employeeLimit = 2;
-  const progressPct = Math.min(100, Math.round((currentEmployeeCount / employeeLimit) * 100));
+  const configuredEmployeeLimit = employeeLimit ?? 2;
+  const progressPct = Math.min(100, Math.round((currentEmployeeCount / configuredEmployeeLimit) * 100));
   const [activeTab, setActiveTab] = useState(TABS[0]);
   const tabViewportRef = useRef<HTMLDivElement>(null);
   const [canScrollTabsBack, setCanScrollTabsBack] = useState(false);
@@ -665,16 +848,42 @@ export default function OrganizationEmployeeCreatePage({
   const [employeeTypes, setEmployeeTypes] = useState<EmployeeTypeDefinition[]>([]);
   const [employeeTypeLoading, setEmployeeTypeLoading] = useState(true);
   const [employeeTypeSelection, setEmployeeTypeSelection] = useState("");
+  const [birthDate, setBirthDate] = useState<Date | undefined>();
+  const [hireDate, setHireDate] = useState(() => startOfDay(new Date()));
+  const [probationDays, setProbationDays] = useState("119");
   const selectedOrganizationCompanyId = companyIdForOrganization(organizations, organizationSelection);
+  const probationDuration = /^\d+$/.test(probationDays) ? Number.parseInt(probationDays, 10) : 0;
+  const probationEndDate = probationDuration > 0 ? addDays(hireDate, probationDuration - 1) : undefined;
 
   // Employee code duplicate check
   const [employeeCode, setEmployeeCode] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [lastNameEN, setLastNameEN] = useState("");
   const [codeDuplicate, setCodeDuplicate] = useState(false);
-  const [codeChecking, setCodeChecking] = useState(false);
   const [existingEmployee, setExistingEmployee] = useState<
     { employeeNumber: string; fullName: string } | null
   >(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const resetBasicForm = () => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setEmployeeCode("");
+    setLastName("");
+    setLastNameEN("");
+    setCodeDuplicate(false);
+    setExistingEmployee(null);
+    setGender("ชาย");
+    setNationality("ไทย");
+    setPayrollRound(false);
+    setBirthDate(undefined);
+    setHireDate(startOfDay(new Date()));
+    setProbationDays("119");
+    setOrganizationSelection("");
+    setPositionSelection("");
+    setEmployeeTypeSelection("");
+    setSaveStatus("idle");
+    setSaveMessage("");
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -788,11 +997,9 @@ export default function OrganizationEmployeeCreatePage({
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!employeeCode.trim()) {
       setCodeDuplicate(false);
-      setCodeChecking(false);
       setExistingEmployee(null);
       return;
     }
-    setCodeChecking(true);
     debounceRef.current = setTimeout(async () => {
       try {
         const res = await fetch(
@@ -804,8 +1011,6 @@ export default function OrganizationEmployeeCreatePage({
       } catch {
         setCodeDuplicate(false);
         setExistingEmployee(null);
-      } finally {
-        setCodeChecking(false);
       }
     }, 400);
     return () => {
@@ -923,7 +1128,7 @@ export default function OrganizationEmployeeCreatePage({
   }
 
   return (
-    <div className="w-full overflow-x-hidden">
+    <div data-employee-create-page className="w-full overflow-x-hidden">
 {/* Header follows the employee-data page header used by HRMic. */}
       <section className="relative flex h-40 items-center justify-between overflow-hidden border-b border-white/20 bg-[#61a8ff] p-6 tracking-[-0.1px] text-white">
         <div className="flex min-w-0 flex-col items-start">
@@ -945,11 +1150,11 @@ export default function OrganizationEmployeeCreatePage({
         </div>
 
         <div className="mx-16 hidden flex-1 flex-col items-center justify-center md:flex">
-          <div className="h-2 w-full overflow-hidden bg-[#c5c6cb] [background-image:radial-gradient(circle_at_2px_2px,rgba(255,255,255,0.25)_1px,transparent_1.25px)] [background-size:8px_4px]">
+          <div className="h-2 w-full overflow-hidden rounded-[4px] bg-[#c5c6cb]">
             <div className="h-full bg-[#ffa000] transition-all" style={{ width: `${progressPct}%` }} />
           </div>
           <label className="w-full text-right text-sm font-normal leading-[22.001px] text-white">
-            {currentEmployeeCount}/{employeeLimit} คน
+            {currentEmployeeCount}/{configuredEmployeeLimit} คน
           </label>
         </div>
 
@@ -971,9 +1176,9 @@ export default function OrganizationEmployeeCreatePage({
         )}
       </section>
 
-      <div className="relative z-10 mt-0 space-y-0 p-2 sm:p-3 lg:-mt-[25px] lg:p-4">
+      <div className="relative z-10 mt-0 space-y-0 p-2 sm:p-3 lg:-mt-[25px] lg:w-[calc(100%+14.4px)] lg:p-4">
         {/* Sub-navigation tabs */}
-              <div className="relative overflow-hidden rounded-t-[5px] rounded-b-none border-0 border-b border-[#d9e1e8] bg-card shadow-none">
+              <div className="relative overflow-hidden rounded-t-[5px] rounded-b-none border-0 border-b border-black/[0.12] bg-card shadow-none">
                 <div
                   ref={tabViewportRef}
                   className="overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -986,16 +1191,21 @@ export default function OrganizationEmployeeCreatePage({
               <button
                 key={tab}
                 type="button"
-                onClick={() => setActiveTab(tab)}
+                onClick={() => {
+                  if (activeTab === "ข้อมูลพื้นฐาน" && tab !== "ข้อมูลพื้นฐาน") {
+                    resetBasicForm();
+                  }
+                  setActiveTab(tab);
+                }}
                 disabled={disabled}
                 style={{ width: TAB_WIDTHS[tab] }}
                 className={cn(
-                  "h-12 shrink-0 whitespace-nowrap border-b-2 px-4 text-sm font-semibold leading-[22px] transition-colors",
+                  "h-12 shrink-0 whitespace-nowrap border-b-2 px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-[22.001px] tracking-[-0.1px] transition-colors",
                   active
-                    ? "border-[#515151] text-[#515151]"
+                    ? "border-[#3c4252] text-[rgba(0,0,0,0.87)]"
                     : disabled
-                      ? "border-transparent text-black/40"
-                      : "border-transparent text-[#515151] hover:text-foreground"
+                      ? "border-transparent text-[rgba(0,0,0,0.38)] opacity-60"
+                      : "border-transparent text-[rgba(0,0,0,0.87)] opacity-60 hover:text-foreground"
                 )}
               >
                 {tab}
@@ -1040,28 +1250,25 @@ export default function OrganizationEmployeeCreatePage({
       {activeTab === "ข้อมูลพื้นฐาน" ? (
         <Card className="rounded-b-[5px] rounded-t-none border-0 shadow-none xl:min-h-[1184.85px]">
           <CardContent className="p-0">
-          <form id="employee-create-form" onSubmit={handleSubmit} className="space-y-0 px-3 pt-3 text-sm leading-[22px] sm:px-4 sm:pt-4 lg:mx-6 lg:px-0">
+          <form id="employee-create-form" onSubmit={handleSubmit} autoComplete="off" className="w-full space-y-0 px-3 pt-3 text-sm leading-[22px] sm:px-4 sm:pt-4 lg:mx-6 lg:w-[calc(100%-48px)] lg:px-0">
             {/* Row 1 */}
-            <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 xl:grid-cols-6">
+            <div className="grid w-full grid-cols-1 gap-0 sm:grid-cols-2 xl:grid-cols-[190.2125fr_190.2125fr_190.2125fr_187.578125fr_187.578125fr_190.20625fr]">
               <FieldShell label="รหัสพนักงาน">
                 <div className="space-y-1">
                   <div className="relative">
                     <input
                       type="text"
                       name="employeeCode"
-                      placeholder="รหัสพนักงาน"
+                      autoComplete="off"
                       value={employeeCode}
                       onChange={(e) => setEmployeeCode(e.target.value)}
                       className={cn(
-                        "relative -top-1 h-8 w-full rounded-[4px] border border-[#d9d9d9] bg-white px-3 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none placeholder:text-muted-foreground/60 focus:border-[#2299ff]",
+                        "h-8 w-full rounded-[4px] border border-[#d9d9d9] bg-white px-[11px] py-1 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none placeholder:text-muted-foreground/60 focus:border-[#2299ff]",
                         codeDuplicate
-                          ? "border-[0.5px] border-red-300 focus-visible:ring-red-300"
-                          : "border-input"
+                          ? "border-[0.5px] border-red-500 focus:border-red-500 focus-visible:ring-red-500"
+                          : "border-[#d9d9d9]"
                       )}
                     />
-                    {codeChecking && (
-                      <Loader2 className="absolute right-3 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
-                    )}
                   </div>
                 </div>
               </FieldShell>
@@ -1096,7 +1303,13 @@ export default function OrganizationEmployeeCreatePage({
                 <TextInput name="firstNameTH" placeholder="ชื่อ" />
               </FieldShell>
               <FieldShell label="นามสกุล" required>
-                <TextInput name="lastNameTH" placeholder="นามสกุล" />
+                <TextInput
+                  name="lastNameTH"
+                  placeholder="นามสกุล"
+                  value={lastName}
+                  onChange={(event) => setLastName(event.target.value)}
+                  autoComplete="new-password"
+                />
               </FieldShell>
               <FieldShell label="ชื่อเล่น">
                 <TextInput name="nickname" placeholder="ชื่อเล่น" />
@@ -1104,12 +1317,18 @@ export default function OrganizationEmployeeCreatePage({
             </div>
 
             {/* Row 3 */}
-            <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[378.68125fr_378.6625fr_378.65625fr]">
               <FieldShell label="ชื่อ (ENG)">
                 <TextInput name="firstNameEN" placeholder="First Name" />
               </FieldShell>
               <FieldShell label="นามสกุล (ENG)">
-                <TextInput name="lastNameEN" placeholder="Last Name" />
+                <TextInput
+                  name="lastNameEN"
+                  placeholder="Last Name"
+                  value={lastNameEN}
+                  onChange={(event) => setLastNameEN(event.target.value)}
+                  autoComplete="new-password"
+                />
               </FieldShell>
               <FieldShell label="ชื่อเล่น (ENG)">
                 <TextInput name="nicknameEN" placeholder="Nickname" />
@@ -1122,13 +1341,13 @@ export default function OrganizationEmployeeCreatePage({
                 <SelectInput name="maritalStatus" options={["โสด", "สมรส", "หย่าร้าง", "หม้าย"]} defaultValue="โสด" />
               </FieldShell>
               <FieldShell label="วันเกิด">
-                <DateInput name="birthDate" />
+                <DateInput name="birthDate" onDateChange={setBirthDate} />
               </FieldShell>
               <FieldShell label="อายุ">
-                <TextInput placeholder="อายุ" disabled />
+          <TextInput value={calculateAge(birthDate) ?? ""} placeholder="อายุ" disabled className="pl-[9px]" />
               </FieldShell>
               <FieldShell label="เบอร์โทรศัพท์">
-                <TextInput name="phone" placeholder="เบอร์โทรศัพท์" />
+                <TextInput name="phone" placeholder="เบอร์โทรศัพท์" inputMode="numeric" maxLength={12} onChange={(event) => { event.currentTarget.value = formatPhone(event.currentTarget.value); }} />
               </FieldShell>
               <FieldShell label="อีเมล">
                 <TextInput name="email" placeholder="อีเมล" />
@@ -1155,7 +1374,7 @@ export default function OrganizationEmployeeCreatePage({
             </div>
 
             {/* Row 6 */}
-            <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 xl:grid-cols-6">
+            <div className="grid w-full grid-cols-1 gap-0 sm:grid-cols-2 xl:grid-cols-6">
               <FieldShell label="โครงสร้างองค์กร" required>
                 <OrganizationSelectInput
                   companies={organizations}
@@ -1192,7 +1411,7 @@ export default function OrganizationEmployeeCreatePage({
             </div>
 
             {/* Row 7: Social security */}
-            <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[381.33125fr_381.3375fr_373.33125fr]">
               <FieldShell label={<HelpLabel label="ประกันสังคม" />}>
                 <SelectInput
                   name="socialSecurityCalc"
@@ -1204,12 +1423,12 @@ export default function OrganizationEmployeeCreatePage({
                 <TextInput name="socialSecurityFixed" placeholder="0.00" disabled />
               </FieldShell>
               <FieldShell label="เดือนที่เริ่มคำนวณประกันสังคม">
-                <DateInput name="socialSecurityStart" placeholder="เลือกวันที่" />
+                <MonthPickerInput name="socialSecurityStart" />
               </FieldShell>
             </div>
 
             {/* Row 8: Tax */}
-            <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[378.6625fr_378.68125fr_378.65625fr]">
               <FieldShell label={<HelpLabel label="ภาษี" />}>
                 <SelectInput
                   name="taxCalc"
@@ -1221,14 +1440,18 @@ export default function OrganizationEmployeeCreatePage({
                 <TextInput name="taxFixed" placeholder="0.00" disabled />
               </FieldShell>
               <FieldShell label="เดือนที่เริ่มคำนวณภาษี">
-                <DateInput name="taxStart" placeholder="เลือกวันที่" />
+                <MonthPickerInput name="taxStart" />
               </FieldShell>
             </div>
 
             {/* Row 9: Dates & probation */}
-            <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 xl:min-h-[63.6px] xl:grid-cols-6">
+            <div className="grid w-full grid-cols-1 gap-0 sm:grid-cols-2 xl:min-h-[63.6px] xl:grid-cols-[189.33125fr_189.3375fr_189.325fr_189.3375fr_189.3375fr_189.33125fr]">
               <FieldShell label="วันที่เริ่มงาน" required>
-                <DateInput name="hireDate" defaultValue="08/14/2026" />
+                <DateInput
+                  name="hireDate"
+                  selectedDate={hireDate}
+                  onDateChange={(date) => date && setHireDate(date)}
+                />
               </FieldShell>
               <FieldShell label="วันที่บรรจุ">
                 <DateInput name="confirmationDate" />
@@ -1240,10 +1463,17 @@ export default function OrganizationEmployeeCreatePage({
                 <DateInput name="retirementDate" placeholder="เลือกวันที่" />
               </FieldShell>
               <FieldShell label="ระยะเวลาทดลองงาน">
-                <TextInput name="probationDays" placeholder="119" />
+                <TextInput
+                  name="probationDays"
+                  type="number"
+                  min={1}
+                  step={1}
+                  value={probationDays}
+                  onChange={(event) => setProbationDays(event.target.value)}
+                />
               </FieldShell>
               <FieldShell label="วันที่สิ้นสุดทดลองงาน">
-                <DateInput name="probationDate" defaultValue="12/10/2026" disabled />
+                <DateInput name="probationDate" selectedDate={probationEndDate} disabled />
               </FieldShell>
             </div>
 

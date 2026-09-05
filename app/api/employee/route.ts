@@ -3,6 +3,7 @@ import type { Gender, MaritalStatus, EmploymentType } from "@/generated/prisma/c
 
 import { auth } from "@/auth";
 import { getActiveCompany } from "@/lib/active-company";
+import { toPhoneDigits } from "@/lib/phone";
 import { prisma } from "@/lib/prisma";
 
 /* ---------------------------------- Maps ---------------------------------- */
@@ -38,6 +39,7 @@ type CompanyScope = {
   id: string;
   name: string;
   code: string | null;
+  employeeLimit: number | null;
 };
 
 function hasTenantManagementRole(roles: Array<{ code: string; name: string }>) {
@@ -149,6 +151,9 @@ export type OrgTreeNode = {
   id: string;
   code: string;
   name: string;
+  firstNameTH?: string;
+  lastNameTH?: string;
+  nickname?: string | null;
   count?: number;
   type?: string;
   organizationIds?: string[];
@@ -206,9 +211,12 @@ async function buildOrgTree(employees: EmployeeTreeRow[], companyId?: string): P
   ]);
 
   const toLeaf = (e: EmployeeTreeRow): OrgTreeNode => ({
-    id: e.id,
-    code: e.employeeCode ?? e.employeeNumber ?? e.id,
-    name: `${e.firstNameTH} ${e.lastNameTH}${e.nickname ? ` (${e.nickname})` : ""}`.trim(),
+  id: e.id,
+  code: e.employeeCode ?? e.employeeNumber ?? e.id,
+  name: `${e.firstNameTH} ${e.lastNameTH}${e.nickname ? ` (${e.nickname})` : ""}`.trim(),
+  firstNameTH: e.firstNameTH,
+  lastNameTH: e.lastNameTH,
+  nickname: e.nickname,
   type: e.Employment?.employmentType
       ? EMPLOYEE_TYPE_LABELS[e.Employment.employmentType] ?? e.Employment.employmentType
       : undefined,
@@ -309,11 +317,12 @@ function formatDate(date: Date): string {
   return `${d}/${m}/${date.getUTCFullYear()}`;
 }
 
-async function getEmployeeSummary(companyId?: string) {
+async function getEmployeeSummary(companyId?: string, historyPage = 1, historyPageSize = 10) {
   // Keep the dashboard payload small. The organisation tree contains every
   // employee and is fetched only when the employee picker is opened.
   const activeEmployees = { deletedAt: null, ...(companyId ? { companyId } : {}) };
-  const [total, genderCounts, nationalityCounts, branchCounts, employmentTypeCounts, timeline] = await Promise.all([
+  const timelineWhere = { Employee: activeEmployees };
+  const [total, genderCounts, nationalityCounts, branchCounts, employmentTypeCounts, timeline, historyTotal] = await Promise.all([
     prisma.employee.count({ where: activeEmployees }),
     prisma.employee.groupBy({ by: ["gender"], where: activeEmployees, _count: { _all: true } }),
     prisma.employee.groupBy({ by: ["nationality"], where: activeEmployees, _count: { _all: true } }),
@@ -324,9 +333,10 @@ async function getEmployeeSummary(companyId?: string) {
       _count: { _all: true },
     }),
     prisma.employeeTimeline.findMany({
-      where: { Employee: activeEmployees },
+      where: timelineWhere,
       orderBy: { eventDate: "desc" },
-      take: 20,
+      skip: (historyPage - 1) * historyPageSize,
+      take: historyPageSize,
       select: {
         id: true,
         title: true,
@@ -336,6 +346,7 @@ async function getEmployeeSummary(companyId?: string) {
         Employee: { select: { firstNameTH: true, lastNameTH: true } },
       },
     }),
+    prisma.employeeTimeline.count({ where: timelineWhere }),
   ]);
 
   const byGender = { male: 0, female: 0, other: 0, unknown: 0 };
@@ -390,6 +401,7 @@ async function getEmployeeSummary(companyId?: string) {
       date: formatDate(entry.eventDate),
       note: entry.description ?? entry.title,
     })),
+    historyTotal,
   };
 }
 
@@ -417,14 +429,74 @@ async function getOrganizationTree(companyId?: string) {
   return buildOrgTree(employees, companyId);
 }
 
+async function getBasicEmployees(companyId?: string) {
+  const employees = await prisma.employee.findMany({
+    where: { deletedAt: null, ...(companyId ? { companyId } : {}) },
+    orderBy: [{ employeeCode: "asc" }, { employeeNumber: "asc" }],
+    select: {
+      id: true, title: true, firstNameTH: true, lastNameTH: true, nickname: true,
+      employeeCode: true, employeeNumber: true, fingerprintCode: true, gender: true,
+      maritalStatus: true, citizenId: true, alienIdNumber: true, passportNo: true,
+      workPermitNo: true, birthDate: true, phone: true, email: true, hashtag: true,
+      baseSalary: true, advanceType: true, advanceLimit: true, hireDate: true, confirmationDate: true,
+      Company: { select: { name: true } },
+      Branch: { select: { name: true } },
+      Department: { select: { name: true } },
+      Position: { select: { name: true } },
+      SocialSecurity: { select: { ssoNumber: true, calculationType: true, fixedAmount: true } },
+      Employment: { select: { employmentType: true, probationDays: true } },
+      TaxInformation: { select: { calculationType: true, fixedAmount: true } },
+    },
+  });
+
+  const genderLabels: Record<string, string> = { male: "ชาย", female: "หญิง", other: "ไม่ระบุ" };
+  const maritalLabels: Record<string, string> = { single: "โสด", married: "สมรส", divorced: "หย่าร้าง", widowed: "หม้าย" };
+  return employees.map((employee) => ({
+    id: employee.id,
+    title: employee.title ?? "",
+    name: `${employee.firstNameTH} ${employee.lastNameTH}${employee.nickname ? ` (${employee.nickname})` : ""}`.trim(),
+    department: employee.Department.name,
+    division: "",
+    unit: "",
+    position: employee.Position.name,
+    employeeCode: employee.employeeCode ?? employee.employeeNumber,
+    fingerprintCode: employee.fingerprintCode ?? "",
+    gender: employee.gender ? genderLabels[employee.gender] ?? "ไม่ระบุ" : "ไม่ระบุ",
+    maritalStatus: employee.maritalStatus ? maritalLabels[employee.maritalStatus] ?? "" : "",
+    citizenId: employee.citizenId ?? "",
+    alienIdNumber: employee.alienIdNumber ?? "",
+    passportNo: employee.passportNo ?? "",
+    workPermitNo: employee.workPermitNo ?? "",
+    socialSecurityNumber: employee.SocialSecurity?.ssoNumber ?? "",
+    birthDate: employee.birthDate ? employee.birthDate.toISOString().slice(0, 10) : "",
+    phone: employee.phone ?? "",
+    email: employee.email ?? "",
+    hashtag: employee.hashtag ?? "",
+    employeeType: employee.Employment?.employmentType ? EMPLOYEE_TYPE_LABELS[employee.Employment.employmentType] ?? employee.Employment.employmentType : "",
+    baseSalary: String(employee.baseSalary ?? ""),
+    advanceType: employee.advanceType ?? "",
+    advanceLimit: employee.advanceLimit == null ? "" : String(employee.advanceLimit),
+    hireDate: employee.hireDate.toISOString().slice(0, 10),
+    confirmationDate: employee.confirmationDate ? employee.confirmationDate.toISOString().slice(0, 10) : "",
+    probationDays: employee.Employment?.probationDays == null ? "" : String(employee.Employment.probationDays),
+    socialSecurityCalc: employee.SocialSecurity?.calculationType ?? "",
+    socialSecurityFixed: employee.SocialSecurity?.fixedAmount == null ? "" : String(employee.SocialSecurity.fixedAmount),
+    taxCalc: employee.TaxInformation?.calculationType ?? "",
+    taxFixed: employee.TaxInformation?.fixedAmount == null ? "" : String(employee.TaxInformation.fixedAmount),
+  }));
+}
+
 export async function GET(request: Request) {
   try {
     const searchParams = new URL(request.url).searchParams;
     const view = searchParams.get("view");
     const requestedCompanyId = searchParams.get("companyId")?.trim() || undefined;
+    const historyPage = Math.max(1, Number.parseInt(searchParams.get("historyPage") ?? "1", 10) || 1);
     const activeCompany = await getActiveCompany();
     const companyId = requestedCompanyId ?? activeCompany?.id;
-    const headers = { "Cache-Control": "private, max-age=30, stale-while-revalidate=60" };
+    // Responses depend on the active-company cookie, so retaining them in the
+    // browser could show employees from a company selected previously.
+    const headers = { "Cache-Control": "private, no-store", Vary: "Cookie" };
 
     let companyScope: CompanyScope | undefined = !requestedCompanyId || requestedCompanyId === activeCompany?.id ? activeCompany ?? undefined : undefined;
     if (companyId && !companyScope) {
@@ -445,18 +517,19 @@ export async function GET(request: Request) {
           deletedAt: null,
           ...(isTenantAdmin ? {} : { UserCompanyAccess: { some: { userId: user.id } } }),
         },
-        select: { id: true, name: true, companyCode: true },
+        select: { id: true, name: true, companyCode: true, employeeLimit: true },
       });
       if (!company) return NextResponse.json({ error: "คุณไม่มีสิทธิ์เข้าถึงบริษัทนี้" }, { status: 403 });
-      companyScope = { id: company.id, name: company.name, code: company.companyCode };
+      companyScope = { id: company.id, name: company.name, code: company.companyCode, employeeLimit: company.employeeLimit };
     }
 
-    if (view === "summary") return NextResponse.json({ ...(await getEmployeeSummary(companyScope?.id)), company: companyScope ?? null }, { headers });
+    if (view === "summary") return NextResponse.json({ ...(await getEmployeeSummary(companyScope?.id, historyPage)), company: companyScope ?? null }, { headers });
     if (view === "tree") return NextResponse.json({ orgTree: await getOrganizationTree(companyScope?.id), company: companyScope ?? null }, { headers });
+    if (view === "basic") return NextResponse.json({ employees: await getBasicEmployees(companyScope?.id), company: companyScope ?? null }, { headers });
 
     // Preserve the original response for any existing callers while new pages
     // opt into the much smaller, task-specific payloads above.
-    const [summary, orgTree] = await Promise.all([getEmployeeSummary(companyScope?.id), getOrganizationTree(companyScope?.id)]);
+    const [summary, orgTree] = await Promise.all([getEmployeeSummary(companyScope?.id, historyPage), getOrganizationTree(companyScope?.id)]);
     return NextResponse.json({ ...summary, orgTree, company: companyScope ?? null }, { headers });
   } catch (err) {
     console.error("GET /api/employee failed:", err);
@@ -547,7 +620,7 @@ export async function POST(request: Request) {
           lastNameTH: String(data.lastNameTH ?? "").trim(),
           gender: GENDER_MAP[String(data.gender ?? "")] ?? null,
           email,
-          phone: String(data.phone ?? "").trim() || null,
+          phone: toPhoneDigits(String(data.phone ?? "")) || null,
           hireDate,
           baseSalary,
           birthDate: parseDate(data.birthDate) ?? null,

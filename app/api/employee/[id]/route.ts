@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { Gender, MaritalStatus, Prisma } from "@/generated/prisma/client";
 
 import { getActiveCompany } from "@/lib/active-company";
+import { toPhoneDigits } from "@/lib/phone";
 import { prisma } from "@/lib/prisma";
 
 const EMPLOYEE_TYPE_LABELS: Record<string, string> = {
@@ -255,7 +256,7 @@ export async function PATCH(
       "hashtag",
     ] as const;
     for (const field of nullableStringFields) {
-      if (field in body) data[field] = optionalString(body[field]);
+      if (field in body) data[field] = field === "phone" ? (toPhoneDigits(String(body[field] ?? "")) || null) : optionalString(body[field]);
     }
     for (const field of ["firstNameTH", "lastNameTH", "email"] as const) {
       if (field in body) data[field] = optionalString(body[field])!;

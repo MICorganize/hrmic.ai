@@ -17,7 +17,6 @@ import {
   FileText,
   History,
   List,
-  Menu,
   RotateCcw,
   Search,
   Send,
@@ -40,6 +39,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { FALLBACK_USER_IMAGE_ORIGIN, SUPPORT_ASSET_ORIGIN, USER_IMAGE_ORIGIN } from "@/lib/external-assets";
+import { formatPhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
 /* ---------------------------------- Data ---------------------------------- */
@@ -239,7 +239,7 @@ function buildProfileColumns(p: EmployeeProfile): ProfileRow[][] {
       { label: "สำนักงานสาขา", value: p.branch },
       { label: "แผนก", value: p.department },
       { label: "ตำแหน่ง", value: p.position },
-      { label: "เบอร์โทรศัพท์", value: p.phone },
+      { label: "เบอร์โทรศัพท์", value: formatPhone(p.phone) },
       { label: "อีเมล", value: p.email },
     ],
     [
@@ -259,19 +259,37 @@ function buildProfileColumns(p: EmployeeProfile): ProfileRow[][] {
   ];
 }
 
-// พนักงานในตารางรายชื่อ (จากโปรไฟล์พนักงาน)
-const ORG_EMPLOYEES = [
-  { code: "MIC000", name: "อดิเรก ฉ่ำชื่น", branch: "MIC Organize", dept: "HR & Administration", position: "Managing Director" },
-  { code: "MIC008", name: "ณัชชารีย์ ธนดีฐิติกาญจน์ (ส้ม)", branch: "MIC Organize", dept: "HR & Administration", position: "Admin" },
-  { code: "MIC014", name: "นัฐกานต์ โพธิ์ฉิม (มด)", branch: "MIC Organize", dept: "HR & Administration", position: "Admin" },
-  { code: "MIC020", name: "วีรยา ชมสอิ้ง (null)", branch: "MIC Organize", dept: "Accounting & Finance", position: "Admin" },
-  { code: "MIC001", name: "มณฑารัตน์ พุ่มโพธิ์ทอง (ปุ๊ก)", branch: "MIC Organize", dept: "Sales & Marketing", position: "Director" },
-  { code: "MIC013", name: "มาร์ค กุหมัด (มาร์ค)", branch: "MIC Organize", dept: "Sales & Marketing", position: "Admin" },
-  { code: "MIC002", name: "สุเมธ รัตนวิริยะกุล (เมธ)", branch: "MIC Organize", dept: "Project Management", position: "Manager" },
-  { code: "MIC009", name: "จุฑาทิพ อาสาณรงค์ (ทิพ)", branch: "MIC Organize", dept: "Project Management", position: "Manager" },
-];
+type OrganizationPayrollEmployee = {
+  id: string;
+  code: string;
+  name: string;
+  branch: string;
+  dept: string;
+  position: string;
+};
+
+function PayrollCheckbox({
+  checked,
+  onChange,
+  ariaLabel,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  ariaLabel: string;
+}) {
+  return (
+    <label className="relative left-[-0.2px] inline-block size-4 align-middle">
+      <input type="checkbox" checked={checked} onChange={onChange} aria-label={ariaLabel} className="peer sr-only" />
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 box-border rounded-[2px] border-[0.8px] border-[#d9d9d9] bg-white transition-[background-color,border-color] duration-200 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#1890ff] peer-checked:border-[#1890ff] peer-checked:bg-[#1890ff] after:absolute after:left-[3.1625px] after:top-1/2 after:block after:h-[9.1375px] after:w-[5.7px] after:[transform:rotate(45deg)_translate(-50%,-50%)] after:border-b-[1.6px] after:border-r-[1.6px] after:border-white after:opacity-0 after:transition-opacity after:duration-200 after:content-[''] peer-checked:after:opacity-100"
+      />
+    </label>
+  );
+}
 
 const ORG_SUB_TABS = ["งวดเต็ม", "รวมทุกงวด", "เปรียบเทียบ"];
+const ORGANIZATION_EMPLOYEES_PER_PAGE = 10;
 
 const ORG_INNER_TABS = [
   "รายชื่อพนักงาน",
@@ -495,10 +513,18 @@ function PayrollPeriodDatePicker({
           {formatThaiDate(value)}
         </button>
       </PopoverTrigger>
-      <PopoverContent className="!z-[1200] w-auto p-0" align="start">
+      <PopoverContent
+        side="bottom"
+        align="start"
+        sideOffset={4}
+        avoidCollisions={false}
+        className="!z-[1200] w-auto p-0"
+      >
         <DatePickerCalendar
+          fixedWeeks
           mode="single"
           selected={dateFromKey(value)}
+          defaultMonth={dateFromKey(value)}
           onSelect={(date) => date && onChange(dateKey(date))}
         />
       </PopoverContent>
@@ -3123,10 +3149,12 @@ function PersonContent({ monthKey, isAccountingPeriodClosed }: { monthKey: strin
         <div className="flex items-start">
           <Button
             data-payroll-employee-select-trigger
-            className="h-[36.65px] w-[135.7625px] gap-0 rounded-[4px] border-0 [border-style:none] bg-white px-4 text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-white"
+            className="inline-flex h-[36.65px] w-[135.7625px] items-center justify-center gap-0 rounded-[4px] border-0 [border-style:none] bg-white px-4 text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-white"
             onClick={() => setSidebarOpen(true)}
           >
-            <Menu className="size-6" />
+            <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" className="size-6 shrink-0" fill="currentColor">
+              <path d="M3 18h18v-2H3v2Zm0-5h18v-2H3v2Zm0-7v2h18V6H3Z" />
+            </svg>
             เลือกพนักงาน
           </Button>
         </div>
@@ -4239,11 +4267,43 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
   const [salaryMenuOpen, setSalaryMenuOpen] = useState(false);
   const [subTab, setSubTab] = useState(ORG_SUB_TABS[0]);
   const [innerTab, setInnerTab] = useState(ORG_INNER_TABS[0]);
-  const [selected, setSelected] = useState<string[]>(ORG_EMPLOYEES.map((e) => e.code));
+  const [employees, setEmployees] = useState<OrganizationPayrollEmployee[]>([]);
+  const [employeesLoading, setEmployeesLoading] = useState(true);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [employeePage, setEmployeePage] = useState(1);
   const innerTabRef = useRef<HTMLDivElement>(null);
   const salaryMenuRef = useRef<HTMLDivElement>(null);
   const salaryMenuTriggerRef = useRef<HTMLButtonElement>(null);
-  const orgCellClass = "!h-[52.8px] !p-2 border-0 bg-transparent align-middle font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-black/[0.65]";
+  const orgCellClass = "!h-[52.8px] !p-2 border-b border-r border-[#f0f0f0] bg-transparent align-middle [font-family:kanit] text-sm font-normal leading-[22.001px] tracking-[-0.1px] text-black/[0.65]";
+  const orgHeaderClass = "h-auto border-b border-r !border-[#f0f0f0] px-4 py-4 text-center [font-family:kanit] text-sm font-medium leading-[22.001px]";
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    void fetch("/api/payroll/organization-employees", { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Organization payroll employee request failed");
+        return response.json() as Promise<{ employees?: OrganizationPayrollEmployee[] }>;
+      })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        const nextEmployees = data.employees ?? [];
+        setEmployees(nextEmployees);
+        setSelected(nextEmployees.map((employee) => employee.code));
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) {
+          console.error("Unable to load organization payroll employees:", error);
+          setEmployees([]);
+          setSelected([]);
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setEmployeesLoading(false);
+      });
+
+    return () => controller.abort();
+  }, []);
 
   useEffect(() => {
     if (!salaryMenuOpen) return;
@@ -4269,14 +4329,21 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
   }, [salaryMenuOpen]);
 
   const allChecked =
-    ORG_EMPLOYEES.length > 0 && ORG_EMPLOYEES.every((e) => selected.includes(e.code));
+    employees.length > 0 && employees.every((employee) => selected.includes(employee.code));
+  const employeePageCount = Math.max(1, Math.ceil(employees.length / ORGANIZATION_EMPLOYEES_PER_PAGE));
+  const employeePageStart = (employeePage - 1) * ORGANIZATION_EMPLOYEES_PER_PAGE;
+  const pageEmployees = employees.slice(employeePageStart, employeePageStart + ORGANIZATION_EMPLOYEES_PER_PAGE);
+
+  function changeEmployeePage(nextPage: number) {
+    setEmployeePage(Math.min(Math.max(nextPage, 1), employeePageCount));
+  }
 
   function toggleAll() {
     if (isAccountingPeriodClosed) return;
     if (allChecked) {
       setSelected([]);
     } else {
-      setSelected(ORG_EMPLOYEES.map((e) => e.code));
+      setSelected(employees.map((employee) => employee.code));
     }
   }
 
@@ -4410,7 +4477,7 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
         <div ref={innerTabRef} role="tablist" aria-label="ข้อมูลคำนวณเงินเดือนทั้งองค์กร" className="flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {ORG_INNER_TABS.map((tab) => {
             const active = tab === innerTab;
-            const label = tab === "รายชื่อพนักงาน" ? `รายชื่อพนักงาน (${ORG_EMPLOYEES.length})` : tab;
+            const label = tab === "รายชื่อพนักงาน" ? `รายชื่อพนักงาน (${employees.length})` : tab;
             return (
               <button
                 key={tab}
@@ -4511,55 +4578,55 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
             </div>
 
             {/* Table */}
-            <div className="max-h-[80vh] overflow-auto border border-[#f0f0f0] bg-white">
-              <Table className="min-w-[1100px] table-fixed text-sm leading-[22px]">
+            <div className="relative top-[0.8px] ml-[9px] overflow-hidden border border-[#f0f0f0] bg-white [&>div]:overflow-hidden">
+              <Table className="w-[calc(100%+0.8px)] min-w-[1100px] table-fixed border-separate border-spacing-0 rounded-t-[2px] text-sm leading-[22.001px]">
               <TableHeader className="sticky top-0 z-10 bg-[#61a8ff]">
-                <TableRow className="hover:bg-transparent">
-                  <BlueTableHead className="h-12 w-[5%] px-4 py-2 text-center font-[Kanit,sans-serif] text-sm font-semibold leading-[22px]">
+                <TableRow className="h-[76.8px] hover:bg-transparent">
+                  <BlueTableHead className={cn(orgHeaderClass, "w-[5%]")}>
                     <span className="inline-flex h-[22px] items-center">
-                      <input
-                        type="checkbox"
+                      <PayrollCheckbox
                         checked={allChecked}
                         onChange={toggleAll}
-                        className="size-4 accent-[#1890ff]"
+                        ariaLabel="เลือกพนักงานทั้งหมด"
                       />
                     </span>
                   </BlueTableHead>
-                  <BlueTableHead className="h-12 w-[5%] px-4 py-2 text-center font-[Kanit,sans-serif] text-sm font-semibold leading-[22px]">ลำดับ</BlueTableHead>
-                  <BlueTableHead className="h-auto w-[8%] py-4 text-center">รหัสพนักงาน</BlueTableHead>
-                  <BlueTableHead className="h-auto w-[16%] py-4 text-center">
-                    <span className="inline-flex items-center gap-1">
-                      ชื่อพนักงาน
-                      <Search className="size-3.5" />
-                    </span>
+                  <BlueTableHead className={cn(orgHeaderClass, "w-[5%]")}>ลำดับ</BlueTableHead>
+                  <BlueTableHead className={cn(orgHeaderClass, "w-[8%]")}>รหัสพนักงาน</BlueTableHead>
+                  <BlueTableHead className={cn(orgHeaderClass, "relative w-[16%]")}>
+                    ชื่อพนักงาน
+                    <Search aria-hidden="true" className="absolute right-[7.8px] top-1/2 size-3 -translate-y-1/2 text-black/[0.54]" />
                   </BlueTableHead>
-                  <BlueTableHead className="h-auto w-[16%] py-4 text-center">สำนักงานสาขา</BlueTableHead>
-                  <BlueTableHead className="h-auto w-[15%] py-4 text-center">แผนก</BlueTableHead>
-                  <BlueTableHead className="h-auto w-[15%] py-4 text-center">ตำแหน่ง</BlueTableHead>
-                  <BlueTableHead className="h-auto w-[7%] py-4 text-center">งวด</BlueTableHead>
-                  <BlueTableHead className="h-auto w-[8%] py-4 text-center">ข้อมูลเงินเดือน</BlueTableHead>
-                  <BlueTableHead className="h-auto w-[5%] py-4"> </BlueTableHead>
+                  <BlueTableHead className={cn(orgHeaderClass, "w-[16%]")}>สำนักงานสาขา</BlueTableHead>
+                  <BlueTableHead className={cn(orgHeaderClass, "w-[15%]")}>แผนก</BlueTableHead>
+                  <BlueTableHead className={cn(orgHeaderClass, "w-[15%]")}>ตำแหน่ง</BlueTableHead>
+                  <BlueTableHead className={cn(orgHeaderClass, "w-[7%]")}>งวด</BlueTableHead>
+                  <BlueTableHead className={cn(orgHeaderClass, "w-[8%]")}>ข้อมูลเงินเดือน</BlueTableHead>
+                  <BlueTableHead className={cn(orgHeaderClass, "w-[5%]")}> </BlueTableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {ORG_EMPLOYEES.map((e, i) => (
+                {employeesLoading ? (
+                  <TableRow className="h-[52.8px] border-0 bg-white hover:bg-white">
+                    <TableCell colSpan={10} className="text-center text-sm text-black/[0.65]">กำลังโหลดรายชื่อพนักงาน...</TableCell>
+                  </TableRow>
+                ) : pageEmployees.map((e, i) => (
                   <TableRow
                     key={e.code}
-                    className={cn("h-[52.8px] border-0 hover:bg-inherit", i % 2 === 0 ? "bg-[#f2fafe]" : "bg-white")}
+                    className={cn("h-[52.8px] border-0 hover:bg-inherit", (employeePageStart + i) % 2 === 0 ? "bg-[#f2fafe]" : "bg-white")}
                   >
                     <TableCell className={cn(orgCellClass, "text-center")}>
                       <span className="inline-flex h-[22px] items-center">
-                        <input
-                          type="checkbox"
+                        <PayrollCheckbox
                           checked={selected.includes(e.code)}
                           onChange={() => toggleRow(e.code)}
-                          className="size-4 accent-[#1890ff]"
+                          ariaLabel={`เลือก ${e.name}`}
                         />
                       </span>
                     </TableCell>
-                    <TableCell className={cn(orgCellClass, "text-center")}>{i + 1}</TableCell>
+                    <TableCell className={cn(orgCellClass, "text-center")}>{employeePageStart + i + 1}</TableCell>
                     <TableCell className={cn(orgCellClass, "text-center")}>{e.code}</TableCell>
-                    <TableCell className={orgCellClass}>{e.name.includes("(") ? e.name : `${e.name} ()`}</TableCell>
+                    <TableCell className={orgCellClass}>{e.name}</TableCell>
                     <TableCell className={orgCellClass}>{e.branch}</TableCell>
                     <TableCell className={orgCellClass}>{e.dept}</TableCell>
                     <TableCell className={orgCellClass}>{e.position}</TableCell>
@@ -4574,7 +4641,7 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
                         aria-label={`ลบ ${e.name} ออกจากรายชื่อ`}
                         title="ลบออกจากรายชื่อ"
                       >
-                        <Trash2 className="size-4" />
+                        <Trash2 className="size-3" />
                       </button>
                     </TableCell>
                   </TableRow>
@@ -4584,30 +4651,42 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
             </div>
 
             {/* Pagination */}
-            <div className="mt-2 flex items-center justify-end gap-1.5">
+            <nav className="mt-2 flex items-center justify-end gap-1.5" aria-label="แบ่งหน้ารายชื่อพนักงาน">
               <button
                 type="button"
-                disabled
-                className="flex size-8 cursor-not-allowed items-center justify-center rounded-md border border-border text-muted-foreground/50"
+                disabled={employeePage === 1}
+                onClick={() => changeEmployeePage(employeePage - 1)}
+                className="flex size-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors enabled:hover:border-[#2196f3] enabled:hover:text-[#2196f3] disabled:cursor-not-allowed disabled:text-muted-foreground/50"
                 aria-label="หน้าก่อนหน้า"
               >
                 <ChevronLeft className="size-4" />
               </button>
+              {Array.from({ length: employeePageCount }, (_, index) => index + 1).map((page) => (
+                <button
+                  key={page}
+                  type="button"
+                  aria-current={page === employeePage ? "page" : undefined}
+                  onClick={() => changeEmployeePage(page)}
+                  className={cn(
+                    "size-8 rounded-sm border bg-white text-sm font-medium transition-colors",
+                    page === employeePage
+                      ? "border-[#2196f3] text-[#2196f3] shadow-sm"
+                      : "border-border text-muted-foreground hover:border-[#2196f3] hover:text-[#2196f3]"
+                  )}
+                >
+                  {page}
+                </button>
+              ))}
               <button
                 type="button"
-                className="size-8 rounded-sm border border-[#2196f3] bg-white text-sm font-medium text-[#2196f3] shadow-sm"
-              >
-                1
-              </button>
-              <button
-                type="button"
-                disabled
-                className="flex size-8 cursor-not-allowed items-center justify-center rounded-md border border-border text-muted-foreground/50"
+                disabled={employeePage === employeePageCount}
+                onClick={() => changeEmployeePage(employeePage + 1)}
+                className="flex size-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors enabled:hover:border-[#2196f3] enabled:hover:text-[#2196f3] disabled:cursor-not-allowed disabled:text-muted-foreground/50"
                 aria-label="หน้าถัดไป"
               >
                 <ChevronRight className="size-4" />
               </button>
-            </div>
+            </nav>
           </div>
         </div>
       ) : (

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
-import { getActiveCompany } from "@/lib/active-company";
 
 export async function GET(request: Request) {
   try {
@@ -12,9 +11,11 @@ export async function GET(request: Request) {
       return NextResponse.json({ duplicate: false });
     }
 
-    const company = await getActiveCompany();
-    const existing = await prisma.employee.findFirst({
-      where: { employeeCode: code, deletedAt: null, ...(company ? { companyId: company.id } : {}) },
+    // employeeCode has a global unique constraint in the database.  Check the
+    // same scope here (including soft-deleted rows), so the form shows an
+    // error before a create request would fail with a unique-constraint error.
+    const existing = await prisma.employee.findUnique({
+      where: { employeeCode: code },
       select: { id: true, employeeNumber: true, firstNameTH: true, lastNameTH: true },
     });
 

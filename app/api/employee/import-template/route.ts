@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import { buildEmployeeImportTemplate, type EmployeeImportRow } from "@/lib/excel/employeeImportTemplate";
+import { getActiveCompany } from "@/lib/active-company";
 import { prisma } from "@/lib/prisma";
 
 const EMPLOYEE_TYPE_VALUES: Record<string, { type: string; group: string }> = {
@@ -37,13 +38,35 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const organizationId = searchParams.get("organizationId")?.trim();
+    const activeCompany = await getActiveCompany();
     const organizationFilter = organizationId
       ? await (async () => {
-          const company = await prisma.company.findFirst({ where: { id: organizationId, deletedAt: null }, select: { id: true } });
+          const company = await prisma.company.findFirst({
+            where: {
+              id: organizationId,
+              deletedAt: null,
+              ...(activeCompany ? { id: activeCompany.id } : {}),
+            },
+            select: { id: true },
+          });
           if (company) return { companyId: company.id };
-          const branch = await prisma.branch.findFirst({ where: { id: organizationId, deletedAt: null }, select: { id: true } });
+          const branch = await prisma.branch.findFirst({
+            where: {
+              id: organizationId,
+              deletedAt: null,
+              ...(activeCompany ? { companyId: activeCompany.id } : {}),
+            },
+            select: { id: true },
+          });
           if (branch) return { branchId: branch.id };
-          const department = await prisma.department.findFirst({ where: { id: organizationId, deletedAt: null }, select: { id: true } });
+          const department = await prisma.department.findFirst({
+            where: {
+              id: organizationId,
+              deletedAt: null,
+              ...(activeCompany ? { companyId: activeCompany.id } : {}),
+            },
+            select: { id: true },
+          });
           return department ? { departmentId: department.id } : { id: organizationId };
         })()
       : {};
@@ -51,6 +74,7 @@ export async function GET(request: Request) {
       where: {
         deletedAt: null,
         ...organizationFilter,
+        ...(activeCompany ? { companyId: activeCompany.id } : {}),
       },
       orderBy: [{ employeeCode: "asc" }, { employeeNumber: "asc" }],
       select: {

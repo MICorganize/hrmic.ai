@@ -11,6 +11,7 @@ export type ActiveCompany = {
   id: string;
   name: string;
   code: string | null;
+  employeeLimit: number | null;
 };
 
 function hasTenantManagementRole(roles: Array<{ code: string; name: string }>) {
@@ -45,10 +46,10 @@ export async function getAccessibleCompany(companyId: string): Promise<ActiveCom
       deletedAt: null,
       ...(isTenantAdmin ? {} : { UserCompanyAccess: { some: { userId: user.id } } }),
     },
-    select: { id: true, name: true, companyCode: true },
+    select: { id: true, name: true, companyCode: true, employeeLimit: true },
   });
 
-  return company ? { id: company.id, name: company.name, code: company.companyCode } : null;
+  return company ? { id: company.id, name: company.name, code: company.companyCode, employeeLimit: company.employeeLimit } : null;
 }
 
 /**

@@ -20,7 +20,7 @@ import { HRMicWordmark } from "@/components/hrmic-wordmark";
 import { usePublicCompanies, type PublicCompany } from "@/hooks/use-public-companies";
 import { cn } from "@/lib/utils";
 
-const STORAGE_KEY = "hrmic_login_remember";
+const STORAGE_KEY = "hrmic_company_management_login_remember";
 
 type RememberedLogin = { email: string; password: string };
 
@@ -34,7 +34,7 @@ function loadRemembered(): RememberedLogin {
   }
 }
 
-export default function LoginPage() {
+export default function CompanyManagementLoginPage() {
   const router = useRouter();
   const { companies, loading: companiesLoading } = usePublicCompanies();
   const [showPassword, setShowPassword] = useState(false);
@@ -49,9 +49,9 @@ export default function LoginPage() {
   const copy = language === "en"
     ? {
         language: "Language",
-        imageAlt: "Illustration of secure sign in",
-        title: "Log in",
-        subtitle: "Log in to manage your workforce information",
+        imageAlt: "Illustration of secure company-management sign in",
+        title: "Company Management",
+        subtitle: "Log in to manage your company information",
         company: "Select company",
         username: "Username",
         usernamePlaceholder: "Email or username",
@@ -63,18 +63,17 @@ export default function LoginPage() {
         forgotPassword: "Forgot password?",
         submit: "Log in",
         loading: "Signing in",
-        noAccount: "Don't have an account?",
-        register: "Sign up here",
-        companyManagement: "Company Management",
+        noAccount: "Want to sign in as an employee?",
+        register: "Log in here",
+        employeeLogin: "Employee Login",
         invalidCredentials: "Incorrect email or password",
-        companyAccessDenied: "Your account cannot access the selected company.",
         genericError: "Something went wrong. Please try again.",
       }
     : {
         language: "ภาษา",
-        imageAlt: "ภาพประกอบการเข้าสู่ระบบอย่างปลอดภัย",
-        title: "เข้าสู่ระบบ",
-        subtitle: "เข้าสู่ระบบเพื่อจัดการข้อมูลบุคลากรของคุณ",
+        imageAlt: "ภาพประกอบการเข้าสู่ระบบจัดการบริษัทอย่างปลอดภัย",
+        title: "เข้าสู่ระบบจัดการบริษัท",
+        subtitle: "เข้าสู่ระบบเพื่อจัดการข้อมูลบริษัทของคุณ",
         company: "เลือกบริษัท",
         username: "ชื่อผู้ใช้",
         usernamePlaceholder: "อีเมลหรือชื่อผู้ใช้",
@@ -86,11 +85,10 @@ export default function LoginPage() {
         forgotPassword: "ลืมรหัสผ่าน?",
         submit: "เข้าสู่ระบบ",
         loading: "กำลังเข้าสู่ระบบ",
-        noAccount: "ยังไม่มีบัญชีผู้ใช้?",
-        register: "สมัครใช้งานที่นี่",
-        companyManagement: "เข้าสู่ระบบจัดการบริษัท",
+        noAccount: "ต้องการเข้าสู่ระบบสำหรับพนักงาน?",
+        register: "เข้าสู่ระบบที่นี่",
+        employeeLogin: "เข้าสู่ระบบสำหรับพนักงาน",
         invalidCredentials: "อีเมลหรือรหัสผ่านไม่ถูกต้อง",
-        companyAccessDenied: "บัญชีผู้ใช้นี้ไม่มีสิทธิ์เข้าใช้บริษัทที่เลือก",
         genericError: "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง",
       };
 
@@ -121,23 +119,12 @@ export default function LoginPage() {
         setError("invalidCredentials");
         return;
       }
-      if (company) {
-        const companyResponse = await fetch("/api/active-company", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ companyId: company.id }),
-        });
-        if (!companyResponse.ok) {
-          setError("companyAccessDenied");
-          return;
-        }
-      }
       if (remember) {
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ email, password }));
       } else {
         window.localStorage.removeItem(STORAGE_KEY);
       }
-      router.push("/dashboard");
+      router.push("/organization/companies");
       router.refresh();
     } catch {
       setError("genericError");
@@ -181,23 +168,23 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label htmlFor="login-email" className="mb-1.5 block text-sm text-[#4a4f55]">{copy.username}</label>
+              <label htmlFor="company-management-email" className="mb-1.5 block text-sm text-[#4a4f55]">{copy.username}</label>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#5e6670]" strokeWidth={1.8} />
-                <input id="login-email" name="email" type="email" autoComplete="username" placeholder={copy.usernamePlaceholder} value={email} onChange={(event) => setEmail(event.target.value)} className="h-10 w-full rounded-full border border-[#e0e3e7] bg-white pl-11 pr-4 text-sm text-[#353a40] outline-none transition focus:border-[#135ee4] focus:ring-1 focus:ring-[#135ee4]" required />
+                <input id="company-management-email" name="email" type="email" autoComplete="username" placeholder={copy.usernamePlaceholder} value={email} onChange={(event) => setEmail(event.target.value)} className="h-10 w-full rounded-full border border-[#e0e3e7] bg-white pl-11 pr-4 text-sm text-[#353a40] outline-none transition focus:border-[#135ee4] focus:ring-1 focus:ring-[#135ee4]" required />
               </div>
             </div>
 
             <div>
-              <label htmlFor="login-password" className="mb-1.5 block text-sm text-[#4a4f55]">{copy.password}</label>
+              <label htmlFor="company-management-password" className="mb-1.5 block text-sm text-[#4a4f55]">{copy.password}</label>
               <div className="relative">
                 <KeyRound className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-[#5e6670]" strokeWidth={1.8} />
-                <input id="login-password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder={copy.passwordPlaceholder} value={password} onChange={(event) => setPassword(event.target.value)} className="h-10 w-full rounded-full border border-[#e0e3e7] bg-white pl-11 pr-11 text-sm text-[#353a40] outline-none transition focus:border-[#135ee4] focus:ring-1 focus:ring-[#135ee4]" required />
+                <input id="company-management-password" name="password" type={showPassword ? "text" : "password"} autoComplete="current-password" placeholder={copy.passwordPlaceholder} value={password} onChange={(event) => setPassword(event.target.value)} className="h-10 w-full rounded-full border border-[#e0e3e7] bg-white pl-11 pr-11 text-sm text-[#353a40] outline-none transition focus:border-[#135ee4] focus:ring-1 focus:ring-[#135ee4]" required />
                 <button type="button" onClick={() => setShowPassword((visible) => !visible)} className="absolute right-4 top-1/2 -translate-y-1/2 text-[#66707a] hover:text-[#135ee4]" aria-label={showPassword ? copy.hidePassword : copy.showPassword}>{showPassword ? <Eye className="size-[18px]" strokeWidth={1.8} /> : <EyeOff className="size-[18px]" strokeWidth={1.8} />}</button>
               </div>
             </div>
 
-            {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{copy[error as "invalidCredentials" | "companyAccessDenied" | "genericError"]}</p>}
+            {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{copy[error as "invalidCredentials" | "genericError"]}</p>}
 
             <div className="flex items-center justify-between pt-1 text-sm">
               <label className="flex cursor-pointer items-center gap-2 text-[#5d6570]">
@@ -207,16 +194,16 @@ export default function LoginPage() {
               <Link href="/forgot-password" className="text-[#135ee4] hover:underline">{copy.forgotPassword}</Link>
             </div>
 
-            <button type="submit" disabled={loading || !company} aria-disabled={!email || !password || !company} className={cn("flex h-10 w-full items-center justify-center gap-2 rounded-full text-[16px] font-medium text-white shadow-sm transition", email && password && company ? "bg-[#315ff4] hover:bg-[#1849db]" : "bg-[#b8c5ed]")}>{loading && <Loader2 className="size-4 animate-spin" />}{loading ? copy.loading : copy.submit}</button>
+            <button type="submit" disabled={loading} aria-disabled={!email || !password} className={cn("flex h-10 w-full items-center justify-center gap-2 rounded-full text-[16px] font-medium text-white shadow-sm transition", email && password ? "bg-[#315ff4] hover:bg-[#1849db]" : "bg-[#b8c5ed]")}>{loading && <Loader2 className="size-4 animate-spin" />}{loading ? copy.loading : copy.submit}</button>
           </form>
 
           <div className="my-6 flex items-center gap-3 text-[11px] uppercase tracking-wide text-[#b1b5ba]"><span className="h-px flex-1 bg-[#e4e6e8]" />HRMic.ai<span className="h-px flex-1 bg-[#e4e6e8]" /></div>
           <p className="-mt-[15px] text-center text-sm text-[#757b82]">
             {copy.noAccount}{" "}
-            <Link href="/register" className="font-medium text-[#315ff4] hover:underline">{copy.register}</Link>
+            <Link href="/login" className="font-medium text-[#315ff4] hover:underline">{copy.register}</Link>
           </p>
-          <Link href="/company-management/login" draggable={false} className="mt-4 flex h-10 w-full items-center justify-center rounded-full bg-[#fc9a12] text-[14px] font-medium text-white shadow-sm transition hover:bg-[#e88a0a]">
-            {copy.companyManagement}
+          <Link href="/login" draggable={false} className="mt-4 flex h-10 w-full items-center justify-center rounded-full bg-[#fc9a12] text-[14px] font-medium text-white shadow-sm transition hover:bg-[#e88a0a]">
+            {copy.employeeLogin}
           </Link>
         </div>
       </section>

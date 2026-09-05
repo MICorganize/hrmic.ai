@@ -10,6 +10,9 @@ export type OrgNode = {
   id: string;
   code: string;
   name: string;
+  firstNameTH?: string;
+  lastNameTH?: string;
+  nickname?: string | null;
   count?: number;
   /** Employee type shown below the name on employee nodes. */
   type?: string;
@@ -43,6 +46,13 @@ function isEmployeeNode(node: OrgNode) {
   return node.count === undefined && (node.children?.length ?? 0) === 0;
 }
 
+function countEmployees(nodes: OrgNode[]): number {
+  return nodes.reduce(
+    (total, node) => total + (isEmployeeNode(node) ? 1 : countEmployees(node.children ?? [])),
+    0
+  );
+}
+
 function filterTree(nodes: OrgNode[], filters: EmployeeFilters): OrgNode[] {
   const query = filters.query.trim().toLocaleLowerCase();
   const hashtag = filters.hashtag.trim().replace(/^#/, "").toLocaleLowerCase();
@@ -59,7 +69,10 @@ function filterTree(nodes: OrgNode[], filters: EmployeeFilters): OrgNode[] {
     }
 
     const children = node.children ? filterTree(node.children, filters) : [];
-    return children.length > 0 ? [{ ...node, children }] : [];
+    // Humansoft replaces the count on each retained organization with the
+    // number of matching employees beneath it. Keeping the source count here
+    // made a search result such as one employee still display "(38)".
+    return children.length > 0 ? [{ ...node, count: countEmployees(children), children }] : [];
   });
 }
 
@@ -80,6 +93,32 @@ function collectOptions(nodes: OrgNode[]) {
 
   nodes.forEach(visit);
   return { organizations, positions: [...positions], employeeTypes: [...employeeTypes] };
+}
+
+function FilterSelect({
+  value,
+  onChange,
+  children,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  children: React.ReactNode;
+  ariaLabel: string;
+}) {
+  return (
+    <span className="relative block">
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        aria-label={ariaLabel}
+        className="h-[31.6px] w-full appearance-none rounded-[4px] border border-[#d9d9d9] bg-white py-px pl-[9.6px] pr-6 font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-black/65 outline-none focus:border-[#2299ff]"
+      >
+        {children}
+      </select>
+      <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-[9.6px] top-1/2 size-3 -translate-y-1/2 text-black/[0.54]" />
+    </span>
+  );
 }
 
 function EmployeeNode({
@@ -214,11 +253,14 @@ export function EmployeeSelectPanel({
   orgTree,
   loading = false,
   onEmployeeSelect,
+  placement = "page",
 }: {
   onClose: () => void;
   orgTree: OrgNode[];
   loading?: boolean;
   onEmployeeSelect?: (employee: OrgNode) => void;
+  /** The detail view establishes its own positioned content area. */
+  placement?: "page" | "detail";
 }) {
   const [filterOpen, setFilterOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<EmployeeFilters>(EMPTY_FILTERS);
@@ -247,64 +289,84 @@ export function EmployeeSelectPanel({
 
       <aside
         data-employee-select-panel
-        className="fixed inset-y-0 left-0 z-40 flex w-full max-w-[386.4375px] flex-col bg-white shadow-[0_2px_8px_rgba(0,0,0,0.35)] lg:bottom-0 lg:left-80 lg:top-16 lg:w-[386.4375px] lg:max-w-none"
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 flex w-full max-w-[386.4375px] flex-col bg-white shadow-[0_2px_8px_rgba(0,0,0,0.35)] lg:bottom-0 lg:z-[1000] lg:w-[386.4375px] lg:max-w-none",
+          placement === "detail" ? "lg:left-0 lg:top-0" : "lg:left-80 lg:top-16"
+        )}
         aria-label="รายชื่อพนักงาน"
       >
-        <div className="relative flex h-16 shrink-0 items-center bg-[#61a8ff] px-3 text-white">
-          <h2 className="font-[Kanit,sans-serif] text-xl font-semibold leading-[30.4px] tracking-[-0.1px]">รายชื่อพนักงาน</h2>
-          <button
-            type="button"
-            onClick={() => setFilterOpen((current) => !current)}
-            className="ml-auto flex size-10 items-center justify-center rounded-full transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            aria-label="กรองรายชื่อพนักงาน"
-            aria-expanded={filterOpen}
-          >
-            <Filter className="size-4" />
-          </button>
-        </div>
-
-        {filterOpen && (
-          <div className="shrink-0 space-y-3 border-b border-[#d9d9d9] bg-white px-6 py-3 font-[Kanit,sans-serif] text-xs text-black/65">
-            <label className="relative block">
-              <span className="sr-only">คำค้นหา</span>
-              <Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-black/45" />
-              <input value={draftFilters.query} onChange={(event) => updateDraft("query", event.target.value)} placeholder="คำค้นหา" className="h-8 w-full rounded border border-[#d9d9d9] pl-8 pr-2 text-sm outline-none focus:border-[#2299ff]" />
-            </label>
-            <label className="block">
-              <span className="mb-1 block">โครงสร้างองค์กร</span>
-              <select value={draftFilters.organizationId} onChange={(event) => updateDraft("organizationId", event.target.value)} className="h-8 w-full rounded border border-[#d9d9d9] bg-white px-2 text-sm outline-none focus:border-[#2299ff]">
-                <option value="">โครงสร้างองค์กร</option>
-                {options.organizations.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-              </select>
-            </label>
-            <div className="grid grid-cols-2 gap-[5px]">
-              <label className="block">
-                <span className="mb-1 block">ตำแหน่ง</span>
-                <select value={draftFilters.positionId} onChange={(event) => updateDraft("positionId", event.target.value)} className="h-8 w-full rounded border border-[#d9d9d9] bg-white px-2 text-sm outline-none focus:border-[#2299ff]">
-                  <option value="">ตำแหน่ง</option>
-                  {options.positions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-                </select>
-              </label>
-              <label className="block">
-                <span className="mb-1 block">กลุ่มประเภทพนักงาน</span>
-                <select value={draftFilters.employeeType} onChange={(event) => updateDraft("employeeType", event.target.value)} className="h-8 w-full rounded border border-[#d9d9d9] bg-white px-2 text-sm outline-none focus:border-[#2299ff]">
-                  <option value="">กลุ่มประเภทพนักงาน</option>
-                  {options.employeeTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-                </select>
-              </label>
-            </div>
-            <label className="block">
-              <span className="mb-1 block">สถานะพนักงาน</span>
-              <select value={draftFilters.status} onChange={(event) => updateDraft("status", event.target.value as EmployeeFilters["status"])} className="h-8 w-full rounded border border-[#d9d9d9] bg-white px-2 text-sm outline-none focus:border-[#2299ff]">
-                <option value="active">เฉพาะที่ Active</option>
-                <option value="inactive">เฉพาะที่ Inactive</option>
-                <option value="all">ทั้งหมด</option>
-              </select>
-            </label>
-            <label className="relative block"><span className="sr-only">#Hashtag</span><Search className="pointer-events-none absolute left-2 top-1/2 size-4 -translate-y-1/2 text-black/45" /><input value={draftFilters.hashtag} onChange={(event) => updateDraft("hashtag", event.target.value)} placeholder="#Hashtag" className="h-8 w-full rounded border border-[#d9d9d9] pl-8 pr-2 text-sm outline-none focus:border-[#2299ff]" /></label>
-            <div className="flex gap-[5px]"><button type="button" onClick={clearFilters} className="h-8 flex-1 rounded-[4px] border border-[#d9d9d9] bg-white text-sm text-black/65">ล้างค่า</button><button type="button" onClick={() => setAppliedFilters(draftFilters)} className="h-8 flex-1 rounded-[4px] bg-[#2299ff] text-sm text-white">ค้นหา</button></div>
+        <div className="shrink-0 bg-[#61a8ff] px-3 py-3 text-white">
+          <div className="relative flex h-10 items-center">
+            <h2 className="font-[Kanit,sans-serif] text-xl font-semibold leading-[30.4px] tracking-[-0.1px]">รายชื่อพนักงาน</h2>
+            <button
+              type="button"
+              onClick={() => setFilterOpen((current) => !current)}
+              className="ml-auto flex size-10 items-center justify-center rounded-full transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              aria-label="กรองรายชื่อพนักงาน"
+              aria-expanded={filterOpen}
+            >
+              <Filter className="size-3" />
+            </button>
           </div>
-        )}
+
+          {filterOpen && (
+            <div className="mt-2.5 flex flex-col font-[Kanit,sans-serif] text-sm text-white">
+              <label className="mb-2.5 flex h-[34.5px] items-center gap-3 rounded-[4px] border border-[#d9d9d9] bg-white px-[11px] py-1 text-[#bfbfbf]">
+                <span className="sr-only">คำค้นหา</span>
+                <Search aria-hidden="true" className="size-4 shrink-0" />
+                <input value={draftFilters.query} onChange={(event) => updateDraft("query", event.target.value)} placeholder="คำค้นหา" className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm font-normal leading-[22.001px] text-black/65 outline-none placeholder:text-[#bfbfbf]" />
+              </label>
+
+              <label className="mb-2.5 block">
+                <span className="block font-medium leading-[20.8px]">โครงสร้างองค์กร</span>
+                <FilterSelect value={draftFilters.organizationId} onChange={(value) => updateDraft("organizationId", value)} ariaLabel="โครงสร้างองค์กร">
+                  <option value="">โครงสร้างองค์กร</option>
+                  {options.organizations.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                </FilterSelect>
+              </label>
+
+              <div className="mb-2.5 grid grid-cols-2 gap-[5px]">
+                <label className="block">
+                  <span className="block font-medium leading-[20.8px]">ตำแหน่ง</span>
+                  <FilterSelect value={draftFilters.positionId} onChange={(value) => updateDraft("positionId", value)} ariaLabel="ตำแหน่ง">
+                    <option value="">ตำแหน่ง</option>
+                    {options.positions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+                  </FilterSelect>
+                </label>
+                <label className="block">
+                  <span className="block font-medium leading-[20.8px]">กลุ่มประเภทพนักงาน</span>
+                  <FilterSelect value={draftFilters.employeeType} onChange={(value) => updateDraft("employeeType", value)} ariaLabel="กลุ่มประเภทพนักงาน">
+                    <option value="">กลุ่มประเภทพนักงาน</option>
+                    {options.employeeTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                  </FilterSelect>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-[5px]">
+                <label className="mb-2.5 block">
+                  <span className="block font-medium leading-[20.8px]">สถานะพนักงาน</span>
+                  <FilterSelect value={draftFilters.status} onChange={(value) => updateDraft("status", value as EmployeeFilters["status"])} ariaLabel="สถานะพนักงาน">
+                    <option value="active">เฉพาะที่ Active</option>
+                    <option value="inactive">เฉพาะที่ Inactive</option>
+                    <option value="all">ทั้งหมด</option>
+                  </FilterSelect>
+                </label>
+                <label className="mb-2.5 block">
+                  <span className="block font-medium leading-[20.8px]">#Hashtag</span>
+                  <span className="flex h-[34.5px] items-center gap-3 rounded-[4px] border border-[#d9d9d9] bg-white px-[11px] py-1 text-[#bfbfbf]">
+                    <Search aria-hidden="true" className="size-4 shrink-0" />
+                    <input value={draftFilters.hashtag} onChange={(event) => updateDraft("hashtag", event.target.value)} placeholder="#Hashtag" className="h-[23.6px] min-w-0 flex-1 border-0 bg-transparent p-0 text-sm font-normal leading-[22.001px] text-black/65 outline-none placeholder:text-[#bfbfbf]" />
+                  </span>
+                </label>
+              </div>
+
+              <div className="mb-2.5 flex gap-[5px]">
+                <button type="button" onClick={clearFilters} className="h-9 flex-1 rounded-[4px] bg-[#e0e0e0] px-2.5 py-[3px] text-sm font-semibold leading-9 text-black/[0.87] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ล้างค่า</button>
+                <button type="button" onClick={() => { setAppliedFilters(draftFilters); setFilterOpen(false); }} className="h-9 flex-1 rounded-[4px] bg-[#04509d] px-2.5 py-[3px] text-sm font-semibold leading-7 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ค้นหา</button>
+              </div>
+            </div>
+          )}
+        </div>
 
         <div
           className="-ml-[12.2px] min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-[21px] font-[Kanit,sans-serif] text-[14px] leading-[22.001px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"

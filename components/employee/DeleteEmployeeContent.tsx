@@ -9,7 +9,6 @@ import {
   Loader2,
   RefreshCw,
   RotateCcw,
-  Search,
   Trash2,
 } from "lucide-react";
 
@@ -372,50 +371,51 @@ export function DeleteEmployeeContent() {
   /* ====================== RENDER ====================== */
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="ml-4 overflow-hidden rounded-lg border-0 bg-white text-[14px] leading-[22.001px] text-black/85 shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)] xl:h-[1752.625px] xl:w-[957.6625px]">
       {/* Card header */}
-      <div className="flex items-center gap-2 border-b border-black/10 px-4 py-3">
-        <span className="font-semibold text-foreground">ลบข้อมูลพนักงาน</span>
+      <div className="flex h-[59.3625px] items-center gap-2 px-3 py-3 text-[22px] font-normal leading-[34.573px] text-black/85">
+        <span>ลบข้อมูลพนักงาน</span>
         <button
           type="button"
-          className="flex size-4 items-center justify-center rounded-full border border-muted-foreground/40 text-[10px] font-bold text-muted-foreground"
+          className="hidden"
           aria-label="ข้อมูลเพิ่มเติม"
         >
           ?
         </button>
       </div>
 
+      <div className="p-4 px-2">
       {/* Tab bar */}
-      <div className="flex border-b border-black/10">
+      <div className="flex h-[48.8px] border-b border-[#e5e5e5] pl-4">
         <button
           type="button"
           onClick={() => setActiveTab("list")}
           className={cn(
-            "relative px-6 py-3 text-sm font-medium transition-colors",
+            "relative h-12 w-40 shrink-0 px-6 text-sm font-semibold leading-[22px] transition-colors focus-visible:outline-none",
             activeTab === "list"
-              ? "text-primary"
-              : "text-muted-foreground hover:text-foreground"
+              ? "text-[#008cff]"
+              : "text-black/85 hover:text-black/85"
           )}
         >
           รายชื่อพนักงาน
           {activeTab === "list" && (
-            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#008cff]" />
           )}
         </button>
         <button
           type="button"
           onClick={() => setActiveTab("permanent")}
           className={cn(
-            "relative px-6 py-3 text-sm font-medium transition-colors",
+            "relative h-12 w-40 shrink-0 px-6 text-sm font-semibold leading-[22px] transition-colors focus-visible:outline-none",
             activeTab === "permanent"
-              ? "text-primary"
-              : "text-muted-foreground hover:text-foreground"
+              ? "text-[#008cff]"
+              : "text-black/85 hover:text-black/85"
           )}
         >
           ลบถาวร{" "}
-          <span className="text-muted-foreground">({deletedTotal})</span>
+          <span className={activeTab === "permanent" ? "text-[#008cff]" : "text-black/85"}>({deletedTotal})</span>
           {activeTab === "permanent" && (
-            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary" />
+            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#008cff]" />
           )}
         </button>
       </div>
@@ -424,65 +424,58 @@ export function DeleteEmployeeContent() {
       {activeTab === "list" ? (
         <CardContent className="p-4">
           {/* Info banner */}
-          <div className="mb-4 flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
-            <CircleHelp className="mt-0.5 size-5 shrink-0 text-amber-500" />
+          <div className="mb-4 flex h-[45.6px] items-center gap-[10px] rounded-[6px] border border-[#bfdbfe] bg-[#eff6ff] px-4 py-[10px] text-sm font-normal leading-[22.4px] text-[#009cff]">
+            <CircleHelp className="size-5 shrink-0 text-[#2299ff]" />
             <span>
               พนักงานที่ถูกลบจะยังไม่หายทันที ระบบเก็บไว้{" "}
-              <strong>45 วัน</strong> สามารถกู้คืนได้จากแท็บ{" "}
-              <strong>ลบถาวร</strong> ก่อนครบกำหนด
+              <strong className="font-semibold">45 วัน</strong> สามารถกู้คืนได้จากแท็บ{" "}
+              <strong className="font-semibold">ลบถาวร</strong> ก่อนครบกำหนด
             </span>
           </div>
 
           {/* Filter row */}
-          <div className="mb-4 grid grid-cols-1 items-end gap-3 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">โครงสร้างองค์กร</label>
+          <div className="mb-4 flex h-[58px] items-end gap-[10px]">
+            <div className="flex h-[57.6px] w-[199.5px] shrink-0 flex-col gap-1">
+              <label className="text-sm font-normal leading-[22px] text-black/85">โครงสร้างองค์กร</label>
               <Input
                 value={orgFilter}
                 onChange={(e) => setOrgFilter(e.target.value)}
                 placeholder="โครงสร้างองค์กรทั้งหมด"
-                className="h-9 text-sm"
+                className="employee-delete-filter-input employee-delete-input h-8 px-[11px] py-1 text-sm leading-[22px]"
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">ตำแหน่ง</label>
+            <div className="flex h-[57.6px] w-[199.5px] shrink-0 flex-col gap-1">
+              <label className="text-sm font-normal leading-[22px] text-black/85">ตำแหน่ง</label>
               <Input
                 value={positionFilter}
                 onChange={(e) => setPositionFilter(e.target.value)}
                 placeholder="ตำแหน่งทั้งหมด"
-                className="h-9 text-sm"
+                className="employee-delete-filter-input employee-delete-input h-8 px-[11px] py-1 text-sm leading-[22px]"
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">ค้นหาพนักงาน</label>
+            <div className="flex h-[57.6px] w-[199.5px] shrink-0 flex-col gap-1">
+              <label className="text-sm font-normal leading-[22px] text-black/85">ค้นหาพนักงาน</label>
               <Input
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="ค้นหาด้วยรหัสพนักงาน ชื่อ นามสกุล เลขประจำตัวประชาชน"
-                className="h-9 text-sm"
+                className="employee-delete-filter-input employee-delete-input h-8 px-[11px] py-1 text-sm leading-[22px]"
               />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">สถานะพนักงาน</label>
-              <select
+            <div className="flex h-[58px] w-[199.5px] shrink-0 flex-col gap-1">
+              <label className="text-sm font-normal leading-[22px] text-black/85">สถานะพนักงาน</label>
+              <EmployeeStatusDropdown
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="flex h-9 w-full rounded-md border border-input bg-card px-3 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring"
-              >
-                {STATUS_OPTIONS.map((opt) => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
+                onChange={setStatusFilter}
+              />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">&nbsp;</label>
+            <div className="flex h-[58px] w-[71.7px] shrink-0 items-end">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setPage(1)}
-                className="h-9 w-full border-blue-500 bg-blue-500 text-white hover:bg-blue-600 hover:text-white"
+                className="h-8 w-full rounded-[4px] border-0 bg-[#2299ff] px-5 text-sm font-normal leading-[16.1px] text-white shadow-none hover:bg-[#2299ff] hover:text-white"
               >
-                <Search className="size-4" />
                 ค้นหา
               </Button>
             </div>
@@ -507,18 +500,18 @@ export function DeleteEmployeeContent() {
           {/* Employee table */}
           {!loading && !error && (
             <>
-              <div className="mb-4 overflow-x-auto rounded-md border border-black/10">
-                <Table>
+              <div className="mb-6 min-h-[535.6px] overflow-x-auto rounded-lg border-0 shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)]">
+                <Table className="text-sm leading-[22px] text-black/65">
                   <TableHeader>
-                    <TableRow className="hover:bg-transparent">
-                      <TableHead className="w-12 bg-[#3b82f6] text-center text-white">
-                        <input type="checkbox" checked={allSelected} onChange={toggleAll} className="size-4 cursor-pointer accent-blue-500" />
+                    <TableRow className="h-[46.8px] border-0 bg-[#61a8ff] hover:bg-[#61a8ff]">
+                      <TableHead className="h-[46.8px] w-16 bg-[#61a8ff] px-2 py-3 text-center text-sm font-medium leading-[22px] text-white">
+                        <EmployeeDeleteCheckbox checked={allSelected} onChange={toggleAll} />
                       </TableHead>
-                      <TableHead className="w-16 bg-[#3b82f6] text-center text-white">ลำดับ</TableHead>
-                      <TableHead className="w-24 bg-[#3b82f6] text-center text-white">สถานะ</TableHead>
-                      <TableHead className="bg-[#3b82f6] text-center text-white">พนักงาน</TableHead>
-                      <TableHead className="w-[200px] bg-[#3b82f6] text-center text-white">แผนก</TableHead>
-                      <TableHead className="w-[200px] bg-[#3b82f6] text-center text-white">ตำแหน่ง</TableHead>
+                      <TableHead className="h-[46.8px] w-[72.7px] bg-[#61a8ff] px-2 py-3 text-center text-sm font-medium leading-[22px] text-white">ลำดับ</TableHead>
+                      <TableHead className="h-[46.8px] w-[163.5875px] bg-[#61a8ff] px-2 py-3 text-center text-sm font-medium leading-[22px] text-white">สถานะ</TableHead>
+                      <TableHead className="h-[46.8px] w-[281.75px] bg-[#61a8ff] px-2 py-3 text-center text-sm font-medium leading-[22px] text-white">พนักงาน</TableHead>
+                      <TableHead className="h-[46.8px] w-[163.5875px] bg-[#61a8ff] px-2 py-3 text-center text-sm font-medium leading-[22px] text-white">แผนก</TableHead>
+                      <TableHead className="h-[46.8px] w-[163.625px] bg-[#61a8ff] px-2 py-3 text-center text-sm font-medium leading-[22px] text-white">ตำแหน่ง</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -530,22 +523,22 @@ export function DeleteEmployeeContent() {
                       </TableRow>
                     ) : (
                       employees.map((emp, idx) => (
-                        <TableRow key={emp.id} className={cn("hover:bg-transparent", idx % 2 === 1 && "bg-muted/30")}>
-                          <TableCell className="text-center">
-                            <input type="checkbox" checked={selected.has(emp.id)} onChange={() => toggleRow(emp.id)} className="size-4 cursor-pointer accent-blue-500" />
+                        <TableRow key={emp.id} className={cn("h-[48.8px] border-0 hover:bg-transparent", idx % 2 === 1 && "bg-[#f2fafe]")}>
+                          <TableCell className="h-[48.8px] p-2 text-center text-sm font-normal leading-[22px] text-black/65">
+                            <EmployeeDeleteCheckbox checked={selected.has(emp.id)} onChange={() => toggleRow(emp.id)} />
                           </TableCell>
-                          <TableCell className="text-center text-foreground">{(page - 1) * PAGE_SIZE + idx + 1}</TableCell>
-                          <TableCell className="text-center font-normal text-foreground">{emp.status}</TableCell>
-                          <TableCell>
+                          <TableCell className="h-[48.8px] p-2 text-center text-sm font-normal leading-[22px] text-black/65">{(page - 1) * PAGE_SIZE + idx + 1}</TableCell>
+                          <TableCell className="h-[48.8px] p-2 text-center text-sm font-normal leading-[22px] text-black/65">{emp.status}</TableCell>
+                          <TableCell className="h-[48.8px] p-2 text-sm font-normal leading-[22px] text-black/65">
                             <div className="flex items-center gap-2">
                               <img src={PLACEHOLDER_PHOTO} alt={`${emp.firstNameTH} ${emp.lastNameTH}`} className="size-8 rounded-full object-cover" />
-                              <span className="font-normal text-foreground">
-                                {emp.employeeCode ?? emp.employeeNumber} : {emp.firstNameTH} {emp.lastNameTH}
+                              <span className="font-normal text-black/65">
+                                <span className="font-semibold text-[#1976d2]">{emp.employeeCode ?? emp.employeeNumber}</span> : {emp.firstNameTH} {emp.lastNameTH}
                               </span>
                             </div>
                           </TableCell>
-                          <TableCell className="text-center font-normal text-foreground">{emp.departmentName}</TableCell>
-                          <TableCell className="text-center font-normal text-foreground">{emp.positionName}</TableCell>
+                          <TableCell className="h-[48.8px] p-2 text-center text-sm font-normal leading-[22px] text-black/65">{emp.departmentName}</TableCell>
+                          <TableCell className="h-[48.8px] p-2 text-center text-sm font-normal leading-[22px] text-black/65">{emp.positionName}</TableCell>
                         </TableRow>
                       ))
                     )}
@@ -571,18 +564,18 @@ export function DeleteEmployeeContent() {
           {deleteError && <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{deleteError}</div>}
 
           {/* Credentials row */}
-          <div className="flex flex-wrap items-end gap-4 border-t border-black/10 pt-4">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Username</label>
-              <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" className="h-9 w-48 text-sm" />
+          <div className="mt-4 flex h-[62.425px] items-end gap-[10px]">
+            <div className="flex h-[56.425px] w-[333.1625px] flex-col gap-1">
+              <label className="text-[13px] font-medium leading-[20.425px] text-black/65">Username</label>
+              <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" className="employee-delete-input h-8 w-full px-3 py-0 text-[13px] leading-[14.95px]" />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Password</label>
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="h-9 w-48 text-sm" />
+            <div className="flex h-[56.425px] w-[333.175px] flex-col gap-1">
+              <label className="text-[13px] font-medium leading-[20.425px] text-black/65">Password</label>
+              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="employee-delete-input h-8 w-full px-3 py-0 text-[13px] leading-[14.95px]" />
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">&nbsp;</label>
-              <Button variant="destructive" disabled={!canDelete} onClick={handleDelete} className="h-9">
+            <div className="flex h-[62.425px] w-[223.325px] flex-col gap-1">
+              <label className="h-[20.425px] text-[13px] font-medium leading-[20.425px] text-black/65">&nbsp;</label>
+              <Button variant="destructive" disabled={!canDelete} onClick={handleDelete} className="h-[38px] rounded-[4px] border-0 bg-[#e53935] px-5 text-[13px] font-medium leading-[14.95px] text-white shadow-none hover:bg-[#e53935]">
                 {deleting && <Loader2 className="size-4 animate-spin" />}
                 ลบข้อมูลออกจากฐานข้อมูลทั้งหมด
               </Button>
@@ -621,7 +614,7 @@ export function DeleteEmployeeContent() {
                 value={deletedSearch}
                 onChange={(e) => setDeletedSearch(e.target.value)}
                 placeholder="ค้นหาด้วยรหัสพนักงาน ชื่อ นามสกุล"
-                className="h-9 text-sm"
+                className="employee-delete-input h-9 text-sm"
               />
             </div>
             <Button
@@ -660,7 +653,7 @@ export function DeleteEmployeeContent() {
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
                       <TableHead className="w-12 bg-[#3b82f6] text-center text-white">
-                        <input type="checkbox" checked={allPurgeSelected} onChange={togglePurgeAll} className="size-4 cursor-pointer accent-blue-500" />
+                        <EmployeeDeleteCheckbox checked={allPurgeSelected} onChange={togglePurgeAll} />
                       </TableHead>
                       <TableHead className="w-16 bg-[#3b82f6] text-center text-white">ลำดับ</TableHead>
                       <TableHead className="bg-[#3b82f6] text-center text-white">พนักงาน</TableHead>
@@ -681,7 +674,7 @@ export function DeleteEmployeeContent() {
                       deletedEmployees.map((emp, idx) => (
                         <TableRow key={emp.id} className={cn("hover:bg-transparent", idx % 2 === 1 && "bg-muted/30")}>
                           <TableCell className="text-center">
-                            <input type="checkbox" checked={purgeSelected.has(emp.id)} onChange={() => togglePurgeRow(emp.id)} className="size-4 cursor-pointer accent-blue-500" />
+                            <EmployeeDeleteCheckbox checked={purgeSelected.has(emp.id)} onChange={() => togglePurgeRow(emp.id)} />
                           </TableCell>
                           <TableCell className="text-center font-normal text-foreground">{(deletedPage - 1) * PAGE_SIZE + idx + 1}</TableCell>
                           <TableCell>
@@ -737,11 +730,11 @@ export function DeleteEmployeeContent() {
           <div className="flex flex-wrap items-end gap-4 border-t border-black/10 pt-4">
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Username</label>
-              <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" className="h-9 w-48 text-sm" />
+              <Input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" className="employee-delete-input h-9 w-48 text-sm" />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">Password</label>
-              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="h-9 w-48 text-sm" />
+              <Input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" className="employee-delete-input h-9 w-48 text-sm" />
             </div>
             <div className="space-y-1">
               <label className="text-xs font-medium text-muted-foreground">&nbsp;</label>
@@ -778,11 +771,94 @@ export function DeleteEmployeeContent() {
           )}
         </CardContent>
       )}
+      </div>
     </Card>
   );
 }
 
 /* ========================= Shared sub-components ========================= */
+
+function EmployeeDeleteCheckbox({
+  checked,
+  onChange,
+}: {
+  checked: boolean;
+  onChange: () => void;
+}) {
+  return (
+    <span className="employee-delete-checkbox">
+      <input type="checkbox" checked={checked} onChange={onChange} />
+      <span aria-hidden="true" className="employee-delete-checkbox__mark" />
+    </span>
+  );
+}
+
+function EmployeeStatusDropdown({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="relative h-8 w-full">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
+        className={cn(
+          "flex h-8 w-full items-center justify-between rounded-[4px] border bg-white px-[11px] text-left text-sm font-normal leading-[30px] text-black/65 outline-none",
+          open
+            ? "border-[#40a9ff] shadow-[0_0_0_2px_rgba(24,144,255,0.2)]"
+            : "border-[#d9d9d9]"
+        )}
+      >
+        <span className="truncate pr-[18px]">{value}</span>
+        <svg
+          viewBox="64 64 896 896"
+          aria-hidden="true"
+          className={cn("size-3 shrink-0 fill-current text-black/[.54] transition-transform", open && "rotate-180")}
+        >
+          <path d="M884 256h-75c-5.1 0-9.9 2.5-12.9 6.6L512 654.2 227.9 262.6c-3-4.1-7.8-6.6-12.9-6.6h-75c-6.5 0-10.3 7.4-6.5 12.7l352.6 486.1c12.8 17.6 39 17.6 51.7 0l352.6-486.1c3.9-5.3.1-12.7-6.4-12.7z" />
+        </svg>
+      </button>
+
+      {open && (
+        <div
+          role="listbox"
+          className="absolute left-0 top-[calc(100%+4px)] z-30 w-full rounded-[2px] bg-white py-1 text-sm leading-[22px] text-black/65 shadow-[0_3px_6px_-4px_rgba(0,0,0,0.12),0_6px_16px_rgba(0,0,0,0.08),0_9px_28px_8px_rgba(0,0,0,0.05)]"
+        >
+          {STATUS_OPTIONS.map((option) => {
+            const selectedOption = option === value;
+            return (
+              <button
+                key={option}
+                type="button"
+                role="option"
+                aria-selected={selectedOption}
+                onClick={() => {
+                  onChange(option);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "flex h-8 w-full items-center px-3 py-[5px] text-left text-sm leading-[22px]",
+                  selectedOption
+                    ? "bg-[#e6f7ff] font-semibold"
+                    : "font-normal hover:bg-[#f5f5f5]"
+                )}
+              >
+                {option}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function Pagination({
   page,
@@ -806,17 +882,17 @@ function Pagination({
     }, []);
 
   return (
-    <div className="mb-4 flex items-center justify-end gap-1">
-      <span className="mr-2 text-sm text-muted-foreground">
+    <div className="mb-0 flex h-8 items-center justify-end gap-0 text-sm leading-[22px] text-black/65">
+      <span className="mr-2 h-8 leading-[30px]">
         {(page - 1) * pageSize + 1}-{Math.min(page * pageSize, total)} of {total}
       </span>
       <button
         type="button"
         disabled={page <= 1}
         onClick={() => onPageChange(Math.max(1, page - 1))}
-        className="flex size-8 items-center justify-center rounded border border-border text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+        className="mr-2 flex size-8 items-center justify-center rounded-[2px] border border-[#d9d9d9] bg-white text-[#039be5] transition-colors disabled:cursor-not-allowed disabled:text-black/25"
       >
-        <ChevronLeft className="size-4" />
+        <ChevronLeft className="size-3" />
       </button>
       {pages.map((p, i) =>
         p === "ellipsis" ? (
@@ -827,10 +903,10 @@ function Pagination({
             type="button"
             onClick={() => onPageChange(p as number)}
             className={cn(
-              "flex size-8 items-center justify-center rounded border text-sm font-medium transition-colors",
+              "mr-2 flex size-8 items-center justify-center rounded-[2px] border bg-white text-sm transition-colors",
               p === page
-                ? "border-primary bg-primary text-primary-foreground"
-                : "border-border text-muted-foreground hover:bg-muted"
+                ? "border-[#1890ff] font-medium text-[#039be5]"
+                : "border-[#d9d9d9] font-normal text-black/65"
             )}
           >
             {p}
@@ -841,9 +917,9 @@ function Pagination({
         type="button"
         disabled={page >= totalPages}
         onClick={() => onPageChange(Math.min(totalPages, page + 1))}
-        className="flex size-8 items-center justify-center rounded border border-border text-muted-foreground transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+        className="flex size-8 items-center justify-center rounded-[2px] border border-[#d9d9d9] bg-white text-[#039be5] transition-colors disabled:cursor-not-allowed disabled:text-black/25"
       >
-        <ChevronRight className="size-4" />
+        <ChevronRight className="size-3" />
       </button>
     </div>
   );

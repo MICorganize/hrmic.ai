@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { format, parse } from "date-fns";
 import { th } from "date-fns/locale/th";
 import {
@@ -11,7 +12,6 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleHelp,
-  Menu,
   Pencil,
   RefreshCw,
   UserCog,
@@ -22,7 +22,8 @@ import { EmployeeSelectPanel, type OrgNode } from "@/components/employee/Employe
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { USER_IMAGE_ORIGIN } from "@/lib/external-assets";
+import { SUPPORT_ASSET_ORIGIN, USER_IMAGE_ORIGIN } from "@/lib/external-assets";
+import { formatPhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -64,9 +65,101 @@ const HEADER_TAB_WIDTHS: Partial<Record<(typeof TABS)[number], number>> = {
   "โรงพยาบาลตามสิทธิ": 164.275,
 };
 
+function UpdateEmployeeConfirmationDialog({
+  open,
+  saving,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  saving: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const focusTimer = window.setTimeout(() => confirmButtonRef.current?.focus(), 0);
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.clearTimeout(focusTimer);
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [onCancel, open]);
+
+  if (!open) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/40 p-[8.75px] font-[Kanit,sans-serif]"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onCancel();
+      }}
+    >
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="update-employee-dialog-title"
+        aria-describedby="update-employee-dialog-description"
+        className="flex w-[320px] flex-col justify-center rounded-[5px] bg-white p-[12.5px] text-left text-[rgba(0,0,0,0.87)]"
+      >
+        <div className="flex w-[295px] flex-col items-center px-[18px]">
+          <div className="mb-[18.75px] mt-[12.5px] box-content flex size-[50px] items-center justify-center overflow-visible rounded-full border-[2.4px] border-[#facea8]">
+            <div className="flex h-[50px] w-[56px] items-center">
+              <div className="flex size-[56px] items-center justify-center rounded-[100px] bg-[#ffecd9] p-[10px]">
+                <div className="flex size-[38px] items-center justify-center rounded-[100px] bg-[#ffc181] p-[10px]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`${SUPPORT_ASSET_ORIGIN}/assets/icons/svg/warning-line-orange.svg`}
+                    alt=""
+                    className="size-[18px]"
+                    style={{ scale: 1.3 }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+          <h2 id="update-employee-dialog-title" className="mb-[7.5px] text-[16px] font-semibold leading-[25.144px] text-[#595959]">
+            อัปเดตข้อมูล
+          </h2>
+        </div>
+        <div className="w-[295px] px-[18px] text-center text-[12px] font-normal leading-[18.4px] text-[#545454]">
+          <p id="update-employee-dialog-description">ยืนยันอัปเดตข้อมูลพนักงาน</p>
+        </div>
+        <div className="mt-[12.5px] flex h-[42.9px] w-[295px] items-center justify-center px-4">
+          <button
+            ref={confirmButtonRef}
+            type="button"
+            onClick={onConfirm}
+            disabled={saving}
+            className="m-[3.75px] flex h-[35.4px] w-[79px] items-center justify-center rounded-[4px] border-[0.8px] border-[#1890ff] bg-[#1890ff] px-6 py-[10px] text-[12px] font-medium leading-[13.8px] text-white shadow-[0_1px_2px_rgba(16,24,40,0.05)] disabled:cursor-not-allowed"
+          >
+            ยืนยัน
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={saving}
+            className="m-[3.75px] flex h-[35.4px] w-[82.75px] items-center justify-center rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-6 py-[10px] text-[12px] font-medium leading-[13.8px] text-[rgba(0,0,0,0.65)] shadow-[0_1px_2px_rgba(16,24,40,0.05)] disabled:cursor-not-allowed"
+          >
+            ยกเลิก
+          </button>
+        </div>
+      </section>
+    </div>,
+    document.body
+  );
+}
+
 /* ---------------------------------- Types --------------------------------- */
 
-type EmployeeDetail = {
+export type EmployeeDetail = {
   id: string;
   employeeNumber: string;
   employeeCode: string | null;
@@ -144,9 +237,9 @@ function detailPreviewFromTreeNode(employee: OrgNode): EmployeeDetail {
     employeeCode: employee.code || null,
     fingerprintCode: null,
     title: null,
-    firstNameTH: employee.name,
-    lastNameTH: "",
-    nickname: null,
+    firstNameTH: employee.firstNameTH ?? employee.name,
+    lastNameTH: employee.lastNameTH ?? "",
+    nickname: employee.nickname ?? null,
     firstNameEN: null,
     lastNameEN: null,
     nicknameEN: null,
@@ -233,12 +326,18 @@ function TextBox({
   placeholder,
   disabled,
   className,
+  onChange,
+  inputMode,
+  maxLength,
 }: {
   name?: string;
   value?: string | null;
   placeholder?: string;
   disabled?: boolean;
   className?: string;
+  onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  maxLength?: number;
 }) {
   return (
     <input
@@ -247,6 +346,9 @@ function TextBox({
       defaultValue={value ?? ""}
       placeholder={placeholder}
       disabled={disabled}
+      onChange={onChange}
+      inputMode={inputMode}
+      maxLength={maxLength}
       className={cn(
         "relative -top-1 flex h-8 w-full rounded-[4px] border border-[#d9d9d9] bg-white px-3 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none focus:border-[#2299ff]",
         disabled && "bg-[#f5f5f5] text-black/45",
@@ -1512,11 +1614,14 @@ function ErrorCard({ onRetry }: { onRetry: () => void }) {
 export default function OrganizationEmployeeDetailPage({
   employeeId: selectedEmployeeId,
   selectedEmployee,
+  initialEmployee,
   onBack,
   onEmployeeChange,
 }: {
   employeeId?: string;
   selectedEmployee?: OrgNode | null;
+  /** Fully loaded data supplied by the employee picker to avoid a preview render. */
+  initialEmployee?: EmployeeDetail | null;
   onBack?: () => void;
   onEmployeeChange?: (employee: OrgNode) => void;
 }) {
@@ -1527,11 +1632,14 @@ export default function OrganizationEmployeeDetailPage({
   const tabsScrollRef = useRef<HTMLDivElement>(null);
   const [tabPagination, setTabPagination] = useState({ canGoBack: false, canGoForward: true });
   const [loadedEmp, setEmp] = useState<EmployeeDetail | null>(() =>
-    selectedEmployee ? detailPreviewFromTreeNode(selectedEmployee) : null
+    initialEmployee ?? (selectedEmployee ? detailPreviewFromTreeNode(selectedEmployee) : null)
   );
   const [orgTree, setOrgTree] = useState<OrgNode[]>([]);
+  const [orgTreeLoading, setOrgTreeLoading] = useState(true);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
-  const [loading, setLoading] = useState(true);
+  const [pendingSavePayload, setPendingSavePayload] = useState<Record<string, FormDataEntryValue> | null>(null);
+  const saveButtonRef = useRef<HTMLButtonElement>(null);
+  const [loading, setLoading] = useState(() => !initialEmployee);
   const [error, setError] = useState(false);
   // A selected ID can stay the same when the user picks the current employee
   // from the picker again. Keep a separate reload value so that action still
@@ -1545,6 +1653,13 @@ export default function OrganizationEmployeeDetailPage({
   }, [employeeId]);
 
   useEffect(() => {
+    if (initialEmployee?.id === employeeId) {
+      setEmp(initialEmployee);
+      setError(false);
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     (async () => {
       setLoading(true);
@@ -1552,15 +1667,6 @@ export default function OrganizationEmployeeDetailPage({
       try {
         const data = await load();
         if (!cancelled) setEmp(data);
-        try {
-          const treeResponse = await fetch("/api/employee");
-          if (treeResponse.ok) {
-            const treeData = (await treeResponse.json()) as { orgTree?: OrgNode[] };
-            if (!cancelled) setOrgTree(treeData.orgTree ?? []);
-          }
-        } catch {
-          // Keep the employee detail available if the list endpoint is unavailable.
-        }
       } catch {
         if (!cancelled) setError(true);
       } finally {
@@ -1570,7 +1676,25 @@ export default function OrganizationEmployeeDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [load, reloadVersion]);
+  }, [employeeId, initialEmployee, load, reloadVersion]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setOrgTreeLoading(true);
+      try {
+        const response = await fetch("/api/employee", { cache: "no-store" });
+        if (!response.ok) return;
+        const data = (await response.json()) as { orgTree?: OrgNode[] };
+        if (!cancelled) setOrgTree(data.orgTree ?? []);
+      } finally {
+        if (!cancelled) setOrgTreeLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const closeEmployeeList = () => setSelectOpen(false);
@@ -1581,6 +1705,29 @@ export default function OrganizationEmployeeDetailPage({
   const retry = useCallback(() => {
     setReloadVersion((current) => current + 1);
   }, []);
+
+  const confirmSave = useCallback(async () => {
+    if (!pendingSavePayload) return;
+
+    const payload = pendingSavePayload;
+    // SweetAlert closes as soon as the confirmation is accepted; the update
+    // then continues in the page behind it.
+    setPendingSavePayload(null);
+    setSaveState("saving");
+    try {
+      const response = await fetch(`/api/employee/${employeeId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error("save failed");
+      setEmp(await load());
+      setSaveState("saved");
+      window.setTimeout(() => setSaveState("idle"), 1800);
+    } catch {
+      setSaveState("error");
+    }
+  }, [employeeId, load, pendingSavePayload]);
 
   const updateTabPagination = useCallback(() => {
     const element = tabsScrollRef.current;
@@ -1665,12 +1812,14 @@ export default function OrganizationEmployeeDetailPage({
             data-employee-select-trigger
             onClick={() => setSelectOpen((v) => !v)}
             className={cn(
-              "inline-flex h-[36.65px] w-[210.8px] items-center gap-1 rounded-[4px] bg-white px-4 text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-slate-100",
+              "inline-flex h-[36.65px] w-[210.8px] items-center justify-center gap-0 rounded-[4px] bg-white px-4 text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-slate-100",
               selectOpen && "bg-slate-100"
             )}
             aria-expanded={selectOpen}
           >
-            <Menu className="size-6" />
+            <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" className="size-6 shrink-0" fill="currentColor">
+              <path d="M3 18h18v-2H3v2Zm0-5h18v-2H3v2Zm0-7v2h18V6H3Z" />
+            </svg>
             เลือกพนักงาน
           </button>
         </div>
@@ -1706,7 +1855,7 @@ export default function OrganizationEmployeeDetailPage({
                 <div id="section-user-name-2" className="flex w-[229.625px] shrink-0 translate-x-[30px] flex-col text-[14px] font-normal text-[#f5f5f5]">
                   <p className="translate-y-[5px] whitespace-nowrap leading-[20.8px]">วันที่เริ่มงาน: <span className="font-medium text-white">{emp.hireDate ?? pendingValue}{startDuration && ` ${startDuration}`}</span></p>
                   <p className="translate-y-[5px] whitespace-nowrap leading-[20.8px]">วันที่บรรจุ: <span className="font-medium text-white">{emp.confirmationDate ?? pendingValue}{confirmationDuration && ` ${confirmationDuration}`}</span></p>
-                  <p className="translate-y-[5px] whitespace-nowrap leading-[20.8px]">เบอร์โทรศัพท์: <span className="font-medium text-white">{emp.phone ?? pendingValue}</span></p>
+          <p className="translate-y-[5px] whitespace-nowrap leading-[20.8px]">เบอร์โทรศัพท์: <span className="font-medium text-white">{formatPhone(emp.phone ?? pendingValue)}</span></p>
                   <p className="translate-y-[5px] whitespace-nowrap leading-[20.8px]">อีเมล: <span className="font-medium text-white">{emp.email}</span></p>
                 </div>
 
@@ -1742,8 +1891,10 @@ export default function OrganizationEmployeeDetailPage({
       >
         {selectOpen && (
           <EmployeeSelectPanel
+            placement="detail"
             onClose={() => setSelectOpen(false)}
             orgTree={orgTree}
+            loading={orgTreeLoading}
             onEmployeeSelect={onEmployeeChange ? (employee) => {
               setSelectOpen(false);
               if (employee.id === employeeId) {
@@ -1756,7 +1907,7 @@ export default function OrganizationEmployeeDetailPage({
         )}
 
         {/* Sub-navigation tabs */}
-        <div className="-mt-[9px] flex h-[48.8px] overflow-hidden bg-white font-[Kanit,sans-serif] text-sm font-semibold leading-[22.001px] text-[rgba(0,0,0,0.87)]">
+        <div className="-mt-[9px] flex h-[48.8px] overflow-hidden border-b-[0.8px] bg-white font-[Kanit,sans-serif] text-sm font-semibold leading-[22.001px] text-[rgba(0,0,0,0.87)]" style={{ borderBottomColor: "rgba(0, 0, 0, 0.12)" }}>
           <button
             type="button"
             onClick={() => moveTabs(-1)}
@@ -1820,23 +1971,9 @@ export default function OrganizationEmployeeDetailPage({
               <form
                 key={`${emp.id}-${isPreview || loading ? "preview" : "loaded"}`}
                 className="space-y-1"
-                onSubmit={async (event) => {
+                onSubmit={(event) => {
                   event.preventDefault();
-                  setSaveState("saving");
-                  try {
-                    const formData = new FormData(event.currentTarget);
-                    const response = await fetch(`/api/employee/${employeeId}`, {
-                      method: "PATCH",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify(Object.fromEntries(formData)),
-                    });
-                    if (!response.ok) throw new Error("save failed");
-                    setEmp(await load());
-                    setSaveState("saved");
-                    window.setTimeout(() => setSaveState("idle"), 1800);
-                  } catch {
-                    setSaveState("error");
-                  }
+                  setPendingSavePayload(Object.fromEntries(new FormData(event.currentTarget)));
                 }}
               >
               {/* Row 1 */}
@@ -1901,7 +2038,7 @@ export default function OrganizationEmployeeDetailPage({
                   </FieldShell>
                 </div>
                 <FieldShell label="เบอร์โทรศัพท์" className="pt-[3.2px]">
-                  <TextBox name="phone" value={emp.phone} />
+                  <TextBox name="phone" value={formatPhone(emp.phone)} inputMode="numeric" maxLength={12} onChange={(event) => { event.currentTarget.value = formatPhone(event.currentTarget.value); }} />
                 </FieldShell>
                 <FieldShell label="อีเมล" className="pt-[3.2px]">
                   <TextBox name="email" value={emp.email} />
@@ -2029,11 +2166,13 @@ export default function OrganizationEmployeeDetailPage({
               {/* Save */}
               <div className="pt-3">
                 <button
+                  ref={saveButtonRef}
+                  id="btn-save-employee-data"
                   type="submit"
                   disabled={saveState === "saving"}
                   className="h-9 w-full rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#029b02]"
                 >
-                  {saveState === "saving" ? "กำลังบันทึก..." : saveState === "saved" ? "บันทึกแล้ว" : saveState === "error" ? "บันทึกไม่สำเร็จ" : "บันทึก"}
+                  บันทึก
                 </button>
               </div>
               </form>
@@ -2075,6 +2214,18 @@ export default function OrganizationEmployeeDetailPage({
           </Card>
         )}
       </div>
+      <UpdateEmployeeConfirmationDialog
+        open={pendingSavePayload !== null}
+        saving={saveState === "saving"}
+        onConfirm={confirmSave}
+        onCancel={() => {
+          if (saveState !== "saving") {
+            setPendingSavePayload(null);
+            setSaveState("idle");
+            window.setTimeout(() => saveButtonRef.current?.focus(), 0);
+          }
+        }}
+      />
     </div>
   );
 }

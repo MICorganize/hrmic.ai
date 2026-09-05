@@ -71,7 +71,7 @@ async function positionTree(companyId?: string | null): Promise<PositionNode[]> 
     FROM "Position"
     WHERE "deletedAt" IS NULL
     ${companyId ? Prisma.sql`AND "companyId" = ${companyId}::uuid` : Prisma.empty}
-    ORDER BY "name" ASC, "code" ASC
+    ORDER BY "code" ASC, "name" ASC
   `);
   const positionIds = new Set(positions.map((position) => position.id));
   const childrenByParent = new Map<string, typeof positions>();

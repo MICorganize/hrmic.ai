@@ -59,6 +59,10 @@ import { UserDropdown } from "@/components/layouts/UserDropdown";
 type IconComponent = ComponentType<{ className?: string }>;
 
 type ActiveCompany = { id: string; name: string; code: string | null };
+type CompanyOption = ActiveCompany;
+type CompaniesResponse = {
+  companies?: Array<{ id: string; code: string; nameEN: string }>;
+};
 
 type NavChild = {
   href: string;
@@ -360,13 +364,69 @@ const NAV_ITEMS: NavItem[] = [
       },
     ],
   },
-  { href: "/settings", label: "ตั้งค่า", icon: Settings },
+  {
+    href: "/settings",
+    label: "ตั้งค่า",
+    icon: Settings,
+    children: [
+      { href: "/settings/tutorial", label: "ตั้งค่าเริ่มต้น", icon: ClipboardList },
+      {
+        href: "/settings/setting-user",
+        label: "ตั้งค่าผู้ใช้",
+        icon: UserCog,
+        children: [
+          { href: "/settings/setting-user/user-group", label: "ข้อมูลกลุ่มผู้ใช้", icon: UserCog },
+          { href: "/settings/setting-user/user-admin", label: "ข้อมูลผู้ดูแล", icon: ShieldUser },
+          { href: "/settings/setting-user/user-permission", label: "สิทธิการเข้าถึงข้อมูล", icon: ShieldUser },
+        ],
+      },
+      { href: "/settings/setting-general", label: "ตั้งค่าทั่วไป", icon: ClipboardList },
+      {
+        href: "/settings/setting-payroll",
+        label: "ตั้งค่าการคำนวณ",
+        icon: Settings,
+        children: [
+          { href: "/settings/setting-worktime", label: "ตั้งค่าเวลาการทำงาน", icon: Clock },
+          { href: "/settings/setting-timeleave", label: "ตั้งค่าประเภทการลา", icon: FileText },
+          { href: "/settings/setting-salarytype", label: "ตั้งค่าประเภทรายรับรายจ่าย", icon: Coins },
+          { href: "/settings/setting-salarygroup", label: "ตั้งค่ากลุ่มประเภทรายรับรายจ่าย", icon: Coins },
+          { href: "/settings/setting-commission", label: "ตั้งค่าประเภทค่าคอมมิชชัน", icon: Coins },
+          { href: "/settings/setting-chart-of-accounts/account-group", label: "ตั้งค่ากลุ่มบัญชีตามผังบัญชี", icon: Banknote },
+          { href: "/settings/setting-chart-of-accounts/salary-group", label: "ตั้งค่ากลุ่มรายรับรายจ่ายตามผังบัญชี", icon: Banknote },
+          { href: "/settings/setting-holiday", label: "ตั้งค่าวันหยุดนักขัตฤกษ์", icon: CalendarClock },
+          { href: "/settings/setting-bonusday", label: "ตั้งค่าวันทำงานพิเศษ", icon: CalendarClock },
+        ],
+      },
+      {
+        href: "/settings/setting-other",
+        label: "ตั้งค่าอื่นๆ",
+        icon: Settings,
+        children: [
+          { href: "/settings/setting-location", label: "ตั้งค่าพื้นที่การทำงาน", icon: Landmark },
+          { href: "/settings/setting-scheduler", label: "ตั้งค่าเวลารันคำสั่ง", icon: Timer },
+          { href: "/settings/setting-condition", label: "ตั้งค่าเงื่อนไขตัวช่วยอัจฉริยะ", icon: Settings },
+          { href: "/settings/setting-fingerscan", label: "ตั้งค่าอุปกรณ์การลงเวลา", icon: Clock },
+          { href: "/settings/setting-signature", label: "ตั้งค่าลายเซ็น", icon: Pencil },
+          { href: "/settings/setting-option-type", label: "ตั้งค่าชื่อตัวเลือก", icon: ClipboardList },
+          { href: "/settings/setting-partner", label: "การเชื่อมต่อภายนอก", icon: Contact },
+          { href: "/settings/setting-notify", label: "ตั้งค่า HumanSoft Notify", icon: Bell },
+          { href: "/settings/setting-time-frame", label: "ตั้งค่าป้ายกำกับช่วงเวลา", icon: Clock },
+          { href: "/settings/setting-role-duty", label: "ตั้งค่าป้ายกำกับหน้าที่ปฏิบัติงาน", icon: ClipboardCheck },
+        ],
+      },
+      { href: "/settings/setting-login-as", label: "เข้าสู่ระบบในนาม", icon: UserCog },
+    ],
+  },
   { href: "/documents", label: "อื่นๆ", icon: ClipboardCheck },
 ];
 
 /* --------------------------------- Favorites --------------------------------- */
 
-const FAVORITES_KEY = "hrmic:favorites";
+// Keep actual user choices in a separate key so their selection survives
+// refreshes, browser restarts, and future UI updates. A favorite is removed
+// only through the explicit remove action in the favorites menu.
+const FAVORITES_KEY = "hrmic:favorites:v2";
+const PREVIOUS_FAVORITES_KEY = "hrmic:favorites";
 const LEGACY_FAVORITES_KEY = ["human", "soft:favorites"].join("");
 const MAX_FAVORITES = 8;
 
@@ -410,11 +470,17 @@ function normalizeFavorites(value: unknown): string[] {
 function readFavorites(): string[] {
   if (typeof window === "undefined") return EMPTY_FAVORITES;
   try {
-    const raw = window.localStorage.getItem(FAVORITES_KEY) ?? window.localStorage.getItem(LEGACY_FAVORITES_KEY);
-    // New browsers receive the welcome shortcuts once. An explicit empty array
-    // remains empty because it is stored as a real value rather than treated as
-    // an uninitialized state.
-    return raw === null ? DASHBOARD_STARTER_FAVORITES : normalizeFavorites(JSON.parse(raw));
+    const savedFavorites = window.localStorage.getItem(FAVORITES_KEY);
+    if (savedFavorites !== null) return normalizeFavorites(JSON.parse(savedFavorites));
+
+    const previousFavorites =
+      window.localStorage.getItem(PREVIOUS_FAVORITES_KEY) ??
+      window.localStorage.getItem(LEGACY_FAVORITES_KEY);
+    if (previousFavorites === null) return EMPTY_FAVORITES;
+
+    // Preserve every existing selection during key migration. Favorites must
+    // never disappear on their own; users remove them from the menu instead.
+    return normalizeFavorites(JSON.parse(previousFavorites));
   } catch {
     return [];
   }
@@ -465,8 +531,8 @@ function useFavorites() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      // Persist first-time defaults and migrate the previous storage key without
-      // replacing a user's previously selected (including empty) list.
+      // Persist an empty first-time state and migrate an actual user selection
+      // from earlier keys without replacing an explicitly empty list.
       if (window.localStorage.getItem(FAVORITES_KEY) === null) {
         writeFavorites(favoritesCache ?? readFavorites());
       }
@@ -504,10 +570,11 @@ function isItemActive(item: NavItem, pathname: string) {
 function findExpandedParent(pathname: string): string | null {
   const activeItem = NAV_ITEMS.find((item) => item.children && isItemActive(item, pathname));
 
-  // The organization child drawer is a transient menu picker.
-  // A direct organization-structure route therefore starts with the drawer
-  // closed rather than reopening it over the destination page.
-  return activeItem?.href === "/organization" ? null : activeItem?.href ?? null;
+  // These child drawers are transient menu pickers. Direct detail routes use
+  // their own page navigation, so do not reopen a drawer over the destination.
+  return activeItem?.href === "/organization" || activeItem?.href === "/settings"
+    ? null
+    : activeItem?.href ?? null;
 }
 
 function SubmenuPanel({
@@ -525,7 +592,7 @@ function SubmenuPanel({
     children.find(
       (child) =>
         child.children?.length &&
-        (currentPath === child.href || currentPath.startsWith(child.href + "/"))
+        isChildActive(child, currentPath)
     )?.href ?? null;
 
   // Auto-expand the group matching the current page; re-sync on navigation
@@ -625,21 +692,6 @@ function SubmenuPanel({
 }
 
 type FavoriteItem = { href: string; label: string; icon: IconComponent; section: string };
-
-// The welcome screen ships with this practical starter set. Keep it
-// visible on the dashboard even before a newly created workspace has saved its
-// own shortcuts, so the landing page does not open with an empty favourites
-// section.
-const DASHBOARD_STARTER_FAVORITES = [
-  "/salary/calculate/normal",
-  "/organization/organization-employee",
-  "/payroll/documents#time-leave",
-  "/payroll/time#shift-holiday",
-  "/payroll/time#work-time",
-  "/payroll/documents#ot",
-  "/organization",
-  "/payroll/documents#time-adjust",
-];
 
 function toFavoriteItem(item: FavoriteItem): FavoriteItem {
   return item.href === "/salary/calculate/normal"
@@ -943,7 +995,7 @@ function SidebarContent({
 // so the page can use the full width. The employee detail routes inherit the same.
 // /salary/calculate/normal collapses the การประมวลผลเงินเดือน submenu because the
 // page ships its own ภาพรวม/รายบุคคล/รายองค์กร/ปิดงวด/สรุปงวด navigation.
-const FULL_WIDTH_PAGES = ["/payroll/documents", "/payroll/time", "/salary/calculate/normal", "/salary/calculate/special", "/salary/calculate/ot", "/salary/calculate/work-time", "/salary/calculate/commission", "/training"];
+const FULL_WIDTH_PAGES = ["/payroll/documents", "/payroll/time", "/salary/calculate/normal", "/salary/calculate/special", "/salary/calculate/ot", "/salary/calculate/work-time", "/salary/calculate/commission", "/settings/setting-general", "/training"];
 
 function isFullWidthPage(pathname: string) {
   return (
@@ -972,6 +1024,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [prevPathname, setPrevPathname] = useState(pathname);
   const [submenuCollapsed, setSubmenuCollapsed] = useState(() => isReportLeafPage(pathname));
   const [activeCompany, setActiveCompany] = useState<ActiveCompany | null>(null);
+  const [companies, setCompanies] = useState<CompanyOption[]>([]);
+  const [companyMenuOpen, setCompanyMenuOpen] = useState(false);
+  const [switchingCompanyId, setSwitchingCompanyId] = useState<string | null>(null);
   const favorites = useFavorites();
   const allMenuItems = useMemo(() => flattenMenuItems(), []);
   const favoriteItems = useMemo(
@@ -1025,25 +1080,59 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     let cancelled = false;
-    void fetch("/api/active-company", { cache: "no-store" })
-      .then(async (response) => response.ok ? (await response.json()) as { company: ActiveCompany | null } : { company: null })
-      .then(({ company }) => {
-        if (!cancelled) setActiveCompany(company);
+    void Promise.all([
+      fetch("/api/active-company", { cache: "no-store" })
+        .then(async (response) => response.ok ? (await response.json()) as { company: ActiveCompany | null } : { company: null }),
+      fetch("/company-data", { cache: "no-store" })
+        .then(async (response) => response.ok ? (await response.json()) as CompaniesResponse : {}),
+    ])
+      .then(([{ company }, companyData]) => {
+        if (cancelled) return;
+        setActiveCompany(company);
+        setCompanies((companyData.companies ?? []).map(({ id, code, nameEN }) => ({ id, code, name: nameEN })));
       })
       .catch(() => {
-        if (!cancelled) setActiveCompany(null);
+        if (!cancelled) {
+          setActiveCompany(null);
+          setCompanies([]);
+        }
       });
     return () => {
       cancelled = true;
     };
   }, [pathname]);
 
+  const selectCompany = async (company: CompanyOption) => {
+    if (company.id === activeCompany?.id) {
+      setCompanyMenuOpen(false);
+      return;
+    }
+
+    setSwitchingCompanyId(company.id);
+    try {
+      const response = await fetch("/api/active-company", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: company.id }),
+      });
+      if (!response.ok) return;
+
+      // The selected company is stored in a secure cookie. A reload keeps the
+      // current page open while ensuring every company-scoped request reloads.
+      window.location.reload();
+    } finally {
+      setSwitchingCompanyId(null);
+    }
+  };
+
   return (
     <div
       className={cn(
         "min-h-screen bg-background",
         pathname === "/organization/companies" && "bg-[#f5f5f5]",
-        pathname === "/dashboard" && "h-screen overflow-hidden"
+        (pathname === "/dashboard" ||
+          pathname.startsWith("/organization/organization-employee/")) &&
+          "h-screen overflow-hidden"
       )}
     >
       {/* Desktop sidebar */}
@@ -1179,19 +1268,39 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             </button>
 
             {/* Company selector */}
-            <button
-              type="button"
-              className="group flex min-w-0 items-center gap-2 rounded-md px-1.5 py-0.5 text-left transition-colors hover:bg-muted/60"
-              aria-haspopup="menu"
-            >
-              <span className="flex min-w-0 flex-col leading-tight">
-                <span className="truncate text-base font-medium text-foreground">{activeCompany?.code ?? "MIC"}</span>
-                <span className="truncate text-xs font-medium text-muted-foreground">
-                  {activeCompany?.name ?? "MIC ORGANIZE CO., LTD."}
+            <div className="relative lg:-ml-6">
+              <button
+                type="button"
+                onClick={() => setCompanyMenuOpen((open) => !open)}
+                className="group ml-3 flex h-12 w-[197.6px] items-center justify-between px-4 text-left"
+                aria-haspopup="menu"
+                aria-expanded={companyMenuOpen}
+                aria-label="เลือกบริษัท"
+              >
+                <span className="flex w-[129.6px] min-w-0 flex-col">
+                  <span className="truncate text-[14px] font-medium leading-[20.8px] text-black">{activeCompany?.code ?? "MIC"}</span>
+                  <span className="truncate text-xs font-normal leading-[18.4px] text-black">
+                    {activeCompany?.name ?? "MIC ORGANIZE CO., LTD."}
+                  </span>
                 </span>
-              </span>
-              <ChevronDown className="size-4 shrink-0 text-foreground/60 transition-transform group-hover:text-foreground" />
-            </button>
+                <ChevronDown className={cn("size-6 shrink-0 text-black transition-transform", companyMenuOpen && "rotate-180")} />
+              </button>
+
+              {companyMenuOpen && (
+                <div role="menu" aria-label="รายชื่อบริษัท" className="absolute left-3 top-12 z-50 w-[236px] overflow-hidden rounded-[4px] bg-white py-2 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.2),0_4px_5px_rgba(0,0,0,0.14),0_1px_10px_rgba(0,0,0,0.12)]">
+                  {companies.length > 0 ? companies.map((company) => {
+                    const selected = company.id === activeCompany?.id;
+                    const switching = company.id === switchingCompanyId;
+                    return <button key={company.id} role="menuitemradio" aria-checked={selected} type="button" disabled={switchingCompanyId !== null} onClick={() => void selectCompany(company)} className={cn("flex h-12 w-full items-center justify-between gap-2 px-6 text-left text-sm font-normal leading-[48px] text-black/[0.87] transition-colors hover:bg-black/[0.04] disabled:cursor-wait", selected && "bg-[rgba(0,140,255,0.2)]")}>
+                      <span className="max-w-[170px] truncate">{switching ? "กำลังเปิดข้อมูลบริษัท..." : company.code}</span>
+                      {selected && <svg aria-hidden="true" className="size-[14px] shrink-0" viewBox="0 0 14 15" fill="none"><path fill="#008CFF" fillRule="evenodd" clipRule="evenodd" d="M7 14.5C7.91925 14.5 8.8295 14.3189 9.67878 13.9672C10.5281 13.6154 11.2997 13.0998 11.9497 12.4497C12.5998 11.7997 13.1154 11.0281 13.4672 10.1788C13.8189 9.3295 14 8.41925 14 7.5C14 6.58075 13.8189 5.6705 13.4672 4.82122C13.1154 3.97194 12.5998 3.20026 11.9497 2.55025C11.2997 1.90024 10.5281 1.38463 9.67878 1.03284C8.8295 0.68106 7.91925 0.5 7 0.5C5.14348 0.5 3.36301 1.2375 2.05025 2.55025C0.737498 3.86301 0 5.64348 0 7.5C0 9.35652 0.737498 11.137 2.05025 12.4497C3.36301 13.7625 5.14348 14.5 7 14.5ZM6.81956 10.3311L10.7084 5.66444L9.51378 4.66889L6.16933 8.68144L4.43878 6.95011L3.339 8.04989L5.67233 10.3832L6.27433 10.9852L6.81956 10.3311Z" /></svg>}
+                    </button>;
+                  }) : <p className="h-12 px-6 text-sm leading-[48px] text-black/[0.87]">ไม่พบบริษัทที่คุณมีสิทธิ์ใช้งาน</p>}
+                  <div className="mx-4 h-px bg-black/[0.12]" />
+                  <Link href="/organization/companies" role="menuitem" onClick={() => setCompanyMenuOpen(false)} className="block h-12 px-6 text-sm font-normal leading-[48px] text-black/[0.87] hover:bg-black/[0.04]">ระบบจัดการบริษัท</Link>
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="flex items-center gap-2.5 sm:gap-3">
@@ -1248,6 +1357,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               pathname === "/salary/calculate/ot" ||
               pathname === "/salary/calculate/work-time" ||
               pathname === "/salary/calculate/commission" ||
+              pathname === "/settings/setting-general" ||
               pathname === "/training" ||
               pathname === "/reports/employee-history/registry" ||
               pathname === "/reports/employee-history/birthdays" ||
@@ -1263,6 +1373,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               "p-0 sm:p-0 lg:p-0",
             pathname === "/dashboard" &&
               "h-[calc(100vh-4rem)] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+            pathname === "/settings/setting-general" &&
+              "h-[calc(100vh-4rem)] overflow-y-auto",
+            pathname.startsWith("/organization/organization-employee/") &&
+              "h-[calc(100vh-4rem)] overflow-y-auto",
             pathname === "/salary/calculate/normal" &&
               "h-[calc(100vh-4rem)] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           )}

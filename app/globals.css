@@ -30,6 +30,91 @@
   border-radius: 4px;
 }
 
+/* Half-width employee-page scroll rail and its right-aligned thumb. */
+html:has([data-employee-page])::-webkit-scrollbar,
+html:has([data-employee-create-page])::-webkit-scrollbar,
+main:has([data-employee-create-page])::-webkit-scrollbar {
+  width: 3.75px;
+}
+
+html:has([data-employee-page])::-webkit-scrollbar-track,
+html:has([data-employee-create-page])::-webkit-scrollbar-track,
+main:has([data-employee-create-page])::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html:has([data-employee-page])::-webkit-scrollbar-thumb,
+html:has([data-employee-create-page])::-webkit-scrollbar-thumb,
+main:has([data-employee-create-page])::-webkit-scrollbar-thumb {
+  background: #aaa;
+  border: solid transparent;
+  border-width: 0 0.5px 0 1.75px;
+  border-radius: 1.5px;
+  background-clip: content-box;
+}
+
+/* Mirrors the Ant Design focus treatment used in the original delete-employee form. */
+.employee-delete-input {
+  border-radius: 4px !important;
+  box-shadow: none !important;
+}
+
+.employee-delete-input:focus,
+.employee-delete-input:focus-visible {
+  border-color: #40a9ff !important;
+  outline: none;
+  box-shadow: 0 0 0 2px rgb(24 144 255 / 20%) !important;
+}
+
+.employee-delete-filter-input::placeholder {
+  color: #bfbfbf !important;
+  opacity: 1;
+}
+
+/* 16px Ant Design checkbox with the checkmark centred to the original geometry. */
+.employee-delete-checkbox {
+  position: relative;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  vertical-align: middle;
+}
+
+.employee-delete-checkbox > input {
+  display: block;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  appearance: none;
+  cursor: pointer;
+  border: 0.8px solid #d9d9d9;
+  border-radius: 2px;
+  background: #fff;
+}
+
+.employee-delete-checkbox > input:checked {
+  border-color: #1890ff;
+  background: #1890ff;
+}
+
+.employee-delete-checkbox__mark {
+  position: absolute;
+  top: 7.2px;
+  left: 3.1625px;
+  width: 5.7px;
+  height: 9.1375px;
+  box-sizing: border-box;
+  border: solid #fff;
+  border-width: 0 1.6px 1.6px 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: rotate(45deg) translate(-50%, -50%);
+}
+
+.employee-delete-checkbox > input:checked + .employee-delete-checkbox__mark {
+  opacity: 1;
+}
+
 @font-face {
   font-family: "HumansoftKanit";
   src: url("/fonts/humansoft/Kanit-Medium.ttf") format("truetype");
@@ -198,4 +283,19 @@
   html {
     @apply font-sans;
   }
+}
+
+/* Individual approver table: the horizontal scrollbar belongs to the table
+   viewport, while the pager remains outside it, as in the reference UI. */
+.card-input-body > .flex.flex-col.gap-2 > .fix-column-table {
+  overflow-x: hidden;
+}
+
+.card-input-body > .flex.flex-col.gap-2 > .fix-column-table > div {
+  max-height: 378px;
+  overflow: auto;
+}
+
+.card-input-body > .flex.flex-col.gap-2 > .fix-column-table > nav {
+  height: 4rem;
 }

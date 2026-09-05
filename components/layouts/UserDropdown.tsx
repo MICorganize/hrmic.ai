@@ -3,10 +3,7 @@
 import { signOut } from "next-auth/react";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import {
-  Check,
-  ChevronDown,
-} from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -29,12 +26,23 @@ function MenuArrow() {
   return <svg aria-hidden="true" className="size-6 shrink-0" viewBox="0 0 24 24"><path d="m9.29 6.71 4.59 4.59a1 1 0 0 1 0 1.41l-4.59 4.59-1.41-1.41L11.47 12 7.88 8.12l1.41-1.41Z" fill="currentColor" /></svg>;
 }
 
+function SelectedCompanyIcon() {
+  return <svg aria-hidden="true" className="size-4 shrink-0" viewBox="0 0 14 15" fill="none"><path fill="#008CFF" fillRule="evenodd" clipRule="evenodd" d="M7 14.5C7.91925 14.5 8.8295 14.3189 9.67878 13.9672C10.5281 13.6154 11.2997 13.0998 11.9497 12.4497C12.5998 11.7997 13.1154 11.0281 13.4672 10.1788C13.8189 9.3295 14 8.41925 14 7.5C14 6.58075 13.8189 5.6705 13.4672 4.82122C13.1154 3.97194 12.5998 3.20026 11.9497 2.55025C11.2997 1.90024 10.5281 1.38463 9.67878 1.03284C8.8295 0.68106 7.91925 0.5 7 0.5C5.14348 0.5 3.36301 1.2375 2.05025 2.55025C0.737498 3.86301 0 5.64348 0 7.5C0 9.35652 0.737498 11.137 2.05025 12.4497C3.36301 13.7625 5.14348 14.5 7 14.5ZM6.81956 10.3311L10.7084 5.66444L9.51378 4.66889L6.16933 8.68144L4.43878 6.95011L3.339 8.04989L5.67233 10.3832L6.27433 10.9852L6.81956 10.3311Z" /></svg>;
+}
+
 export function UserDropdown() {
   const [open, setOpen] = useState(false);
   const [companyMenuOpen, setCompanyMenuOpen] = useState(false);
   const [selectedCompany, setSelectedCompany] = useState<{ id: string; name: string; code: string } | null>(null);
   const [companies, setCompanies] = useState<Array<{ id: string; name: string; code: string }>>([]);
+  const [companiesLoading, setCompaniesLoading] = useState(false);
+  const [switchingCompanyId, setSwitchingCompanyId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
+
+  const toggleDropdown = () => {
+    if (!open) setCompaniesLoading(true);
+    setOpen((value) => !value);
+  };
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -47,13 +55,68 @@ export function UserDropdown() {
   }, []);
 
   useEffect(() => {
-    if (!open || companies.length > 0) return;
-    void fetch("/api/organization", { cache: "no-store" }).then(async (response) => {
+    if (!open) return;
+
+    let cancelled = false;
+    void Promise.all([
+      fetch("/company-data", { cache: "no-store" })
+        .then(async (response) => response.ok
+          ? (await response.json()) as { companies?: Array<{ id: string; code: string; nameTH: string; nameEN: string }> }
+          : { companies: [] }),
+      fetch("/api/active-company", { cache: "no-store" })
+        .then(async (response) => response.ok
+          ? (await response.json()) as { company: { id: string; code: string | null; name: string } | null }
+          : { company: null }),
+    ])
+      .then(([companyData, activeCompanyData]) => {
+        if (cancelled) return;
+        const nextCompanies = (companyData.companies ?? []).map(({ id, code, nameTH, nameEN }) => ({
+          id,
+          code,
+          name: nameEN || nameTH,
+        }));
+        setCompanies(nextCompanies);
+        const active = activeCompanyData.company;
+        setSelectedCompany(active ? {
+          id: active.id,
+          code: active.code ?? active.name,
+          name: active.name,
+        } : null);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCompanies([]);
+          setSelectedCompany(null);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setCompaniesLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
+
+  const selectCompany = async (company: { id: string; name: string; code: string }) => {
+    if (company.id === selectedCompany?.id) {
+      setCompanyMenuOpen(false);
+      return;
+    }
+
+    setSwitchingCompanyId(company.id);
+    try {
+      const response = await fetch("/api/active-company", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ companyId: company.id }),
+      });
       if (!response.ok) return;
-      const data = (await response.json()) as { companies?: Array<{ id: string; name: string; code: string }> };
-      setCompanies((data.companies ?? []).map(({ id, name, code }) => ({ id, name, code })));
-    }).catch(() => undefined);
-  }, [open, companies.length]);
+      window.location.reload();
+    } finally {
+      setSwitchingCompanyId(null);
+    }
+  };
 
   const currentCompany = selectedCompany ?? companies[0] ?? { id: "", code: "MIC_ORGANIZE", name: "MIC ORGANIZE CO., LTD." };
 
@@ -61,7 +124,7 @@ export function UserDropdown() {
     <div className="relative" ref={ref}>
       <button
         type="button"
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggleDropdown}
         className="flex items-center gap-2.5 rounded-md py-1 pl-1 pr-1.5 transition-colors hover:bg-muted"
         aria-haspopup="menu"
         aria-expanded={open}
@@ -93,7 +156,7 @@ export function UserDropdown() {
         <div className="select-company-language flex flex-col">
           <div className="relative">
             <button type="button" onClick={() => setCompanyMenuOpen((value) => !value)} className="flex h-[50px] w-full items-center justify-between p-3 text-sm font-normal leading-[16.1px] text-black/[0.87] hover:bg-black/[0.04]"><span className="flex items-center gap-3"><MenuIcon type="company" />เลือกบริษัท</span><MenuArrow /></button>
-            {companyMenuOpen && <div className="absolute right-[calc(100%+8px)] top-0 z-[100] h-[354px] w-[268px] overflow-auto rounded-[4px] bg-white py-0 text-sm shadow-[0_3px_5px_-1px_rgba(0,0,0,0.2),0_6px_10px_rgba(0,0,0,0.14),0_1px_18px_rgba(0,0,0,0.12)]"><div className="flex h-12 items-center px-6 text-sm leading-normal text-black/[0.87]">เลือกบริษัท</div><div className="mx-4 h-px bg-[#e0e0e0]" /><div className="py-2">{companies.map((company) => { const selected = company.id === currentCompany.id; return <div key={company.id} className="w-[236px]"><button type="button" onClick={() => { setSelectedCompany(company); setCompanyMenuOpen(false); setOpen(false); }} className={cn("flex min-h-12 w-full items-center justify-between gap-[10px] px-6 py-3 text-left text-sm leading-normal hover:bg-[#f5f5f5]", selected && "bg-[linear-gradient(0deg,rgba(0,140,255,0.2),rgba(0,140,255,0.2)),#fff]")}><span className="max-w-[170px] truncate">{company.code || "-"}</span>{selected && <Check className="size-[14px] shrink-0 text-[#008cff]" strokeWidth={2.25} />}</button></div>; })}</div><div className="mx-4 h-px bg-[#e0e0e0]" /><Link href="/organization/companies" onClick={() => { setCompanyMenuOpen(false); setOpen(false); }} className="flex h-12 w-full items-center px-6 text-sm leading-normal text-black/[0.87] hover:bg-[#f5f5f5]">ระบบจัดการบริษัท</Link></div>}
+            {companyMenuOpen && <div className="absolute right-[calc(100%+3px)] -top-[10px] z-[100] max-h-[calc(100vh-32px)] w-[236px] overflow-x-hidden overflow-y-auto rounded-[4px] bg-white py-2 [font-family:kanit] text-sm leading-[22.001px] shadow-[0_2px_4px_-1px_rgba(0,0,0,0.2),0_4px_5px_rgba(0,0,0,0.14),0_1px_10px_rgba(0,0,0,0.12)]"><div className="flex h-14 items-center px-4 text-[16.8px] font-medium leading-[22.001px] text-black/[0.87]">เลือกบริษัท</div><div className="mx-4 h-[0.8px] bg-[#e0e0e0]" /><div>{companiesLoading ? <div className="flex h-12 items-center px-6 text-sm text-black/[0.54]">กำลังโหลดรายชื่อบริษัท...</div> : companies.length > 0 ? companies.map((company) => { const selected = company.id === currentCompany.id; const switching = company.id === switchingCompanyId; return <div key={company.id} className="w-full"><button type="button" disabled={switchingCompanyId !== null} onClick={() => void selectCompany(company)} className={cn("flex h-12 min-h-0 w-full box-border items-center justify-between gap-[10px] px-6 py-3 text-left text-sm leading-[48px] tracking-normal hover:bg-[#f5f5f5] disabled:cursor-wait", selected && "bg-[linear-gradient(0deg,rgba(0,140,255,0.2),rgba(0,140,255,0.2)),#fff]")}><span className="max-w-[170px] truncate">{switching ? "กำลังเปิดข้อมูลบริษัท..." : company.code || "-"}</span>{selected && <SelectedCompanyIcon />}</button></div>; }) : <div className="flex h-12 items-center px-6 text-sm text-black/[0.54]">ไม่พบบริษัทที่คุณมีสิทธิ์ใช้งาน</div>}</div><div className="mx-4 h-[0.8px] bg-[#e0e0e0]" /><Link href="/organization/companies" onClick={() => { setCompanyMenuOpen(false); setOpen(false); }} className="flex h-12 w-full items-center px-6 text-sm leading-[48px] tracking-normal text-black/[0.87] hover:bg-[#f5f5f5]">ระบบจัดการบริษัท</Link></div>}
           </div>
           <button type="button" className="flex h-[50px] w-full items-center justify-between p-3 text-sm font-normal leading-[16.1px] text-black/[0.87] hover:bg-black/[0.04]"><span className="flex items-center gap-3"><MenuIcon type="language" />ภาษา: TH</span><MenuArrow /></button>
           <button type="button" onClick={() => signOut({ callbackUrl: "/login" })} className="flex h-[50px] w-full items-center justify-between p-3 text-sm font-normal leading-[16.1px] text-black/[0.87] hover:bg-black/[0.04]"><span className="flex items-center gap-3"><MenuIcon type="logout" />ออกจากระบบ</span></button>
