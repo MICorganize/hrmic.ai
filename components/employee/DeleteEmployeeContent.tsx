@@ -371,22 +371,35 @@ export function DeleteEmployeeContent() {
   /* ====================== RENDER ====================== */
 
   return (
-    <Card className="ml-4 overflow-hidden rounded-lg border-0 bg-white text-[14px] leading-[22.001px] text-black/85 shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)] xl:h-[1752.625px] xl:w-[957.6625px]">
+    <Card data-delete-employee className="ml-4 mr-4 overflow-hidden rounded-lg border-0 bg-white text-[14px] leading-[22.001px] tracking-[-0.1px] text-[rgba(0,0,0,0.87)] xl:h-[1752.625px] xl:w-[957.6625px]" style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2), 0px 1px 1px 0px rgba(0,0,0,0.14), 0px 1px 3px 0px rgba(0,0,0,0.12)" }}>
+      <style>{`
+        [data-delete-employee] .employee-delete-card-header { color: rgba(0, 0, 0, 0.87); font-family: Kanit, sans-serif; letter-spacing: -0.1px; }
+        [data-delete-employee] .employee-delete-tabs > button { color: #000; letter-spacing: -0.1px; }
+        [data-delete-employee] .employee-delete-table { overflow: hidden !important; background: #fff; box-shadow: 0px 2px 1px -1px rgba(0,0,0,.2), 0px 1px 1px 0px rgba(0,0,0,.14), 0px 1px 3px 0px rgba(0,0,0,.12) !important; }
+        [data-delete-employee] .employee-delete-table th { border: 0 !important; letter-spacing: -0.1px !important; line-height: 22.001px !important; text-transform: none; }
+        [data-delete-employee] .employee-delete-table th:first-child { border-radius: 2px 0 0; }
+        [data-delete-employee] .employee-delete-table th:last-child { border-radius: 0 2px 0 0; }
+        [data-delete-employee] .employee-delete-table td { border: 0; color: rgba(0,0,0,.65); letter-spacing: -0.1px; line-height: 22.001px; }
+        [data-delete-employee] .employee-delete-table tbody tr:nth-child(odd) > td { background: #fff; }
+        [data-delete-employee] .employee-delete-table tbody tr:nth-child(even) > td { background: #f2fafe; }
+      `}</style>
       {/* Card header */}
-      <div className="flex h-[59.3625px] items-center gap-2 px-3 py-3 text-[22px] font-normal leading-[34.573px] text-black/85">
+      <div className="employee-delete-card-header group flex h-[59.3625px] items-center px-3 py-3 text-[22px] font-normal leading-[34.573px]">
+        <div className="flex items-center">
         <span>ลบข้อมูลพนักงาน</span>
         <button
           type="button"
-          className="hidden"
+          className="ml-[10px] mr-[-30px] hidden rounded-full bg-[#f0f0f0] px-[6px] py-px text-[22px] font-normal leading-[25.3px] tracking-normal text-[rgba(0,0,0,0.87)] shadow-[0_2px_3px_rgba(0,0,0,0.5)] group-hover:inline-block"
           aria-label="ข้อมูลเพิ่มเติม"
         >
-          ?
+          <span className="block bg-[#ffa500] px-2 text-base font-normal leading-normal tracking-normal text-white">?</span>
         </button>
+        </div>
       </div>
 
-      <div className="p-4 px-2">
+      <div className="employee-delete-card-body p-4 px-2">
       {/* Tab bar */}
-      <div className="flex h-[48.8px] border-b border-[#e5e5e5] pl-4">
+      <div className="employee-delete-tabs flex h-[48.8px] border-b border-[#e5e5e5] pl-4">
         <button
           type="button"
           onClick={() => setActiveTab("list")}
@@ -500,7 +513,7 @@ export function DeleteEmployeeContent() {
           {/* Employee table */}
           {!loading && !error && (
             <>
-              <div className="mb-6 min-h-[535.6px] overflow-x-auto rounded-lg border-0 shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)]">
+              <div className="employee-delete-table mb-6 min-h-[535.6px] overflow-x-auto rounded-lg border-0 shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)]">
                 <Table className="text-sm leading-[22px] text-black/65">
                   <TableHeader>
                     <TableRow className="h-[46.8px] border-0 bg-[#61a8ff] hover:bg-[#61a8ff]">

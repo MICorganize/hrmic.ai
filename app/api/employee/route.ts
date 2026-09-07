@@ -434,11 +434,12 @@ async function getBasicEmployees(companyId?: string) {
     where: { deletedAt: null, ...(companyId ? { companyId } : {}) },
     orderBy: [{ employeeCode: "asc" }, { employeeNumber: "asc" }],
     select: {
-      id: true, title: true, firstNameTH: true, lastNameTH: true, nickname: true,
+      id: true, companyId: true, branchId: true, departmentId: true, title: true, firstNameTH: true, lastNameTH: true, nickname: true,
       employeeCode: true, employeeNumber: true, fingerprintCode: true, gender: true,
       maritalStatus: true, citizenId: true, alienIdNumber: true, passportNo: true,
       workPermitNo: true, birthDate: true, phone: true, email: true, hashtag: true,
       baseSalary: true, advanceType: true, advanceLimit: true, hireDate: true, confirmationDate: true,
+      paymentChannel: true, companyPayoutAccount: true,
       Company: { select: { name: true } },
       Branch: { select: { name: true } },
       Department: { select: { name: true } },
@@ -446,6 +447,11 @@ async function getBasicEmployees(companyId?: string) {
       SocialSecurity: { select: { ssoNumber: true, calculationType: true, fixedAmount: true } },
       Employment: { select: { employmentType: true, probationDays: true } },
       TaxInformation: { select: { calculationType: true, fixedAmount: true } },
+      BankAccount: {
+        orderBy: { isDefault: "desc" },
+        take: 1,
+        select: { bankName: true, branchCode: true, accountNumber: true },
+      },
     },
   });
 
@@ -453,8 +459,10 @@ async function getBasicEmployees(companyId?: string) {
   const maritalLabels: Record<string, string> = { single: "โสด", married: "สมรส", divorced: "หย่าร้าง", widowed: "หม้าย" };
   return employees.map((employee) => ({
     id: employee.id,
+    organizationIds: [employee.companyId, employee.branchId, employee.departmentId].filter((id): id is string => Boolean(id)),
     title: employee.title ?? "",
     name: `${employee.firstNameTH} ${employee.lastNameTH}${employee.nickname ? ` (${employee.nickname})` : ""}`.trim(),
+    branch: employee.Branch?.name ?? "",
     department: employee.Department.name,
     division: "",
     unit: "",
@@ -483,6 +491,11 @@ async function getBasicEmployees(companyId?: string) {
     socialSecurityFixed: employee.SocialSecurity?.fixedAmount == null ? "" : String(employee.SocialSecurity.fixedAmount),
     taxCalc: employee.TaxInformation?.calculationType ?? "",
     taxFixed: employee.TaxInformation?.fixedAmount == null ? "" : String(employee.TaxInformation.fixedAmount),
+    paymentChannel: employee.paymentChannel ?? "",
+    companyPayoutAccount: employee.companyPayoutAccount ?? "",
+    bankName: employee.BankAccount[0]?.bankName ?? "",
+    bankBranchCode: employee.BankAccount[0]?.branchCode ?? "",
+    bankAccountNumber: employee.BankAccount[0]?.accountNumber ?? "",
   }));
 }
 

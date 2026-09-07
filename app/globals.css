@@ -299,3 +299,11 @@ main:has([data-employee-create-page])::-webkit-scrollbar-thumb {
 .card-input-body > .flex.flex-col.gap-2 > .fix-column-table > nav {
   height: 4rem;
 }
+
+/* Humansoft fixed-column tables use the compact Kanit tracking rather than
+   the default tracking supplied by the base TableHead component. */
+.card-input-body .fix-column-table th,
+.card-input-body .fix-column-table td {
+  letter-spacing: -0.1px;
+  text-transform: none;
+}

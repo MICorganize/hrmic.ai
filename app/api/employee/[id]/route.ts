@@ -375,6 +375,23 @@ export async function PATCH(
             accountNumber: optionalString(body.bankAccountNumber) ?? current.accountNumber,
           },
         });
+      } else {
+        const bankName = optionalString(body.bankName);
+        const accountNumber = optionalString(body.bankAccountNumber);
+        if (bankName && accountNumber) {
+          await prisma.bankAccount.create({
+            data: {
+              id: crypto.randomUUID(),
+              employeeId: id,
+              bankCode: bankName.slice(0, 32),
+              bankName,
+              accountNumber,
+              accountName: "",
+              branchCode: optionalString(body.bankBranchCode),
+              updatedAt: new Date(),
+            },
+          });
+        }
       }
     }
 

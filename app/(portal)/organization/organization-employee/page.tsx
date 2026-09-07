@@ -64,7 +64,12 @@ function flattenOrganizationRecords(nodes: OrganizationRecord[], depth = 0): Org
 function OrganizationTreeDropdown({ companies, value, loading, onChange }: { companies: OrganizationRecord[]; value: string; loading: boolean; onChange: (value: string) => void }) {
   const [open, setOpen] = useState(false);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(companies.map((company) => company.id)));
-  useEffect(() => setExpanded((current) => new Set([...current, ...companies.map((company) => company.id)])), [companies]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setExpanded((current) => new Set([...current, ...companies.map((company) => company.id)]));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [companies]);
   const findNode = (nodes: OrganizationRecord[]): OrganizationRecord | undefined => { for (const node of nodes) { if (node.id === value) return node; const child = findNode(node.children ?? []); if (child) return child; } return undefined; };
   const selectedNode = findNode(companies);
   const renderNode = (node: OrganizationRecord, depth = 0): React.ReactNode => {
@@ -821,8 +826,10 @@ type EmployeePhotoRow = {
 
 type BasicEmployeeRow = {
   id: string;
+  organizationIds: string[];
   title: string;
   name: string;
+  branch: string;
   department: string;
   division: string;
   unit: string;
@@ -851,22 +858,52 @@ type BasicEmployeeRow = {
   socialSecurityFixed: string;
   taxCalc: string;
   taxFixed: string;
+  paymentChannel: string;
+  companyPayoutAccount: string;
+  bankName: string;
+  bankBranchCode: string;
+  bankAccountNumber: string;
 };
 
 function CardInputHeader({ title }: { title: string }) {
   return (
-    <div className="card-input-header tooltip-header-hover flex items-center border-b border-black/[0.12] px-3 py-3 text-[22px] font-normal leading-[34.573px] text-[rgba(0,0,0,0.87)]">
-      <div className="flex items-center">
+    <div className="card-input-header tooltip-header-hover group box-border flex flex-row items-center justify-start border-b border-black/[0.12] px-3 py-3 text-[22px] font-normal leading-[34.573px] tracking-[-0.1px] text-[rgba(0,0,0,0.87)]">
+      <div className="flex flex-row items-center justify-start">
         {title}
         <button
           type="button"
-          className="tooltip-header ml-2 inline-flex size-4 items-center justify-center rounded-full border border-current text-[10px] leading-none text-black/65"
+          className="tooltip-header ml-[10px] mr-[-30px] hidden rounded-full bg-[#f0f0f0] px-[6px] py-px text-[22px] font-normal leading-[25.3px] tracking-normal text-[rgba(0,0,0,0.87)] shadow-[0_2px_3px_rgba(0,0,0,0.5)] group-hover:inline-block"
           aria-label={`ข้อมูลเพิ่มเติมเกี่ยวกับ${title}`}
           title={`ข้อมูลเพิ่มเติมเกี่ยวกับ${title}`}
         >
-          <span className="text" aria-hidden="true">?</span>
+          <span className="text block bg-[#ffa500] px-2 text-base font-normal tracking-normal text-white" style={{ lineHeight: "normal" }} aria-hidden="true">?</span>
         </button>
       </div>
+    </div>
+  );
+}
+
+function PaymentTableSelect({
+  value,
+  onChange,
+  children,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="relative w-full">
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-8 w-full appearance-none rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white py-0 pl-[11px] pr-8 text-left text-sm font-normal leading-[22.001px] text-black/65 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]"
+      >
+        {children}
+      </select>
+      <svg aria-hidden="true" viewBox="64 64 896 896" className="pointer-events-none absolute right-[11px] top-1/2 size-3 -translate-y-1/2 fill-current text-black/25">
+        <path d="M884 256h-75c-5.1 0-9.9 2.5-12.9 6.6L512 654.2 227.9 262.6c-3-4.1-7.8-6.6-12.9-6.6h-75c-6.5 0-10.3 7.4-6.5 12.7l352.6 486.1c12.8 17.6 39 17.6 51.7 0l352.6-486.1c3.9-5.3.1-12.7-6.4-12.7z" />
+      </svg>
     </div>
   );
 }
@@ -1691,13 +1728,136 @@ function IndividualApproverContent({ orgTree, companyId }: { orgTree: OrgNode[];
   );
 }
 
-function PaymentMethodContent() {
+function PaymentMethodContent({ orgTree, companyId }: { orgTree: OrgNode[]; companyId: string }) {
+  const [organizationId, setOrganizationId] = useState("");
+  const [hashtag, setHashtag] = useState("");
+  const [filters, setFilters] = useState({ organizationId: "", hashtag: "" });
+  const [rows, setRows] = useState<BasicEmployeeRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  const organizationOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => {
+      if (node.count !== undefined) options.push({ id: node.id, label: `${"  ".repeat(depth)}${node.code}: ${node.name}` });
+      visit(node.children ?? [], depth + 1);
+    });
+    visit(orgTree);
+    return options;
+  }, [orgTree]);
+
+  const employeeOrganizationIds = useMemo(() => {
+    const ids = new Map<string, string[]>();
+    const visit = (nodes: OrgNode[]) => nodes.forEach((node) => {
+      if (node.count === undefined && (node.children?.length ?? 0) === 0) ids.set(node.id, node.organizationIds ?? []);
+      else visit(node.children ?? []);
+    });
+    visit(orgTree);
+    return ids;
+  }, [orgTree]);
+
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ view: "basic" });
+      if (companyId) params.set("companyId", companyId);
+      const response = await fetch(`/api/employee?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("load failed");
+      const data = (await response.json()) as { employees: BasicEmployeeRow[] };
+      setRows(data.employees);
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadRows(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadRows]);
+
+  const visibleRows = rows.filter((row) => {
+    const matchesOrganization = !filters.organizationId || employeeOrganizationIds.get(row.id)?.includes(filters.organizationId);
+    const normalizedHashtag = filters.hashtag.trim().replace(/^#/, "").toLocaleLowerCase();
+    return matchesOrganization && (!normalizedHashtag || row.hashtag.toLocaleLowerCase().includes(normalizedHashtag));
+  });
+
+  const updateRow = (id: string, field: "paymentChannel" | "companyPayoutAccount" | "bankName" | "bankBranchCode" | "bankAccountNumber", value: string) => {
+    setRows((current) => current.map((row) => row.id === id ? { ...row, [field]: value } : row));
+    setSaveState("idle");
+  };
+
+  const save = async () => {
+    setSaveState("saving");
+    try {
+      const responses = await Promise.all(rows.map((row) => fetch(`/api/employee/${row.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          paymentChannel: row.paymentChannel,
+          companyPayoutAccount: row.companyPayoutAccount,
+          bankName: row.bankName,
+          bankBranchCode: row.bankBranchCode,
+          bankAccountNumber: row.bankAccountNumber,
+        }),
+      })));
+      if (responses.some((response) => !response.ok)) throw new Error("save failed");
+      setSaveState("saved");
+      window.setTimeout(() => setSaveState("idle"), 1600);
+    } catch {
+      setSaveState("error");
+    }
+  };
+
+  const filterControlClass = "h-[31.6px] w-full min-w-0 rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 text-sm leading-[22.001px] text-black/65 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+  const tableInputClass = "h-[31.6px] w-full min-w-0 rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 text-sm font-normal leading-[22.001px] text-black/65 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+  const cellClass = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] p-2 align-middle text-sm leading-[22.001px] text-black/65";
+
   return (
     <Card
       className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white"
       style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}
     >
       <CardInputHeader title="ช่องทางการรับเงิน" />
+      <CardContent className="card-input-body px-2 py-4">
+        <div className="m-6">
+          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+            <label className="flex min-w-0 flex-1 flex-col text-sm leading-[22px] text-black/87">โครงสร้างองค์กร
+              <select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className={filterControlClass}>
+                <option value="">โครงสร้างองค์กร</option>
+                {organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+              </select>
+            </label>
+            <label className="flex min-w-0 flex-1 flex-col text-sm leading-[22px] text-black/87">Hashtag
+              <input value={hashtag} onChange={(event) => setHashtag(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") setFilters({ organizationId, hashtag }); }} placeholder="#Hashtag" className={filterControlClass} />
+            </label>
+            <button type="button" onClick={() => setFilters({ organizationId, hashtag })} className="h-9 min-w-[64px] rounded-[4px] bg-[#2299ff] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-[#1685e8]">ค้นหา</button>
+          </div>
+
+          <div className="fix-column-table max-h-[650px] overflow-auto rounded-[8px] bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]">
+            <Table className="min-w-[1650px] table-fixed font-[Kanit,sans-serif] text-sm leading-[22.001px]">
+              <colgroup>{[80, 200, 160, 160, 160, 160, 160, 160, 160, 120, 160].map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
+              <TableHeader className="sticky top-0 z-10 bg-[#61a8ff]"><TableRow className="h-[54.8px] bg-[#61a8ff] hover:bg-[#61a8ff]">
+                {["ลำดับ", "ชื่อพนักงาน", "แผนก", "ฝ่ายงาน", "หน่วยงาน", "ตำแหน่ง", "ช่องทางการรับเงิน", "บัญชีบริษัทนำจ่าย", "ธนาคาร", "รหัสสาขาธนาคาร", "เลขที่บัญชี"].map((column) => <TableHead key={column} className={cn("border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium leading-[22.001px] text-white", column === "ชื่อพนักงาน" && "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{column}{column === "ชื่อพนักงาน" && <svg aria-hidden="true" viewBox="64 64 896 896" className="ml-1 inline size-3.5 fill-current align-[-2px]"><path d="M909.6 854.5 649.9 594.8C690.2 542.7 712 479 712 412c0-80.2-31.3-155.4-87.9-212.1-56.6-56.7-132-87.9-212.1-87.9s-155.5 31.3-212.1 87.9C143.2 256.5 112 331.8 112 412c0 80.1 31.3 155.5 87.9 212.1C256.5 680.8 331.8 712 412 712c67 0 130.6-21.8 182.7-62l259.7 259.6a8.2 8.2 0 0 0 11.6 0l43.6-43.5a8.2 8.2 0 0 0 0-11.6zM570.4 570.4C528 612.7 471.8 636 412 636s-116-23.3-158.4-65.6C211.3 528 188 471.8 188 412s23.3-116.1 65.6-158.4C296 211.3 352.2 188 412 188s116.1 23.2 158.4 65.6S636 352.2 636 412s-23.3 116.1-65.6 158.4z" /></svg>}</TableHead>)}
+              </TableRow></TableHeader>
+              <TableBody>
+                {loading ? <TableRow><TableCell colSpan={11} className="h-24 text-center text-black/45">กำลังโหลดข้อมูล...</TableCell></TableRow> : visibleRows.length === 0 ? <TableRow><TableCell colSpan={11} className="h-24 text-center text-black/45">ไม่มีข้อมูล</TableCell></TableRow> : visibleRows.map((row, index) => <TableRow key={row.id} className={cn("!h-[48.8px] border-b-0 hover:bg-transparent", index % 2 === 0 ? "[&>td]:bg-[#f2fafe]" : "[&>td]:bg-white")}>
+                  <TableCell className={`${cellClass} text-center`}>{index + 1}</TableCell>
+                  <TableCell className={cn(cellClass, "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{row.employeeCode}: {row.name}</TableCell>
+                  <TableCell className={cellClass}>{row.department}</TableCell><TableCell className={cellClass}>{row.division}</TableCell><TableCell className={cellClass}>{row.unit}</TableCell><TableCell className={cellClass}>{row.position}</TableCell>
+                  <TableCell className={cellClass}><PaymentTableSelect value={row.paymentChannel} onChange={(value) => updateRow(row.id, "paymentChannel", value)}><option value="">เลือกช่องทาง</option>{["โอน", "เงินสด", "เช็ค"].map((value) => <option key={value}>{value}</option>)}</PaymentTableSelect></TableCell>
+                  <TableCell className={cellClass}><PaymentTableSelect value={row.companyPayoutAccount} onChange={(value) => updateRow(row.id, "companyPayoutAccount", value)}><option value="">เลือกบัญชีบริษัท</option>{[...new Set([row.companyPayoutAccount, "บริษัท เอ็มไอซี ออแกไนซ์ จำกัด"].filter(Boolean))].map((value) => <option key={value}>{value}</option>)}</PaymentTableSelect></TableCell>
+                  <TableCell className={cellClass}><PaymentTableSelect value={row.bankName} onChange={(value) => updateRow(row.id, "bankName", value)}><option value="">เลือกธนาคาร</option>{[...new Set([row.bankName, "SCB - ธนาคารไทยพาณิชย์ จำกัด (มหาชน)", "KBank - ธนาคารกสิกรไทย", "BBL - ธนาคารกรุงเทพ", "KTB - ธนาคารกรุงไทย"].filter(Boolean))].map((value) => <option key={value}>{value}</option>)}</PaymentTableSelect></TableCell>
+                  <TableCell className={cellClass}><input value={row.bankBranchCode} onChange={(event) => updateRow(row.id, "bankBranchCode", event.target.value)} className={tableInputClass} /></TableCell>
+                  <TableCell className={cellClass}><input value={row.bankAccountNumber} onChange={(event) => updateRow(row.id, "bankAccountNumber", event.target.value)} className={tableInputClass} /></TableCell>
+                </TableRow>)}
+              </TableBody>
+            </Table>
+            {!loading && visibleRows.length > 0 && <nav className="flex h-16 items-center justify-end px-4" aria-label="แบ่งหน้าช่องทางการรับเงิน"><span className="flex size-8 items-center justify-center rounded-[2px] border border-[#1890ff] bg-white text-sm text-[#1890ff]">1</span></nav>}
+          </div>
+          <p className="text-sm leading-[22.001px] text-[#ff0000]">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p>
+          <div className="mt-3 flex justify-end"><button type="button" onClick={() => void save()} disabled={saveState === "saving"} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] disabled:opacity-60">{saveState === "saving" ? "กำลังบันทึก..." : saveState === "saved" ? "บันทึกแล้ว" : saveState === "error" ? "บันทึกไม่สำเร็จ" : "บันทึก"}</button></div>
+        </div>
+      </CardContent>
     </Card>
   );
 }
@@ -1716,6 +1876,2040 @@ function TabPlaceholder({ tab }: { tab: string }) {
     </Card>
   );
 }
+
+function LeaveQuotaCalculationContent({ orgTree, companyId }: { orgTree: OrgNode[]; companyId: string }) {
+  const [organizationId, setOrganizationId] = useState("");
+  const [hashtag, setHashtag] = useState("");
+  const [filters, setFilters] = useState({ organizationId: "", hashtag: "" });
+  const [rows, setRows] = useState<BasicEmployeeRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [quotaTypes, setQuotaTypes] = useState<Record<string, boolean[]>>({});
+  const [saved, setSaved] = useState(false);
+  const leaveTypes = ["ลากิจพิเศษ", "ลากิจธุระส่วนตัว", "ลาป่วย", "ลาพักร้อน", "ขาดงาน"];
+
+  const organizationOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => {
+      if (node.count !== undefined) options.push({ id: node.id, label: `${"  ".repeat(depth)}${node.code}: ${node.name}` });
+      visit(node.children ?? [], depth + 1);
+    });
+    visit(orgTree);
+    return options;
+  }, [orgTree]);
+
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ view: "basic" });
+      if (companyId) params.set("companyId", companyId);
+      const response = await fetch(`/api/employee?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("load failed");
+      const data = (await response.json()) as { employees: BasicEmployeeRow[] };
+      setRows(data.employees);
+      setQuotaTypes((current) => Object.fromEntries(data.employees.map((employee) => [employee.id, current[employee.id] ?? Array(leaveTypes.length).fill(false)])));
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId, leaveTypes.length]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadRows(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadRows]);
+
+  const visibleRows = useMemo(() => {
+    const normalizedHashtag = filters.hashtag.trim().replace(/^#/, "").toLocaleLowerCase();
+    return rows.filter((row) => (!filters.organizationId || row.organizationIds.includes(filters.organizationId)) && (!normalizedHashtag || row.hashtag.toLocaleLowerCase().includes(normalizedHashtag)));
+  }, [filters, rows]);
+  const setQuota = (id: string, index: number, checked: boolean) => {
+    setQuotaTypes((current) => ({ ...current, [id]: (current[id] ?? Array(leaveTypes.length).fill(false)).map((value, valueIndex) => valueIndex === index ? checked : value) }));
+    setSaved(false);
+  };
+  const setQuotaColumn = (index: number, checked: boolean) => {
+    setQuotaTypes((current) => ({ ...current, ...Object.fromEntries(visibleRows.map((row) => [row.id, (current[row.id] ?? Array(leaveTypes.length).fill(false)).map((value, valueIndex) => valueIndex === index ? checked : value)])) }));
+    setSaved(false);
+  };
+  const columnChecked = (index: number) => visibleRows.length > 0 && visibleRows.every((row) => quotaTypes[row.id]?.[index]);
+  const controlClass = "h-[31.6px] w-full min-w-0 rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 text-sm leading-[22.001px] text-black/65 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+  const headClass = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium leading-[22.001px] text-white";
+  const cellClass = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] p-2 align-middle text-sm leading-[22.001px] text-black/65";
+
+  return (
+    <Card data-leave-quota-calculation className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white" style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}>
+      <CardInputHeader title="ตั้งค่าคำนวณโควตาการลา" />
+      <CardContent className="card-input-body px-2 py-4 text-sm leading-[22.001px] tracking-[-0.1px] text-[rgba(0,0,0,0.87)]">
+        <style>{`
+          [data-leave-quota-calculation] .quota-table {
+            height: 464px;
+            overflow: hidden;
+            border: 0;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0px 2px 1px -1px rgba(0,0,0,.2), 0px 1px 1px 0px rgba(0,0,0,.14), 0px 1px 3px 0px rgba(0,0,0,.12);
+          }
+          [data-leave-quota-calculation] .quota-table-header { height: 76.8px; overflow: hidden; }
+          [data-leave-quota-calculation] .quota-table-body { height: 322.4px; overflow: scroll; }
+          [data-leave-quota-calculation] .quota-table table {
+            width: 2780px;
+            min-width: 100%;
+            border-collapse: collapse;
+            table-layout: fixed;
+            color: rgba(0,0,0,.65);
+            font-family: kanit, sans-serif;
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: -0.1px;
+            line-height: 22.001px;
+          }
+          [data-leave-quota-calculation] .quota-table th {
+            height: 76.8px;
+            border: 0;
+            background: #61a8ff;
+            padding: 16px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: -0.1px;
+            line-height: 22.001px;
+            text-align: center;
+            text-transform: none;
+            vertical-align: middle;
+          }
+          [data-leave-quota-calculation] .quota-table-header tr { border-bottom: 0; }
+          [data-leave-quota-calculation] .quota-table td {
+            height: 38.8px;
+            border: 0;
+            padding: 8px;
+            color: rgba(0,0,0,.65);
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: -0.1px;
+            line-height: 22.001px;
+            vertical-align: middle;
+          }
+          [data-leave-quota-calculation] .quota-checkbox {
+            display: block;
+            width: 16px;
+            height: 16px;
+            margin: 0 auto;
+            appearance: none;
+            border: 1px solid #d9d9d9;
+            border-radius: 2px;
+            background: #fff;
+          }
+          [data-leave-quota-calculation] .quota-checkbox:checked {
+            border-color: #1890ff;
+            background: #1890ff url("data:image/svg+xml,%3Csvg viewBox='0 0 12 12' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.1 6.1 4.7 8.6 9.9 3.4' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px 12px no-repeat;
+          }
+          [data-leave-quota-calculation] .quota-pagination { height: 32px; margin: 16px 0; }
+          [data-leave-quota-calculation] .quota-pagination button,
+          [data-leave-quota-calculation] .quota-pagination span { width: 32px; height: 32px; border-radius: 2px; font-size: 14px; line-height: 30px; text-align: center; }
+        `}</style>
+        <div className="m-6">
+          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-end"><label className="flex min-w-0 flex-1 flex-col">โครงสร้างองค์กร<select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><label className="flex min-w-0 flex-1 flex-col">Hashtag<input value={hashtag} onChange={(event) => setHashtag(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") setFilters({ organizationId, hashtag }); }} placeholder="#Hashtag" className={controlClass} /></label><button type="button" onClick={() => setFilters({ organizationId, hashtag })} className="h-9 rounded-[4px] bg-[#2299ff] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ค้นหา</button></div>
+          <div className="fix-column-table quota-table"><div className="quota-table-header"><Table><colgroup>{[80, 250, 180, 180, 180, 180, ...Array(5).fill(346)].map((width, index) => <col key={index} style={{ width }} />)}</colgroup><TableHeader><TableRow className="bg-[#61a8ff] hover:bg-[#61a8ff]"><TableHead className={headClass}>ลำดับ</TableHead><TableHead className={cn(headClass, "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.25)]")}>ชื่อพนักงาน <Search className="ml-1 inline size-3 align-[-1px]" /></TableHead>{["แผนก", "ฝ่ายงาน", "หน่วยงาน", "ตำแหน่ง"].map((column) => <TableHead key={column} className={headClass}>{column}</TableHead>)}{leaveTypes.map((type, index) => <TableHead key={type} className={headClass}>{type}<br /><input type="checkbox" checked={columnChecked(index)} onChange={(event) => setQuotaColumn(index, event.target.checked)} aria-label={`เลือก${type}ทั้งหมด`} className="quota-checkbox" /></TableHead>)}</TableRow></TableHeader></Table></div><div className="quota-table-body"><Table><colgroup>{[80, 250, 180, 180, 180, 180, ...Array(5).fill(346)].map((width, index) => <col key={index} style={{ width }} />)}</colgroup><TableBody>{loading ? <TableRow><TableCell colSpan={11} className="h-24 text-center text-black/45">กำลังโหลดข้อมูล...</TableCell></TableRow> : visibleRows.length === 0 ? <TableRow><TableCell colSpan={11} className="h-24 text-center text-black/45">ไม่มีข้อมูล</TableCell></TableRow> : visibleRows.map((row, index) => <TableRow key={row.id} className={cn("hover:bg-transparent", index % 2 === 0 ? "[&>td]:bg-[#f2fafe]" : "[&>td]:bg-white")}><TableCell className={`${cellClass} text-center`}>{index + 1}</TableCell><TableCell className={cn(cellClass, "sticky left-[80px] z-10 shadow-[4px_0_20px_-8px_rgba(0,0,0,0.25)]", index % 2 === 0 ? "bg-[#f2fafe]" : "bg-white")}>{row.employeeCode}: {row.name}</TableCell><TableCell className={cellClass}>{row.department}</TableCell><TableCell className={cellClass}>{row.division}</TableCell><TableCell className={cellClass}>{row.unit}</TableCell><TableCell className={cellClass}>{row.position}</TableCell>{leaveTypes.map((type, quotaIndex) => <TableCell key={type} className={`${cellClass} text-center`}><input type="checkbox" checked={quotaTypes[row.id]?.[quotaIndex] ?? false} onChange={(event) => setQuota(row.id, quotaIndex, event.target.checked)} aria-label={`${type} ${row.name}`} className="quota-checkbox" /></TableCell>)}</TableRow>)}</TableBody></Table></div>{!loading && visibleRows.length > 0 && <nav className="quota-pagination flex justify-end gap-2 pr-4"><button type="button" disabled className="border border-[#d9d9d9] text-black/25">‹</button><span className="border border-[#1890ff] text-[#1890ff]">1</span><button type="button" disabled className="border border-[#d9d9d9] text-black/25">›</button></nav>}</div>
+          <p className="mt-0 text-sm leading-[22.001px] text-red-600">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p><div className="mt-3 flex justify-end"><button type="button" onClick={() => setSaved(true)} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">{saved ? "บันทึกแล้ว" : "บันทึก"}</button></div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TaxDeductionContent({ orgTree }: { orgTree: OrgNode[] }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [templateOrganizationId, setTemplateOrganizationId] = useState("");
+  const [year, setYear] = useState("");
+  const [fileName, setFileName] = useState("");
+  const organizationOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => {
+      if (node.count !== undefined) options.push({ id: node.id, label: `${"  ".repeat(depth)}${node.code}: ${node.name}` });
+      visit(node.children ?? [], depth + 1);
+    });
+    visit(orgTree);
+    return options;
+  }, [orgTree]);
+  const controlClass = "h-[31.6px] w-full min-w-0 rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 text-sm leading-[22.001px] text-black/65 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+
+  return (
+    <Card
+      data-tax-deduction
+      className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white"
+      style={{
+        boxShadow:
+          "0px 2px 1px -1px rgba(0, 0, 0, 0.2), 0px 1px 1px 0px rgba(0, 0, 0, 0.14), 0px 1px 3px 0px rgba(0, 0, 0, 0.12)",
+      }}
+    >
+      <CardInputHeader title="ลดหย่อนภาษี" />
+      <CardContent className="card-input-body px-2 py-4 text-sm font-normal leading-[22.001px] tracking-[-0.1px] text-[rgba(0,0,0,0.87)]">
+        <style>{`
+          [data-tax-deduction] .tax-deduction-table { height: 206.4px; overflow: hidden; border: 0; border-radius: 8px; background: #fff; box-shadow: 0px 2px 1px -1px rgba(0,0,0,.2), 0px 1px 1px 0px rgba(0,0,0,.14), 0px 1px 3px 0px rgba(0,0,0,.12); }
+          [data-tax-deduction] .tax-deduction-table > div { height: 206.4px; overflow-x: hidden; overflow-y: scroll; }
+          [data-tax-deduction] .tax-deduction-table th { height: 54.8px; border: 0 !important; background: transparent !important; padding: 16px; color: #fff; font-family: Kanit, sans-serif; font-size: 14px; font-weight: 500; letter-spacing: -0.1px !important; line-height: 22.001px; text-align: center; text-transform: none; vertical-align: middle; }
+          [data-tax-deduction] .tax-deduction-table td { border: 0; }
+          [data-tax-deduction] .tax-deduction-empty { height: 150.8px; background: #f2fafe; padding: 8px !important; color: rgba(0, 0, 0, .65); font-size: 14px; font-weight: 400; letter-spacing: -0.1px; line-height: 22.001px; text-align: center; vertical-align: middle; }
+          @media (max-width: 1023px) { [data-tax-deduction] .tax-deduction-divider { display: none; } }
+        `}</style>
+        <div className="flex flex-col lg:flex-row">
+          <section className="m-6 flex min-w-0 flex-1 flex-col">
+            <span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">1</span>
+            <div className="m-2 min-w-0 flex-1"><h2 className="h-10 text-lg font-bold leading-10">ดาวน์โหลดเทมเพลต (*.xlsx)</h2><div className="flex w-full flex-col gap-2 sm:flex-row sm:items-end"><label className="min-w-0 sm:w-[40%]">โครงสร้างองค์กร<select value={templateOrganizationId} onChange={(event) => setTemplateOrganizationId(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><label className="min-w-0 flex-1">&nbsp;<span className="sr-only">เลือกปี</span><input type="number" min="1900" max="9999" value={year} onChange={(event) => setYear(event.target.value)} placeholder="เลือกปี" className={controlClass} aria-label="เลือกปี" /></label><button type="button" className="h-9 shrink-0 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ดาวน์โหลดเทมเพลต</button></div></div>
+          </section>
+          <div className="tax-deduction-divider hidden w-[17px] shrink-0 lg:flex"><div className="mx-2 h-full border-l border-black/[0.12]" /></div>
+          <section className="m-6 flex min-w-0 flex-1 flex-col">
+            <span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">2</span>
+            <div className="m-2 min-w-0"><h2 className="h-10 text-lg font-bold leading-10">นำเข้าข้อมูล (Import)</h2><div className="flex items-center"><button type="button" onClick={() => fileInputRef.current?.click()} className="h-9 shrink-0 rounded-[4px] bg-white px-4 text-sm font-medium leading-9 text-black/87 shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">เลือกไฟล์</button><span className="ml-2 truncate text-black/65">{fileName || "ยังไม่ได้เลือกไฟล์"}</span><input ref={fileInputRef} type="file" accept="application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? "")} /></div></div>
+          </section>
+        </div>
+        <div className="border-t border-black/[0.12]" />
+        <section className="m-6"><h2 className="sub-header mb-3 text-lg font-bold leading-10">ประวัติการนำเข้าข้อมูล</h2><div className="tax-deduction-table overflow-x-auto rounded-[2px] border-[0.8px] border-[#f0f0f0]"><Table className="min-w-[760px] table-fixed text-sm leading-[22.001px]"><colgroup>{[15, 15, 15, 15, 15, 15, 10].map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}</colgroup><TableHeader><TableRow className="bg-[#61a8ff] hover:bg-[#61a8ff]">{["วันที่", "จำนวนข้อมูล", "นำเข้าข้อมูล", "อัพเดตข้อมูล", "ลบข้อมูล", "ข้อมูลผิดพลาด", ""].map((label, index) => <TableHead key={`${label}-${index}`}>{label}</TableHead>)}</TableRow></TableHeader><TableBody><TableRow className="hover:bg-transparent"><TableCell colSpan={7} className="tax-deduction-empty">ไม่มีข้อมูล</TableCell></TableRow></TableBody></Table></div></section>
+      </CardContent>
+    </Card>
+  );
+}
+
+function TrainingImportContent({ orgTree, title = "นำเข้าฝึกอบรม", historyTableHeight = 206.4, showHorizontalScroll = false }: { orgTree: OrgNode[]; title?: string; historyTableHeight?: number; showHorizontalScroll?: boolean }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [templateOrganizationId, setTemplateOrganizationId] = useState("");
+  const [fileName, setFileName] = useState("");
+  const organizationOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => {
+      if (node.count !== undefined) options.push({ id: node.id, label: `${"  ".repeat(depth)}${node.code}: ${node.name}` });
+      visit(node.children ?? [], depth + 1);
+    });
+    visit(orgTree);
+    return options;
+  }, [orgTree]);
+  const controlClass = "h-[31.6px] w-full min-w-0 rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 text-sm leading-[22.001px] text-black/65 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+
+  return (
+    <Card
+      data-training-import
+      className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white"
+      style={{ boxShadow: "0px 2px 1px -1px rgba(0, 0, 0, 0.2), 0px 1px 1px 0px rgba(0, 0, 0, 0.14), 0px 1px 3px 0px rgba(0, 0, 0, 0.12)" }}
+    >
+      <CardInputHeader title={title} />
+      <CardContent className="card-input-body px-2 py-4 text-sm font-normal leading-[22.001px] tracking-[-0.1px] text-[rgba(0,0,0,0.87)]">
+        <style>{`
+          [data-training-import] .training-import-table { height: ${historyTableHeight}px; overflow: hidden; border: 0; border-radius: 8px; background: #fff; box-shadow: 0px 2px 1px -1px rgba(0,0,0,.2), 0px 1px 1px 0px rgba(0,0,0,.14), 0px 1px 3px 0px rgba(0,0,0,.12); }
+          [data-training-import] .training-import-table > div { height: ${historyTableHeight}px; overflow-x: hidden; overflow-y: scroll; }
+          [data-training-import] .training-import-asset-table > div { overflow: scroll; }
+          [data-training-import] .training-import-table th { height: 54.8px; border: 0 !important; background: transparent !important; padding: 16px; color: #fff; font-family: Kanit, sans-serif; font-size: 14px; font-weight: 500; letter-spacing: -0.1px !important; line-height: 22.001px; text-align: center; text-transform: none; vertical-align: middle; }
+          [data-training-import] .training-import-table th:first-child { border-radius: 2px 0 0; }
+          [data-training-import] .training-import-table th:last-child { border-radius: 0 2px 0 0; }
+          [data-training-import] .training-import-table td { border: 0; }
+          [data-training-import] .training-import-empty { height: 150.8px; background: #f2fafe; padding: 8px !important; color: rgba(0,0,0,.65); font-size: 14px; font-weight: 400; letter-spacing: -0.1px; line-height: 22.001px; text-align: center; vertical-align: middle; }
+          @media (max-width: 1023px) { [data-training-import] .training-import-divider { display: none; } }
+        `}</style>
+        <div className="flex flex-col lg:flex-row">
+          <section className="m-6 flex min-w-0 flex-1 flex-col"><span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">1</span><div className="m-2 min-w-0 flex-1"><h2 className="h-10 text-lg font-bold leading-10">ดาวน์โหลดเทมเพลต (*.xlsx)</h2><label>โครงสร้างองค์กร</label><div className="my-2 flex w-full flex-col gap-2 sm:flex-row sm:items-center"><select value={templateOrganizationId} onChange={(event) => setTemplateOrganizationId(event.target.value)} className={`${controlClass} min-w-0 flex-1`}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select><button type="button" className="h-9 shrink-0 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,.2),0_2px_2px_rgba(0,0,0,.14),0_1px_5px_rgba(0,0,0,.12)]">เทมเพลตมีรายชื่อพนักงาน</button></div></div></section>
+          <div className="training-import-divider hidden w-[17px] shrink-0 lg:flex"><div className="mx-2 h-full border-l border-black/[0.12]" /></div>
+          <section className="m-6 flex min-w-0 flex-1 flex-col"><span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">2</span><div className="m-2 min-w-0"><h2 className="h-10 text-lg font-bold leading-10">นำเข้าข้อมูล (Import)</h2><div className="flex items-center"><button type="button" onClick={() => fileInputRef.current?.click()} className="h-9 shrink-0 rounded-[4px] bg-white px-4 text-sm font-medium leading-9 text-black/87 shadow-[0_3px_1px_-2px_rgba(0,0,0,.2),0_2px_2px_rgba(0,0,0,.14),0_1px_5px_rgba(0,0,0,.12)]">เลือกไฟล์</button><span className="ml-2 truncate text-black/65">{fileName || "ยังไม่ได้เลือกไฟล์"}</span><input ref={fileInputRef} type="file" accept="application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? "")} /></div></div></section>
+        </div>
+        <div className="border-t border-black/[0.12]" />
+        <section className="m-6"><h2 className="sub-header mb-3 text-lg font-bold leading-10">ประวัติการนำเข้าข้อมูลพนักงาน</h2><div className={cn("training-import-table", showHorizontalScroll && "training-import-asset-table")}><Table className="min-w-[760px] table-fixed text-sm leading-[22.001px]"><colgroup>{[15, 15, 15, 15, 15, 15, 10].map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}</colgroup><TableHeader><TableRow className="bg-[#61a8ff] hover:bg-[#61a8ff]">{["วันที่", "จำนวนข้อมูล", "นำเข้าข้อมูล", "อัพเดตข้อมูล", "ลบข้อมูล", "ข้อมูลผิดพลาด", ""].map((label, index) => <TableHead key={`${label}-${index}`}>{label}</TableHead>)}</TableRow></TableHeader><TableBody><TableRow className="hover:bg-transparent"><TableCell colSpan={7} className="training-import-empty">ไม่มีข้อมูล</TableCell></TableRow></TableBody></Table></div></section>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AssetImportContent({ orgTree }: { orgTree: OrgNode[] }) {
+  return <TrainingImportContent orgTree={orgTree} title="นำเข้าสินทรัพย์ถือครอง" historyTableHeight={218.4} showHorizontalScroll />;
+}
+
+function PersonalHistoryImportContent({ orgTree }: { orgTree: OrgNode[] }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [downloadDataType, setDownloadDataType] = useState("ครอบครัว");
+  const [importDataType, setImportDataType] = useState("ครอบครัว");
+  const [filterDataType, setFilterDataType] = useState("ครอบครัว");
+  const [historyDataType, setHistoryDataType] = useState("ครอบครัว");
+  const [templateOrganizationId, setTemplateOrganizationId] = useState("");
+  const [filterOrganizationId, setFilterOrganizationId] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [uploaded, setUploaded] = useState(false);
+  const organizationOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => {
+      if (node.count !== undefined) options.push({ id: node.id, label: `${"  ".repeat(depth)}${node.code}: ${node.name}` });
+      visit(node.children ?? [], depth + 1);
+    });
+    visit(orgTree);
+    return options;
+  }, [orgTree]);
+  const dataTypes = ["ครอบครัว"];
+  const controlClass = "h-[31.6px] w-full min-w-0 rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 text-sm leading-[22.001px] text-black/65 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+  const primaryColumns = ["ลำดับ", "รหัสพนักงาน", "ชื่อ-นามสกุล", "ความสัมพันธ์", "เลขประจำตัวประชาชน / ผู้เสียภาษี", "คำนำหน้าชื่อ", "ชื่อ", "นามสกุล", "วันเกิด", "เบอร์โทรศัพท์", "อีเมล", "ที่อยู่", ""];
+
+  return (
+    <Card
+      data-personal-history-import
+      className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white"
+      style={{ boxShadow: "0px 2px 1px -1px rgba(0, 0, 0, 0.2), 0px 1px 1px 0px rgba(0, 0, 0, 0.14), 0px 1px 3px 0px rgba(0, 0, 0, 0.12)" }}
+    >
+      <CardInputHeader title="นำเข้าประวัติส่วนตัว" />
+      <CardContent className="card-input-body px-2 py-4 text-sm font-normal leading-[22.001px] tracking-[-0.1px] text-[rgba(0,0,0,0.87)]">
+        <style>{`
+          [data-personal-history-import] .personal-main-table { height: 240.4px; overflow: hidden; border: 0; border-radius: 8px; background: #fff; box-shadow: 0px 2px 1px -1px rgba(0,0,0,.2), 0px 1px 1px 0px rgba(0,0,0,.14), 0px 1px 3px 0px rgba(0,0,0,.12); }
+          [data-personal-history-import] .personal-main-table > div { height: 240.4px; overflow: scroll; }
+          [data-personal-history-import] .personal-main-table table { width: 1650px; min-width: 100%; table-layout: fixed; }
+          [data-personal-history-import] .personal-main-table th, [data-personal-history-import] .personal-history-table th { height: 54.8px; border: 0 !important; background: transparent !important; padding: 16px; color: #fff; font-family: Kanit, sans-serif; font-size: 14px; font-weight: 500; letter-spacing: -0.1px !important; line-height: 22.001px; text-align: center; text-transform: none; vertical-align: middle; }
+          [data-personal-history-import] .personal-main-table th:first-child, [data-personal-history-import] .personal-history-table th:first-child { border-radius: 2px 0 0; }
+          [data-personal-history-import] .personal-main-table th:last-child, [data-personal-history-import] .personal-history-table th:last-child { border-radius: 0 2px 0 0; }
+          [data-personal-history-import] .personal-main-table th { height: 76.8px; background: #61a8ff !important; }
+          [data-personal-history-import] .personal-main-table td, [data-personal-history-import] .personal-history-table td { border: 0; }
+          [data-personal-history-import] .personal-main-empty { height: 150.8px; background: #f2fafe; padding: 8px !important; color: rgba(0,0,0,.65); font-size: 14px; font-weight: 400; letter-spacing: -0.1px; line-height: 22.001px; text-align: center; vertical-align: middle; }
+          [data-personal-history-import] .personal-history-table { height: 206.4px; overflow: hidden; border-radius: 8px; background: #fff; box-shadow: 0px 2px 1px -1px rgba(0,0,0,.2), 0px 1px 1px 0px rgba(0,0,0,.14), 0px 1px 3px 0px rgba(0,0,0,.12); }
+          [data-personal-history-import] .personal-history-table > div { height: 206.4px; overflow-x: hidden; overflow-y: scroll; }
+          [data-personal-history-import] .personal-history-empty { height: 150.8px; background: #f2fafe; padding: 8px !important; color: rgba(0,0,0,.65); font-size: 14px; font-weight: 400; letter-spacing: -0.1px; line-height: 22.001px; text-align: center; vertical-align: middle; }
+          @media (max-width: 1023px) { [data-personal-history-import] .personal-import-divider { display: none; } }
+        `}</style>
+        <div className="flex flex-col lg:flex-row">
+          <section className="m-6 flex min-w-0 flex-1 flex-col"><span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">1</span><div className="m-2 min-w-0 flex-1"><h2 className="h-10 text-lg font-bold leading-10">ดาวน์โหลดเทมเพลต (*.xlsx)</h2><div className="my-2 flex w-full flex-col gap-2 sm:flex-row sm:items-end"><label className="min-w-0 flex-1">ประเภทข้อมูล*<select value={downloadDataType} onChange={(event) => setDownloadDataType(event.target.value)} className={controlClass}>{dataTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label className="min-w-0 flex-1">โครงสร้างองค์กร<select value={templateOrganizationId} onChange={(event) => setTemplateOrganizationId(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><button type="button" className="h-9 shrink-0 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,.2),0_2px_2px_rgba(0,0,0,.14),0_1px_5px_rgba(0,0,0,.12)]">ดาวน์โหลด</button></div></div></section>
+          <div className="personal-import-divider hidden w-[17px] shrink-0 lg:flex"><div className="mx-2 h-full border-l border-black/[0.12]" /></div>
+          <section className="m-6 flex min-w-0 flex-1 flex-col"><span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">2</span><div className="m-2 min-w-0"><h2 className="h-10 text-lg font-bold leading-10">นำเข้าข้อมูล (Import)</h2><div className="my-2"><label>ประเภทข้อมูล*</label><div className="mt-0 flex w-full flex-col gap-[10px] sm:flex-row"><select value={importDataType} onChange={(event) => setImportDataType(event.target.value)} className={`${controlClass} min-w-0 flex-1`}>{dataTypes.map((type) => <option key={type}>{type}</option>)}</select><div className="min-w-0 flex-1"><div className="flex items-center"><button type="button" onClick={() => fileInputRef.current?.click()} className="h-9 shrink-0 rounded-[4px] bg-white px-4 text-sm font-medium leading-9 text-black/87 shadow-[0_3px_1px_-2px_rgba(0,0,0,.2),0_2px_2px_rgba(0,0,0,.14),0_1px_5px_rgba(0,0,0,.12)]">เลือกไฟล์</button><span className="ml-2 truncate text-black/65">{fileName || "ยังไม่ได้เลือกไฟล์"}</span><input ref={fileInputRef} type="file" accept="application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(event) => { setFileName(event.target.files?.[0]?.name ?? ""); setUploaded(false); }} /></div><button type="button" disabled={!fileName} onClick={() => setUploaded(true)} className="mt-3 h-9 w-[245.2px] max-w-full rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,.2),0_2px_2px_rgba(0,0,0,.14),0_1px_5px_rgba(0,0,0,.12)] disabled:cursor-not-allowed disabled:opacity-50">{uploaded ? "อัพโหลดแล้ว" : "อัพโหลดไฟล์"}</button></div></div></div></div></section>
+        </div>
+        <div className="border-t border-black/[0.12]" />
+        <section className="m-6"><div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-end"><label className="min-w-0 flex-1">ประเภทข้อมูล*<select value={filterDataType} onChange={(event) => setFilterDataType(event.target.value)} className={controlClass}>{dataTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label className="min-w-0 flex-1">โครงสร้างองค์กร<select value={filterOrganizationId} onChange={(event) => setFilterOrganizationId(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><div className="hidden flex-1 lg:block" /><button type="button" className="h-9 shrink-0 rounded-[4px] bg-[#2299ff] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,.2),0_2px_2px_rgba(0,0,0,.14),0_1px_5px_rgba(0,0,0,.12)]">ค้นหา</button></div><div className="personal-main-table"><Table><colgroup>{[80,150,250,150,200,150,150,150,150,150,200,200,80].map((width,index) => <col key={index} style={{ width }} />)}</colgroup><TableHeader><TableRow className="bg-[#61a8ff] hover:bg-[#61a8ff]">{primaryColumns.map((column,index) => <TableHead key={`${column}-${index}`}>{column}</TableHead>)}</TableRow></TableHeader><TableBody><TableRow className="hover:bg-transparent"><TableCell colSpan={13} className="personal-main-empty">ไม่มีข้อมูล</TableCell></TableRow></TableBody></Table></div><div className="mt-3 flex justify-end"><button type="button" className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,.2),0_2px_2px_rgba(0,0,0,.14),0_1px_5px_rgba(0,0,0,.12)]">บันทึก</button></div></section>
+        <div className="border-t border-black/[0.12]" />
+        <section className="m-6"><h2 className="sub-header mb-3 text-lg font-bold leading-10">ประวัติการนำเข้าประวัติส่วนตัว</h2><div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-end"><label className="min-w-0 flex-1">ประเภทข้อมูล*<select value={historyDataType} onChange={(event) => setHistoryDataType(event.target.value)} className={controlClass}>{dataTypes.map((type) => <option key={type}>{type}</option>)}</select></label><div className="hidden flex-1 lg:block" /><div className="hidden flex-1 lg:block" /><button type="button" className="h-9 shrink-0 rounded-[4px] bg-[#2299ff] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,.2),0_2px_2px_rgba(0,0,0,.14),0_1px_5px_rgba(0,0,0,.12)]">ค้นหา</button></div><div className="personal-history-table"><Table className="table-fixed"><colgroup>{[22.5,22.5,22.5,22.5,10].map((width,index) => <col key={index} style={{ width: `${width}%` }} />)}</colgroup><TableHeader><TableRow className="bg-[#61a8ff] hover:bg-[#61a8ff]">{["วันที่", "จำนวนข้อมูล", "นำเข้าข้อมูล", "ข้อมูลผิดพลาด", ""].map((column,index) => <TableHead key={`${column}-${index}`}>{column}</TableHead>)}</TableRow></TableHeader><TableBody><TableRow className="hover:bg-transparent"><TableCell colSpan={5} className="personal-history-empty">ไม่มีข้อมูล</TableCell></TableRow></TableBody></Table></div></section>
+      </CardContent>
+    </Card>
+  );
+}
+
+function CostDistributionContent({ orgTree, companyId }: { orgTree: OrgNode[]; companyId: string }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [templateOrganizationId, setTemplateOrganizationId] = useState("");
+  const [organizationId, setOrganizationId] = useState("");
+  const [position, setPosition] = useState("");
+  const [employeeId, setEmployeeId] = useState("");
+  const [costCenter, setCostCenter] = useState("");
+  const [onlyWithCostCenter, setOnlyWithCostCenter] = useState(false);
+  const [onlyWithoutCostCenter, setOnlyWithoutCostCenter] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [rows, setRows] = useState<BasicEmployeeRow[]>([]);
+  const [searched, setSearched] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [costCenters, setCostCenters] = useState<Record<string, string>>({});
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(() => new Set());
+
+  const organizationOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => {
+      if (node.count !== undefined) options.push({ id: node.id, label: `${"  ".repeat(depth)}${node.code}: ${node.name}` });
+      visit(node.children ?? [], depth + 1);
+    });
+    visit(orgTree);
+    return options;
+  }, [orgTree]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({ view: "basic" });
+        if (companyId) params.set("companyId", companyId);
+        const response = await fetch(`/api/employee?${params.toString()}`, { cache: "no-store" });
+        if (!response.ok) throw new Error("load failed");
+        const data = (await response.json()) as { employees: BasicEmployeeRow[] };
+        if (!cancelled) setRows(data.employees);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [companyId]);
+
+  const positions = useMemo(() => [...new Set(rows.map((row) => row.position).filter(Boolean))].sort(), [rows]);
+  const costCenterOptions = useMemo(() => [...new Set(Object.values(costCenters).filter(Boolean))].sort(), [costCenters]);
+  const availableEmployees = useMemo(() => rows.filter((row) => !organizationId || row.organizationIds.includes(organizationId)), [organizationId, rows]);
+  const visibleRows = useMemo(() => {
+    const query = employeeSearch.trim().toLocaleLowerCase();
+    return rows.filter((row) => {
+      const assignedCostCenter = costCenters[row.id] ?? "";
+      return (!organizationId || row.organizationIds.includes(organizationId))
+        && (!position || row.position === position)
+        && (!employeeId || row.id === employeeId)
+        && (!costCenter || assignedCostCenter === costCenter)
+        && (!onlyWithCostCenter || Boolean(assignedCostCenter))
+        && (!onlyWithoutCostCenter || !assignedCostCenter)
+        && (!query || `${row.employeeCode} ${row.name}`.toLocaleLowerCase().includes(query));
+    });
+  }, [costCenter, costCenters, employeeId, employeeSearch, onlyWithCostCenter, onlyWithoutCostCenter, organizationId, position, rows]);
+
+  const controlClass = "h-[31.6px] w-full min-w-0 rounded-[2px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 text-sm leading-[22.001px] text-black/65 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+  const applyFilters = () => { setSearched(true); setSelectedRows(new Set()); };
+  const toggleSelection = (id: string) => setSelectedRows((current) => {
+    const next = new Set(current);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  return (
+    <Card data-cost-distribution className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white" style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}>
+      <CardInputHeader title="ตั้งค่า Cost Distribution" />
+      <CardContent className="card-input-body p-0 text-sm font-normal leading-[22.001px] tracking-[-0.1px] text-[rgba(0,0,0,0.87)]">
+        <style>{`
+          [data-cost-distribution] .cost-distribution-workspace {
+            margin: 32px;
+            color: rgba(0, 0, 0, 0.87);
+            font-family: Kanit, sans-serif;
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: -0.1px;
+            line-height: 22.001px;
+          }
+          [data-cost-distribution] .cost-distribution-filters {
+            display: flex;
+            gap: 10px;
+            margin: 0 0 24px;
+          }
+          [data-cost-distribution] .cost-distribution-filters > label {
+            flex: 1 1 0;
+            min-width: 0;
+            margin: 0;
+          }
+          [data-cost-distribution] .cost-distribution-filters label,
+          [data-cost-distribution] .cost-distribution-checkboxes label {
+            color: rgba(0, 0, 0, 0.87);
+            font-size: 14px;
+            font-weight: 400;
+            line-height: 22.001px;
+          }
+          [data-cost-distribution] .cost-distribution-filters select {
+            margin-top: 2px;
+            border-radius: 4px;
+          }
+          [data-cost-distribution] .cost-distribution-filter-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+          }
+          [data-cost-distribution] .cost-distribution-checkboxes {
+            display: flex;
+            gap: 12px;
+          }
+          [data-cost-distribution] .cost-distribution-checkboxes label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: rgba(0, 0, 0, 0.65);
+          }
+          [data-cost-distribution] .cost-distribution-filter-footer > button {
+            height: 36px;
+            min-width: 63.7px;
+            border-radius: 2px;
+            background: #008cff;
+            padding: 0 16px;
+            color: #fff;
+            font-size: 14px;
+            font-weight: 400;
+            line-height: 16.1px;
+            box-shadow: none;
+          }
+          [data-cost-distribution] .cost-distribution-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin: 0 0 16px;
+            border: 0;
+            padding: 24px 0 0;
+          }
+          [data-cost-distribution] .cost-distribution-search-shell {
+            height: 40px;
+            width: 300px;
+            max-width: 100%;
+            flex: 0 1 300px;
+            border: 0.8px solid #d9d9d9;
+            border-radius: 50px;
+            padding: 0 12px;
+          }
+          [data-cost-distribution] .cost-distribution-search-shell input {
+            height: 16.1px;
+            padding: 0;
+            color: rgba(0, 0, 0, 0.65);
+            font-family: kanit, sans-serif;
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: normal;
+            line-height: 16.1px;
+          }
+          [data-cost-distribution] .cost-distribution-search-shell button {
+            height: 25px;
+            width: 26px;
+            border-left: 0.8px solid #d9d9d9;
+          }
+          [data-cost-distribution] .cost-distribution-search-shell svg {
+            height: 16px;
+            width: 16px;
+          }
+          [data-cost-distribution] .cost-distribution-select-button {
+            height: 36px;
+            min-width: 61.25px;
+            border: 0;
+            border-radius: 2px;
+            background: #fff;
+            padding: 0 16px;
+            color: #9e9e9e;
+            font-size: 14px;
+            font-weight: 400;
+            line-height: 16.1px;
+            box-shadow: none;
+          }
+          [data-cost-distribution] .cost-distribution-table {
+            margin: 0 0 12px;
+            overflow: hidden;
+            border: 0.8px solid #e8e8e8;
+            border-radius: 8px;
+            background: #fff;
+          }
+          [data-cost-distribution] .cost-distribution-table table {
+            width: 100%;
+            table-layout: fixed;
+            color: rgba(0, 0, 0, 0.65);
+            font-family: Kanit, sans-serif;
+            font-size: 14px;
+            font-weight: 400;
+            letter-spacing: -0.1px;
+            line-height: 22.001px;
+          }
+          [data-cost-distribution] .cost-distribution-table th {
+            height: 90.8px;
+            border: 0;
+            background: #f7f8f9;
+            padding: 12px 16px;
+            color: #000;
+            font-family: Kanit, sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            letter-spacing: -0.1px;
+            line-height: 22.001px;
+            text-align: center;
+            vertical-align: middle;
+            text-transform: none;
+          }
+          [data-cost-distribution] .cost-distribution-table td {
+            border: 0;
+            padding: 12px 16px;
+            color: rgba(0, 0, 0, 0.65);
+            font-size: 14px;
+            font-weight: 400;
+            line-height: 22.001px;
+          }
+          [data-cost-distribution] .cost-distribution-empty-cell {
+            height: 278.8px;
+            padding: 60px 20px !important;
+            text-align: center;
+          }
+          [data-cost-distribution] .cost-distribution-empty-cell > span {
+            color: rgba(0, 0, 0, 0.65);
+            font-size: 14px;
+            font-weight: 400;
+            line-height: 22px;
+            opacity: 0.5;
+          }
+          @media (max-width: 1023px) {
+            [data-cost-distribution] .cost-distribution-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+          }
+          @media (max-width: 639px) {
+            [data-cost-distribution] .cost-distribution-workspace { margin: 24px; }
+            [data-cost-distribution] .cost-distribution-filters { grid-template-columns: minmax(0, 1fr); }
+            [data-cost-distribution] .cost-distribution-filter-footer,
+            [data-cost-distribution] .cost-distribution-actions { align-items: stretch; flex-direction: column; }
+            [data-cost-distribution] .cost-distribution-checkboxes { flex-direction: column; gap: 8px; }
+            [data-cost-distribution] .cost-distribution-search-shell { flex-basis: 40px; width: 100%; }
+          }
+        `}</style>
+        <div className="flex flex-col lg:flex-row">
+          <section className="m-6 flex min-w-0 flex-1 flex-col">
+            <span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl text-white">1</span>
+            <div className="m-2 min-w-0 flex-1"><h2 className="h-10 text-lg font-bold leading-10">ดาวน์โหลดเทมเพลต (*.xlsx)</h2><div className="flex items-end gap-2"><label className="min-w-0 flex-1">โครงสร้างองค์กร<select value={templateOrganizationId} onChange={(event) => setTemplateOrganizationId(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><button type="button" className="h-9 shrink-0 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ดาวน์โหลด</button></div></div>
+          </section>
+          <div className="hidden w-[17px] shrink-0 lg:flex"><div className="mx-2 h-full border-l border-black/[0.12]" /></div>
+          <section className="m-6 flex min-w-0 flex-1 flex-col">
+            <span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl text-white">2</span>
+            <div className="m-2 min-w-0"><h2 className="h-10 text-lg font-bold leading-10">นำเข้าข้อมูล</h2><div className="flex items-center"><button type="button" onClick={() => fileInputRef.current?.click()} className="h-9 shrink-0 rounded-[4px] bg-white px-4 text-sm font-medium leading-9 text-black/87 shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">เลือกไฟล์</button><span className="ml-2 truncate text-black/65">{fileName || "ยังไม่ได้เลือกไฟล์"}</span><input ref={fileInputRef} type="file" accept="application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? "")} /></div></div>
+          </section>
+        </div>
+
+        <div className="border-t border-black/[0.12]" />
+        <section className="cost-distribution-workspace">
+          <div className="cost-distribution-filters">
+            <label className="min-w-0">โครงสร้างองค์กร<select value={organizationId} onChange={(event) => { setOrganizationId(event.target.value); setEmployeeId(""); }} className={controlClass}><option value="">โครงสร้างองค์กรทั้งหมด</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>
+            <label className="min-w-0">ตำแหน่ง<select value={position} onChange={(event) => setPosition(event.target.value)} className={controlClass}><option value="">ตำแหน่งทั้งหมด</option>{positions.map((option) => <option key={option}>{option}</option>)}</select></label>
+            <label className="min-w-0">รายชื่อพนักงาน<select value={employeeId} onChange={(event) => setEmployeeId(event.target.value)} className={controlClass}><option value="">ทั้งหมด</option>{availableEmployees.map((employee) => <option key={employee.id} value={employee.id}>{employee.employeeCode}: {employee.name}</option>)}</select></label>
+            <label className="min-w-0">Cost Center<select value={costCenter} onChange={(event) => setCostCenter(event.target.value)} className={controlClass}><option value="">ทั้งหมด</option>{costCenterOptions.map((option) => <option key={option}>{option}</option>)}</select></label>
+          </div>
+          <div className="cost-distribution-filter-footer"><div className="cost-distribution-checkboxes"><label><input type="checkbox" checked={onlyWithCostCenter} onChange={(event) => { setOnlyWithCostCenter(event.target.checked); if (event.target.checked) setOnlyWithoutCostCenter(false); }} className="size-4 accent-[#1890ff]" />แสดงเฉพาะพนักงานที่ระบุ Cost Center</label><label><input type="checkbox" checked={onlyWithoutCostCenter} onChange={(event) => { setOnlyWithoutCostCenter(event.target.checked); if (event.target.checked) setOnlyWithCostCenter(false); }} className="size-4 accent-[#1890ff]" />แสดงเฉพาะพนักงานที่ไม่ระบุ Cost Center</label></div><button type="button" onClick={applyFilters}>ค้นหา</button></div>
+          <div className="cost-distribution-actions"><div className="cost-distribution-search-shell flex items-center"><input value={employeeSearch} onChange={(event) => setEmployeeSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") applyFilters(); }} placeholder="ค้นหาจากรหัสพนักงานหรือชื่อพนักงาน" className="min-w-0 flex-1 border-0 bg-transparent outline-none" /><button type="button" onClick={applyFilters} aria-label="ค้นหาพนักงาน" className="flex shrink-0 items-center justify-center text-black/45"><Search /></button></div><button type="button" disabled={selectedRows.size === 0} className="cost-distribution-select-button disabled:cursor-not-allowed disabled:bg-white">เลือก</button></div>
+          <div className="cost-distribution-table"><Table><colgroup><col className="w-[5%]" /><col className="w-[35%]" /><col className="w-[50%]" /></colgroup><TableHeader><TableRow><TableHead>ลำดับ</TableHead><TableHead>พนักงาน</TableHead><TableHead>Cost Center</TableHead></TableRow></TableHeader><TableBody>{loading ? <TableRow><TableCell colSpan={3} className="cost-distribution-empty-cell"><span>กำลังโหลดข้อมูล...</span></TableCell></TableRow> : !searched ? <TableRow><TableCell colSpan={3} className="cost-distribution-empty-cell"><span>ยังไม่มีรายชื่อพนักงานกรุณากด &quot;ค้นหา&quot;</span></TableCell></TableRow> : visibleRows.length === 0 ? <TableRow><TableCell colSpan={3} className="cost-distribution-empty-cell"><span>ไม่มีข้อมูล</span></TableCell></TableRow> : visibleRows.map((row, index) => <TableRow key={row.id} className="hover:bg-[#f2fafe]"><TableCell className="text-center"><input type="checkbox" checked={selectedRows.has(row.id)} onChange={() => toggleSelection(row.id)} aria-label={`เลือก ${row.name}`} className="mr-2 size-4 accent-[#1890ff]" />{index + 1}</TableCell><TableCell>{row.employeeCode}: {row.name}</TableCell><TableCell><input value={costCenters[row.id] ?? ""} onChange={(event) => setCostCenters((current) => ({ ...current, [row.id]: event.target.value }))} placeholder="ระบุ Cost Center" className={controlClass} aria-label={`Cost Center ของ ${row.name}`} /></TableCell></TableRow>)}</TableBody></Table></div>
+        </section>
+        <div className="border-t border-black/[0.12]" />
+        <section className="m-6"><h2 className="sub-header mb-3 text-lg font-bold leading-10">ประวัติการนำเข้าข้อมูล</h2><div className="overflow-x-auto rounded-[2px] border-[0.8px] border-[#f0f0f0]"><Table className="min-w-[840px] table-fixed text-sm leading-[22.001px]"><TableHeader><TableRow className="h-[54.8px] bg-[#61a8ff] hover:bg-[#61a8ff]">{["ลำดับ", "File", "วันที่", "จำนวนข้อมูล", "นำเข้าข้อมูล", "อัปเดตข้อมูล", "ข้อมูลผิดพลาด", "ผู้นำเข้า", "Log"].map((label) => <TableHead key={label} className="border-r border-[#f0f0f0] bg-[#61a8ff] p-4 text-center font-medium text-white">{label}</TableHead>)}</TableRow></TableHeader><TableBody><TableRow className="h-40 hover:bg-transparent"><TableCell colSpan={9} className="text-center text-sm text-black/45">ไม่มีข้อมูล</TableCell></TableRow></TableBody></Table></div></section>
+      </CardContent>
+    </Card>
+  );
+}
+
+function OvertimeTypeVisibilityContent({ orgTree, companyId }: { orgTree: OrgNode[]; companyId: string }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [templateOrganizationId, setTemplateOrganizationId] = useState("");
+  const [organizationId, setOrganizationId] = useState("");
+  const [hashtag, setHashtag] = useState("");
+  const [filters, setFilters] = useState({ organizationId: "", hashtag: "" });
+  const [fileName, setFileName] = useState("");
+  const [rows, setRows] = useState<BasicEmployeeRow[]>([]);
+  const [visibility, setVisibility] = useState<Record<string, boolean[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [dirty, setDirty] = useState(false);
+
+  const organizationOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => {
+      if (node.count === undefined && (node.children?.length ?? 0) === 0) {
+        options.push({ id: node.id, label: `${"  ".repeat(depth)}${node.name}` });
+      } else {
+        visit(node.children ?? [], depth + 1);
+      }
+    });
+    visit(orgTree);
+    return options;
+  }, [orgTree]);
+
+  const employeeOrganizationIds = useMemo(() => {
+    const ids = new Map<string, string[]>();
+    const visit = (nodes: OrgNode[]) => nodes.forEach((node) => {
+      if (node.count === undefined && (node.children?.length ?? 0) === 0) {
+        ids.set(node.id, node.organizationIds ?? []);
+      } else {
+        visit(node.children ?? []);
+      }
+    });
+    visit(orgTree);
+    return ids;
+  }, [orgTree]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({ view: "basic" });
+        if (companyId) params.set("companyId", companyId);
+        const response = await fetch(`/api/employee?${params.toString()}`, { cache: "no-store" });
+        if (!response.ok) throw new Error("load failed");
+        const data = (await response.json()) as { employees: BasicEmployeeRow[] };
+        if (cancelled) return;
+        const saved = typeof window === "undefined" ? {} : JSON.parse(window.localStorage.getItem(`ot-type-visibility:${companyId}`) ?? "{}");
+        setRows(data.employees);
+        setVisibility(Object.fromEntries(data.employees.map((employee) => [
+          employee.id,
+          Array.isArray(saved[employee.id]) && saved[employee.id].length === 5 ? saved[employee.id] : [true, true, true, true, true],
+        ])));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [companyId]);
+
+  const visibleRows = rows.filter((row) => {
+    const matchesOrganization = !filters.organizationId || employeeOrganizationIds.get(row.id)?.includes(filters.organizationId);
+    const normalizedHashtag = filters.hashtag.trim().replace(/^#/, "").toLocaleLowerCase();
+    return matchesOrganization && (!normalizedHashtag || row.hashtag.toLocaleLowerCase().includes(normalizedHashtag));
+  });
+  const updateVisibility = (employeeId: string, column: number, checked: boolean) => {
+    setVisibility((current) => ({ ...current, [employeeId]: (current[employeeId] ?? [true, true, true, true, true]).map((value, index) => index === column ? checked : value) }));
+    setDirty(true);
+  };
+  const updateAllVisibility = (employeeId: string, checked: boolean) => {
+    setVisibility((current) => ({ ...current, [employeeId]: [checked, checked, checked, checked, checked] }));
+    setDirty(true);
+  };
+  const updateColumn = (column: number | null, checked: boolean) => {
+    visibleRows.forEach((row) => column === null ? updateAllVisibility(row.id, checked) : updateVisibility(row.id, column, checked));
+  };
+  const save = () => {
+    window.localStorage.setItem(`ot-type-visibility:${companyId}`, JSON.stringify(visibility));
+    setDirty(false);
+  };
+
+  const controlClass = "h-[31.6px] w-full min-w-0 rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 text-sm leading-[22.001px] text-black/65 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+  const cellClass = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] p-2 align-middle text-sm leading-[22.001px] tracking-[-0.1px] text-black/65";
+  const overtimeColumns = [
+    { label: "เปิดโอทีทั้งหมด", column: null },
+    { label: "โอทีล่วงเวลา (x1.0)", column: 0 },
+    { label: "โอทีล่วงเวลา (x1.5)", column: 1 },
+    { label: "โอทีวันหยุด (x2.0)", column: 2 },
+    { label: "โอทีล่วงเวลาวันหยุด (x3.0)", column: 3 },
+  ];
+  const isColumnChecked = (column: number | null) => visibleRows.length > 0 && visibleRows.every((row) => column === null ? visibility[row.id]?.every(Boolean) : visibility[row.id]?.[column]);
+
+  return (
+    <Card data-ot-type-visibility className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white" style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}>
+      <CardInputHeader title="ตั้งค่าการมองเห็นประเภทโอที" />
+      <style>{`
+        [data-ot-type-visibility] .ot-visibility-table table { min-width: 2450px !important; border-collapse: separate; border-spacing: 0; }
+        [data-ot-type-visibility] .ot-visibility-table thead tr,
+        [data-ot-type-visibility] .ot-visibility-table thead th { height: 76.8px !important; vertical-align: middle !important; }
+        [data-ot-type-visibility] .ot-visibility-table tbody tr { height: 38.8px; }
+        [data-ot-type-visibility] .ot-visibility-table { border: 0.8px solid #d9d9d9; }
+        [data-ot-type-visibility] .ot-visibility-table tbody td { color: rgba(0, 0, 0, 0.65); }
+        [data-ot-type-visibility] .ot-visibility-table thead th > div {
+          display: block; min-height: 0; font-weight: 500; line-height: 22.001px;
+        }
+        [data-ot-type-visibility] .ot-visibility-table thead th > div > span { display: block; }
+        [data-ot-type-visibility] .ot-visibility-table thead th > div > label {
+          display: inline-block; margin-top: 0; line-height: 14px; transform: translateY(-1.6875px);
+        }
+        [data-ot-type-visibility] nav[aria-label="แบ่งหน้าตั้งค่าการมองเห็นประเภทโอที"] {
+          padding: 16px 4px 16px 16px;
+        }
+        [data-ot-type-visibility] nav[aria-label="แบ่งหน้าตั้งค่าการมองเห็นประเภทโอที"] > span {
+          color: rgba(0, 0, 0, 0.65); font-weight: 500; line-height: 30px;
+        }
+        [data-ot-type-visibility] .ot-visibility-table thead th:nth-child(2) {
+          position: sticky; left: 80px; z-index: 2;
+        }
+        [data-ot-type-visibility] .ot-visibility-table thead th:nth-child(2) svg {
+          position: absolute; top: 32px; right: 7.8px; display: inline-block; margin: 0; vertical-align: baseline;
+        }
+        [data-ot-type-visibility] .ot-visibility-table tbody td:nth-child(2) {
+          position: sticky; left: 80px; z-index: 1;
+        }
+        [data-ot-type-visibility] .ot-visibility-table input[type="checkbox"] {
+          appearance: none; width: 16px; height: 16px; margin: 0; border: 1px solid #d9d9d9;
+          border-radius: 2px; background: #fff; vertical-align: middle;
+        }
+        [data-ot-type-visibility] .ot-visibility-table input[type="checkbox"]:checked {
+          border-color: #1890ff; background: #1890ff url("data:image/svg+xml,%3Csvg viewBox='0 0 12 12' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.1 6.1 4.7 8.6 9.9 3.4' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px 12px no-repeat;
+        }
+        [data-ot-type-visibility] nav[aria-label="แบ่งหน้าตั้งค่าการมองเห็นประเภทโอที"]::before,
+        [data-ot-type-visibility] nav[aria-label="แบ่งหน้าตั้งค่าการมองเห็นประเภทโอที"]::after {
+          content: ""; display: block; width: 32px; height: 32px; opacity: .25; background: center / 12px 12px no-repeat;
+        }
+        [data-ot-type-visibility] nav[aria-label="แบ่งหน้าตั้งค่าการมองเห็นประเภทโอที"]::before {
+          margin-right: 8px; background-image: url("data:image/svg+xml,%3Csvg viewBox='64 64 896 896' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23000' d='M724 218.3V141c0-6.7-7.7-10.4-12.9-6.3L260.3 486.8a31.86 31.86 0 0 0 0 50.3l450.8 352.1c5.3 4.1 12.9.4 12.9-6.3v-77.3c0-4.9-2.3-9.6-6.1-12.6l-360-281 360-281.1c3.8-3 6.1-7.7 6.1-12.6z'/%3E%3C/svg%3E");
+        }
+        [data-ot-type-visibility] nav[aria-label="แบ่งหน้าตั้งค่าการมองเห็นประเภทโอที"]::after {
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='64 64 896 896' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23000' d='M765.7 486.8 314.9 134.7A7.97 7.97 0 0 0 302 141v77.3c0 4.9 2.3 9.6 6.1 12.6l360 281.1-360 281.1c-3.9 3-6.1 7.7-6.1 12.6V883c0 6.7 7.7 10.4 12.9 6.3l450.8-352.1a31.96 31.96 0 0 0 0-50.4z'/%3E%3C/svg%3E");
+        }
+      `}</style>
+      <CardContent className="card-input-body px-2 py-4">
+        <div className="flex flex-col divide-y divide-black/[0.12] lg:flex-row lg:divide-x lg:divide-y-0">
+          <section className="m-6 flex min-w-0 flex-1 gap-2 py-2 pr-0 lg:pr-6">
+            <span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">1</span>
+            <div className="m-2 min-w-0 flex-1"><h2 className="h-10 text-lg font-bold leading-10 text-[rgba(0,0,0,0.87)]">ดาวน์โหลดเทมเพลต (*.xlsx)</h2><div className="mb-2 flex items-end gap-2"><label className="min-w-0 flex-[0_1_40%] text-sm leading-[22px] text-[rgba(0,0,0,0.87)]">โครงสร้างองค์กร<select value={templateOrganizationId} onChange={(event) => setTemplateOrganizationId(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><div className="flex-[0_1_20%]"><label className="block text-sm leading-[22px]">&nbsp;</label><button type="button" className="h-9 max-w-[100px] rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ดาวน์โหลด</button></div></div></div>
+          </section>
+          <section className="m-6 flex min-w-0 flex-1 gap-2 py-2 pl-0 lg:pl-6">
+            <span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">2</span>
+            <div className="m-2 flex-1"><h2 className="h-10 text-lg font-bold leading-10 text-[rgba(0,0,0,0.87)]">นำเข้าข้อมูล</h2><div className="m-1 flex items-center"><button type="button" onClick={() => fileInputRef.current?.click()} className="h-9 rounded-[4px] bg-white px-4 text-sm font-medium leading-9 text-[rgba(0,0,0,0.87)] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">เลือกไฟล์</button><span className="ml-2 truncate text-sm leading-[22px] text-[rgba(0,0,0,0.65)]">{fileName || "ยังไม่ได้เลือกไฟล์"}</span><input ref={fileInputRef} type="file" accept="application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? "")} /></div></div>
+          </section>
+        </div>
+        <div className="my-6 border-t border-black/[0.12]" />
+        <section className="m-6">
+          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-end"><label className="flex min-w-0 flex-1 flex-col text-sm leading-[22px] text-black/87">โครงสร้างองค์กร<select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><label className="flex min-w-0 flex-1 flex-col text-sm leading-[22px] text-black/87">Hashtag<input value={hashtag} onChange={(event) => setHashtag(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") setFilters({ organizationId, hashtag }); }} placeholder="#Hashtag" className={controlClass} /></label><button type="button" onClick={() => setFilters({ organizationId, hashtag })} className="h-9 min-w-[64px] rounded-[4px] bg-[#2299ff] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-[#1685e8]">ค้นหา</button></div>
+          <div className="ot-visibility-table overflow-hidden rounded-[8px] bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]"><div className="max-h-[60vh] overflow-auto"><Table className="table-fixed font-[Kanit,sans-serif] text-sm leading-[22.001px]"><colgroup>{[80, 250, 180, 180, 180, 180, ...Array(5).fill(280)].map((width, index) => <col key={index} style={{ width }} />)}</colgroup><TableHeader className="sticky top-0 z-10 bg-[#61a8ff]"><TableRow className="bg-[#61a8ff] hover:bg-[#61a8ff]">{["ลำดับ", "ชื่อพนักงาน", "แผนก", "ฝ่ายงาน", "หน่วยงาน", "ตำแหน่ง"].map((column) => <TableHead key={column} className={cn("border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium leading-[22.001px] tracking-[-0.1px] text-white", column === "ชื่อพนักงาน" && "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{column}{column === "ชื่อพนักงาน" && <svg aria-hidden="true" viewBox="64 64 896 896" className="ml-1 inline size-3 align-[-1px] fill-[rgba(0,0,0,0.54)]"><path d="M909.6 854.5 649.9 594.8C690.2 542.7 712 479 712 412c0-80.2-31.3-155.4-87.9-212.1-56.6-56.7-132-87.9-212.1-87.9s-155.5 31.3-212.1 87.9C143.2 256.5 112 331.8 112 412c0 80.1 31.3 155.5 87.9 212.1C256.5 680.8 331.8 712 412 712c67 0 130.6-21.8 182.7-62l259.7 259.6a8.2 8.2 0 0 0 11.6 0l43.6-43.5a8.2 8.2 0 0 0 0-11.6ZM570.4 570.4C528 612.7 471.8 636 412 636s-116-23.3-158.4-65.6C211.3 528 188 471.8 188 412s23.3-116.1 65.6-158.4C296 211.3 352.2 188 412 188s116.1 23.2 158.4 65.6S636 352.2 636 412s-23.3 116.1-65.6 158.4Z" /></svg>}</TableHead>)}{overtimeColumns.map(({ label, column }) => <TableHead key={label} className="border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 align-bottom text-center text-sm font-medium leading-[22.001px] tracking-[-0.1px] text-white"><div className="flex min-h-20 flex-col justify-between text-sm font-normal leading-[19.6px]"><span>{label}</span><label className="mt-2 inline-flex justify-center"><input type="checkbox" checked={isColumnChecked(column)} onChange={(event) => updateColumn(column, event.target.checked)} aria-label={`เลือก${label}ทั้งหมด`} /></label></div></TableHead>)}</TableRow></TableHeader><TableBody>{loading ? <TableRow><TableCell colSpan={11} className="h-24 text-center text-black/45">กำลังโหลดข้อมูล...</TableCell></TableRow> : visibleRows.length === 0 ? <TableRow><TableCell colSpan={11} className="h-24 text-center text-black/45">ไม่มีข้อมูล</TableCell></TableRow> : visibleRows.map((row, index) => <TableRow key={row.id} className={cn("border-b-0 bg-white hover:bg-white", index % 2 === 0 ? "[&>td]:bg-[#f2fafe]" : "[&>td]:bg-white")}><TableCell className={`${cellClass} text-center`}>{index + 1}</TableCell><TableCell className={cn(cellClass, "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{row.employeeCode}: {row.name}</TableCell><TableCell className={cellClass}>{row.department}</TableCell><TableCell className={cellClass}>{row.division}</TableCell><TableCell className={cellClass}>{row.unit}</TableCell><TableCell className={cellClass}>{row.position}</TableCell><TableCell className={`${cellClass} text-center`}><input type="checkbox" checked={visibility[row.id]?.every(Boolean) ?? true} onChange={(event) => updateAllVisibility(row.id, event.target.checked)} aria-label={`เปิดโอทีทั้งหมดของ ${row.name}`} /></TableCell>{[0, 1, 2, 3].map((column) => <TableCell key={column} className={`${cellClass} text-center`}><input type="checkbox" checked={visibility[row.id]?.[column] ?? true} onChange={(event) => updateVisibility(row.id, column, event.target.checked)} aria-label={`ตั้งค่าโอทีของ ${row.name}`} /></TableCell>)}</TableRow>)}</TableBody></Table></div>{!loading && visibleRows.length > 0 && <nav className="flex h-16 items-center justify-end px-4" aria-label="แบ่งหน้าตั้งค่าการมองเห็นประเภทโอที"><span className="flex size-8 items-center justify-center rounded-[2px] border border-[#1890ff] bg-white text-sm text-[#1890ff]">1</span></nav>}</div>
+          <p className="mt-0 text-sm leading-[22.001px] tracking-[-0.1px] text-[#ff0000]">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p><div className="mt-3 flex justify-end"><button type="button" onClick={save} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">{dirty ? "บันทึก" : "บันทึก"}</button></div>
+        </section>
+      </CardContent>
+    </Card>
+  );
+}
+
+function LeaveTypeVisibilityContent({ orgTree, companyId }: { orgTree: OrgNode[]; companyId: string }) {
+  const leaveTypes = ["ลากิจพิเศษ", "ลากิจธุระส่วนตัว", "ลาป่วย", "ลาพักร้อน"];
+  const [templateOrganizationId, setTemplateOrganizationId] = useState("");
+  const [filters, setFilters] = useState({ name: "", organizationId: "", position: "", hashtag: "" });
+  const [appliedFilters, setAppliedFilters] = useState(filters);
+  const [fileName, setFileName] = useState("");
+  const [rows, setRows] = useState<BasicEmployeeRow[]>([]);
+  const [visibility, setVisibility] = useState<Record<string, boolean[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [dirty, setDirty] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const organizationOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => {
+      if (node.count !== undefined) options.push({ id: node.id, label: `${"  ".repeat(depth)}${node.code}: ${node.name}` });
+      visit(node.children ?? [], depth + 1);
+    });
+    visit(orgTree);
+    return options;
+  }, [orgTree]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({ view: "basic" });
+        if (companyId) params.set("companyId", companyId);
+        const response = await fetch(`/api/employee?${params.toString()}`, { cache: "no-store" });
+        if (!response.ok) throw new Error("load failed");
+        const data = (await response.json()) as { employees: BasicEmployeeRow[] };
+        const saved = JSON.parse(window.localStorage.getItem(`leave-type-visibility:${companyId}`) ?? "{}") as Record<string, boolean[]>;
+        if (cancelled) return;
+        setRows(data.employees);
+        setVisibility(Object.fromEntries(data.employees.map((employee) => [
+          employee.id,
+          Array.isArray(saved[employee.id]) && saved[employee.id].length === leaveTypes.length ? saved[employee.id] : Array(leaveTypes.length).fill(true),
+        ])));
+      } catch {
+        if (!cancelled) setRows([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [companyId, leaveTypes.length]);
+
+  const positionOptions = useMemo(() => [...new Set(rows.map((row) => row.position).filter(Boolean))], [rows]);
+  const visibleRows = useMemo(() => {
+    const name = appliedFilters.name.trim().toLocaleLowerCase();
+    const hashtag = appliedFilters.hashtag.trim().replace(/^#/, "").toLocaleLowerCase();
+    return rows.filter((row) =>
+      (!name || `${row.employeeCode} ${row.name}`.toLocaleLowerCase().includes(name)) &&
+      (!appliedFilters.organizationId || row.organizationIds.includes(appliedFilters.organizationId)) &&
+      (!appliedFilters.position || row.position === appliedFilters.position) &&
+      (!hashtag || row.hashtag.toLocaleLowerCase().includes(hashtag)),
+    );
+  }, [appliedFilters, rows]);
+
+  const updateVisibility = (employeeId: string, column: number, checked: boolean) => {
+    setVisibility((current) => ({
+      ...current,
+      [employeeId]: (current[employeeId] ?? Array(leaveTypes.length).fill(true)).map((value, index) => index === column ? checked : value),
+    }));
+    setDirty(true);
+  };
+  const setEmployeeVisibility = (employeeId: string, checked: boolean) => {
+    setVisibility((current) => ({ ...current, [employeeId]: Array(leaveTypes.length).fill(checked) }));
+    setDirty(true);
+  };
+  const setColumnVisibility = (column: number | null, checked: boolean) => {
+    setVisibility((current) => ({ ...current, ...Object.fromEntries(visibleRows.map((row) => [
+      row.id,
+      column === null
+        ? Array(leaveTypes.length).fill(checked)
+        : (current[row.id] ?? Array(leaveTypes.length).fill(true)).map((value, index) => index === column ? checked : value),
+    ])) }));
+    setDirty(true);
+  };
+  const columnChecked = (column: number | null) => visibleRows.length > 0 && visibleRows.every((row) => column === null ? visibility[row.id]?.every(Boolean) : visibility[row.id]?.[column]);
+  const save = () => {
+    window.localStorage.setItem(`leave-type-visibility:${companyId}`, JSON.stringify(visibility));
+    setDirty(false);
+  };
+
+  const controlClass = "h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] text-sm leading-[22px] text-black/65 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+  const headClass = "!h-[76.8px] normal-case !tracking-[-0.1px] border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium leading-[22.001px] text-white";
+  const cellClass = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] p-2 align-middle text-sm leading-[22.001px] tracking-[-0.1px] text-black/65";
+
+  return (
+    <Card data-leave-type-visibility className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white" style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}>
+      <CardInputHeader title="ตั้งค่าการมองเห็นประเภทการลา" />
+      <CardContent className="card-input-body px-2 py-4">
+        <style>{`
+          [data-leave-type-visibility] .leave-visibility-table table {
+            width: 2450px !important;
+            min-width: 2450px !important;
+            border-collapse: separate;
+            border-spacing: 0;
+          }
+          [data-leave-type-visibility] .leave-visibility-table thead tr,
+          [data-leave-type-visibility] .leave-visibility-table thead th {
+            height: 76.8px !important;
+            vertical-align: middle !important;
+          }
+          [data-leave-type-visibility] .leave-visibility-table tbody tr,
+          [data-leave-type-visibility] .leave-visibility-table tbody td {
+            height: 38.8px !important;
+          }
+          [data-leave-type-visibility] .leave-visibility-table tbody tr {
+            border-bottom-width: 0 !important;
+          }
+          [data-leave-type-visibility] .leave-visibility-table input[type="checkbox"] {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            margin: 0;
+            border: 1px solid #d9d9d9;
+            border-radius: 2px;
+            background: #fff;
+            vertical-align: middle;
+          }
+          [data-leave-type-visibility] .leave-visibility-table input[type="checkbox"]:checked {
+            border-color: #1890ff;
+            background: #1890ff url("data:image/svg+xml,%3Csvg viewBox='0 0 12 12' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.1 6.1 4.7 8.6 9.9 3.4' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px 12px no-repeat;
+          }
+        `}</style>
+        <div className="flex flex-col divide-y divide-black/[0.12] lg:flex-row lg:divide-x lg:divide-y-0">
+          <section className="m-6 flex min-w-0 flex-1 gap-2 py-2 pr-0 lg:pr-6"><span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl text-white">1</span><div className="m-2 min-w-0 flex-1"><h2 className="h-10 text-lg font-bold leading-10">ดาวน์โหลดเทมเพลต (*.xlsx)</h2><div className="mb-2 flex items-end gap-2"><label className="min-w-0 flex-[0_1_40%] text-sm leading-[22px]">โครงสร้างองค์กร<select value={templateOrganizationId} onChange={(event) => setTemplateOrganizationId(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><button type="button" className="h-9 max-w-[100px] rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ดาวน์โหลด</button></div></div></section>
+          <section className="m-6 flex min-w-0 flex-1 gap-2 py-2 pl-0 lg:pl-6"><span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl text-white">2</span><div className="m-2 min-w-0 flex-1"><h2 className="h-10 text-lg font-bold leading-10">นำเข้าข้อมูล</h2><div className="flex h-8 items-center text-sm"><button type="button" onClick={() => fileInputRef.current?.click()} className="h-9 rounded-[4px] bg-white px-4 text-sm font-medium shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">เลือกไฟล์</button><span className="ml-2 text-black/65">{fileName || "ยังไม่ได้เลือกไฟล์"}</span><input ref={fileInputRef} type="file" accept="application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? "")} /></div></div></section>
+        </div>
+        <div className="my-6 border-t border-black/[0.12]" />
+        <section className="m-6">
+          <div className="mb-2 grid gap-2 md:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end"><label className="text-sm leading-[22px]">ชื่อพนักงาน<input value={filters.name} onChange={(event) => setFilters((current) => ({ ...current, name: event.target.value }))} placeholder="ค้นหาชื่อพนักงาน..." className={controlClass} /></label><label className="text-sm leading-[22px]">โครงสร้างองค์กร<select value={filters.organizationId} onChange={(event) => setFilters((current) => ({ ...current, organizationId: event.target.value }))} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><label className="text-sm leading-[22px]">โครงสร้างตำแหน่ง<select value={filters.position} onChange={(event) => setFilters((current) => ({ ...current, position: event.target.value }))} className={controlClass}><option value="">โครงสร้างตำแหน่ง</option>{positionOptions.map((position) => <option key={position}>{position}</option>)}</select></label><label className="text-sm leading-[22px]">Hashtag<input value={filters.hashtag} onChange={(event) => setFilters((current) => ({ ...current, hashtag: event.target.value }))} onKeyDown={(event) => { if (event.key === "Enter") setAppliedFilters(filters); }} placeholder="#Hashtag" className={controlClass} /></label><button type="button" onClick={() => setAppliedFilters(filters)} className="h-9 rounded-[4px] bg-[#2299ff] px-4 text-sm font-semibold text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ค้นหา</button></div>
+          <div className="leave-visibility-table overflow-hidden border-[0.8px] border-[#d9d9d9] shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]"><div className="max-h-[60vh] overflow-auto"><Table className="w-[2450px] min-w-[2450px] table-fixed text-sm"><colgroup>{[80, 250, 180, 180, 180, 180, ...Array(5).fill(280)].map((width, index) => <col key={index} style={{ width }} />)}</colgroup><TableHeader className="sticky top-0 z-10"><TableRow className="!h-[76.8px] border-b-0 bg-[#61a8ff] hover:bg-[#61a8ff]">{["ลำดับ", "ชื่อพนักงาน", "แผนก", "ฝ่ายงาน", "หน่วยงาน", "ตำแหน่ง"].map((column) => <TableHead key={column} className={cn(headClass, column === "ชื่อพนักงาน" && "sticky left-[80px] z-20 shadow-[4px_0_20px_-8px_rgba(0,0,0,0.25)]")}>{column}{column === "ชื่อพนักงาน" && <Search className="ml-1 inline size-3 align-[-1px]" />}</TableHead>)}{["เปิด/ปิดทั้งหมด", ...leaveTypes].map((label, index) => <TableHead key={label} className={headClass}><div className="flex min-h-12 flex-col justify-between"><span>{label}</span><input type="checkbox" checked={columnChecked(index === 0 ? null : index - 1)} onChange={(event) => setColumnVisibility(index === 0 ? null : index - 1, event.target.checked)} aria-label={`เลือก${label}ทั้งหมด`} className="mx-auto size-4" /></div></TableHead>)}</TableRow></TableHeader><TableBody>{loading ? <TableRow><TableCell colSpan={11} className="h-24 text-center text-black/45">กำลังโหลดข้อมูล...</TableCell></TableRow> : visibleRows.length === 0 ? <TableRow><TableCell colSpan={11} className="h-24 text-center text-black/45">ไม่มีข้อมูล</TableCell></TableRow> : visibleRows.map((row, index) => <TableRow key={row.id} className={cn("!h-[38.8px] border-b-0 hover:bg-transparent", index % 2 === 0 ? "[&>td]:bg-[#f2fafe]" : "[&>td]:bg-white")}><TableCell className={`${cellClass} text-center`}>{index + 1}</TableCell><TableCell className={cn(cellClass, "sticky left-[80px] z-10 shadow-[4px_0_20px_-8px_rgba(0,0,0,0.25)]")}>{row.employeeCode}: {row.name}</TableCell><TableCell className={cellClass}>{row.department}</TableCell><TableCell className={cellClass}>{row.division}</TableCell><TableCell className={cellClass}>{row.unit}</TableCell><TableCell className={cellClass}>{row.position}</TableCell><TableCell className={`${cellClass} text-center`}><input type="checkbox" checked={visibility[row.id]?.every(Boolean) ?? true} onChange={(event) => setEmployeeVisibility(row.id, event.target.checked)} aria-label={`เปิดหรือปิดประเภทการลาทั้งหมดของ ${row.name}`} className="size-4" /></TableCell>{leaveTypes.map((type, column) => <TableCell key={type} className={`${cellClass} text-center`}><input type="checkbox" checked={visibility[row.id]?.[column] ?? true} onChange={(event) => updateVisibility(row.id, column, event.target.checked)} aria-label={`แสดง${type}สำหรับ ${row.name}`} className="size-4" /></TableCell>)}</TableRow>)}</TableBody></Table></div><div className="flex items-center justify-between border-t border-[#f0f0f0] px-4 py-2"><span className="text-sm text-black/65">หมายเหตุ: รายการนี้จะแสดงเฉพาะประเภทการลาที่เปิดใช้งานเท่านั้น และยกเว้นประเภทการลาที่มีรหัสอ้างอิง 09</span><span className="flex size-8 items-center justify-center rounded-[2px] border border-[#1890ff] text-sm text-[#1890ff]">1</span></div></div>
+          <p className="mt-2 text-sm leading-[22px] text-red-600">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p><div className="mt-3 flex justify-end"><button type="button" onClick={save} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">{dirty ? "บันทึก" : "บันทึก"}</button></div>
+        </section>
+        <div className="mx-6 border-t border-black/[0.12]" />
+        <section className="m-6"><h2 className="sub-header mb-2 text-lg font-medium">ประวัติการนำเข้าตั้งค่าการมองเห็นประเภทการลา</h2><div className="overflow-x-auto border border-[#f0f0f0]"><Table className="min-w-[720px] table-fixed text-sm"><TableHeader><TableRow className="bg-[#61a8ff] hover:bg-[#61a8ff]">{["วันที่", "จำนวนข้อมูล", "นำเข้าข้อมูล", "อัพเดตข้อมูล", "ลบข้อมูล", "ข้อมูลผิดพลาด", ""].map((column, index) => <TableHead key={index} className={headClass}>{column}</TableHead>)}</TableRow></TableHeader><TableBody><TableRow><TableCell colSpan={7} className="h-28 text-center text-black/45">ไม่มีข้อมูล</TableCell></TableRow></TableBody></Table></div></section>
+      </CardContent>
+    </Card>
+  );
+}
+
+function HashtagSettingsContent({ orgTree, companyId }: { orgTree: OrgNode[]; companyId: string }) {
+  const [organizationId, setOrganizationId] = useState("");
+  const [hashtag, setHashtag] = useState("");
+  const [filters, setFilters] = useState({ organizationId: "", hashtag: "" });
+  const [rows, setRows] = useState<BasicEmployeeRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dirtyIds, setDirtyIds] = useState<Set<string>>(() => new Set());
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+  const organizationOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => {
+      if (node.count !== undefined) options.push({ id: node.id, label: `${"  ".repeat(depth)}${node.code}: ${node.name}` });
+      visit(node.children ?? [], depth + 1);
+    });
+    visit(orgTree);
+    return options;
+  }, [orgTree]);
+
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ view: "basic" });
+      if (companyId) params.set("companyId", companyId);
+      const response = await fetch(`/api/employee?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("load failed");
+      const data = (await response.json()) as { employees: BasicEmployeeRow[] };
+      setRows(data.employees);
+      setDirtyIds(new Set());
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadRows(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadRows]);
+
+  const visibleRows = useMemo(() => {
+    const normalizedHashtag = filters.hashtag.trim().replace(/^#/, "").toLocaleLowerCase();
+    return rows.filter((row) => {
+      const matchesOrganization = !filters.organizationId || row.organizationIds.includes(filters.organizationId);
+      return matchesOrganization && (!normalizedHashtag || row.hashtag.toLocaleLowerCase().includes(normalizedHashtag));
+    });
+  }, [filters, rows]);
+
+  const updateHashtag = (id: string, value: string) => {
+    setRows((current) => current.map((row) => row.id === id ? { ...row, hashtag: value } : row));
+    setDirtyIds((current) => new Set(current).add(id));
+    setSaveState("idle");
+  };
+
+  const save = async () => {
+    const changedRows = rows.filter((row) => dirtyIds.has(row.id));
+    if (changedRows.length === 0) return;
+    setSaveState("saving");
+    try {
+      const responses = await Promise.all(changedRows.map((row) => fetch(`/api/employee/${row.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ hashtag: row.hashtag }),
+      })));
+      if (responses.some((response) => !response.ok)) throw new Error("save failed");
+      setDirtyIds(new Set());
+      setSaveState("saved");
+      window.setTimeout(() => setSaveState("idle"), 1600);
+    } catch {
+      setSaveState("error");
+    }
+  };
+
+  const controlClass = "h-[31.6px] w-full min-w-0 rounded-[2px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 text-sm leading-[22.001px] text-black/65 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+  const tableInputClass = "h-[31.6px] w-full min-w-0 rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 text-sm leading-[22.001px] tracking-normal text-black/65 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+  const headClass = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium leading-[22.001px] text-white";
+  const cellClass = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] p-2 align-middle text-sm leading-[22.001px] text-black/65";
+
+  return (
+    <Card
+      className="card-input-container relative mx-4 mb-0 overflow-hidden rounded-lg border-0 bg-white text-sm font-normal leading-[22.001px] tracking-[-0.1px] text-[rgba(0,0,0,0.87)]"
+      style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}
+      >
+      <CardInputHeader title="ตั้งค่า Hashtag" />
+      <CardContent className="card-input-body px-2 py-4 text-sm font-normal leading-[22.001px] tracking-[-0.1px] text-[rgba(0,0,0,0.87)]">
+        <div className="m-6">
+          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+            <label className="flex min-w-0 flex-1 flex-col text-sm leading-[22px] text-black/87">โครงสร้างองค์กร
+              <select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className={controlClass}>
+                <option value="">โครงสร้างองค์กร</option>
+                {organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+              </select>
+            </label>
+            <label className="flex min-w-0 flex-1 flex-col text-sm leading-[22px] text-black/87">Hashtag
+              <input value={hashtag} onChange={(event) => setHashtag(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") setFilters({ organizationId, hashtag }); }} placeholder="#Hashtag" className={controlClass} />
+            </label>
+            <button type="button" onClick={() => setFilters({ organizationId, hashtag })} className="h-9 min-w-[64px] rounded-[4px] bg-[#2299ff] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-[#1685e8]">ค้นหา</button>
+          </div>
+
+          <div className="fix-column-table hashtag-settings-table overflow-hidden rounded-[8px] bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)] [&>div]:h-[466px] [&>div]:border-[0.8px] [&>div]:border-[#f0f0f0]">
+            <Table className="min-w-[1180px] table-fixed font-[Kanit,sans-serif] text-sm leading-[22.001px]">
+              <colgroup>{[80, 250, 150, 150, 150, 150, 250].map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
+              <TableHeader className="sticky top-0 z-10 bg-[#61a8ff]"><TableRow className="h-[54.8px] bg-[#61a8ff] hover:bg-[#61a8ff]"><TableHead className={headClass}>ลำดับ</TableHead><TableHead className={cn(headClass, "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>ชื่อพนักงาน <Search className="ml-1 inline size-3 align-[-1px]" /></TableHead>{(["แผนก", "ฝ่ายงาน", "หน่วยงาน", "ตำแหน่ง", "Hashtag"] as const).map((column) => <TableHead key={column} className={headClass}>{column}</TableHead>)}</TableRow></TableHeader>
+              <TableBody>{loading ? <TableRow><TableCell colSpan={7} className="h-24 text-center text-black/45">กำลังโหลดข้อมูล...</TableCell></TableRow> : visibleRows.length === 0 ? <TableRow><TableCell colSpan={7} className="h-24 text-center text-black/45">ไม่มีข้อมูล</TableCell></TableRow> : visibleRows.map((row, index) => <TableRow key={row.id} className={cn("!h-[48.8px] border-b-0 hover:bg-transparent", index % 2 === 0 ? "[&>td]:bg-[#f2fafe]" : "[&>td]:bg-white")}><TableCell className={`${cellClass} text-center`}>{index + 1}</TableCell><TableCell className={cn(cellClass, "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{row.employeeCode}: {row.name}</TableCell><TableCell className={cellClass}>{row.department}</TableCell><TableCell className={cellClass}>{row.division}</TableCell><TableCell className={cellClass}>{row.unit}</TableCell><TableCell className={cellClass}>{row.position}</TableCell><TableCell className={cellClass}><input value={row.hashtag} onChange={(event) => updateHashtag(row.id, event.target.value)} placeholder="#Hashtag" className={tableInputClass} aria-label={`Hashtag ของ ${row.name}`} /></TableCell></TableRow>)}</TableBody>
+            </Table>
+            {!loading && visibleRows.length > 0 && <nav className="flex h-16 items-center justify-end px-4" aria-label="แบ่งหน้าตั้งค่า Hashtag"><span className="flex size-8 items-center justify-center rounded-[2px] border border-[#1890ff] bg-white text-sm text-[#1890ff]">1</span></nav>}
+          </div>
+          <p className="text-sm leading-[22.001px] text-[#ff0000]">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p>
+          <div className="mt-3 flex justify-end"><button type="button" onClick={() => void save()} disabled={saveState === "saving"} className="h-9 min-w-[64px] rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] disabled:opacity-60">{saveState === "saving" ? "กำลังบันทึก..." : saveState === "saved" ? "บันทึกแล้ว" : saveState === "error" ? "บันทึกไม่สำเร็จ" : "บันทึก"}</button></div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function WelfareSettingsContent({ orgTree }: { orgTree: OrgNode[] }) {
+  const importFileRef = useRef<HTMLInputElement>(null);
+  const [templateOrganizationId, setTemplateOrganizationId] = useState("");
+  const [templateWelfareType, setTemplateWelfareType] = useState("");
+  const [balanceYear, setBalanceYear] = useState("");
+  const [importYear, setImportYear] = useState("");
+  const [importFileName, setImportFileName] = useState("");
+  const [year, setYear] = useState("");
+  const [organizationId, setOrganizationId] = useState("");
+  const [welfareType, setWelfareType] = useState("");
+  const [hashtag, setHashtag] = useState("");
+  const [hasSearched, setHasSearched] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  const organizationOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => {
+      options.push({ id: node.id, label: `${"\u00a0\u00a0".repeat(depth)}${node.name}` });
+      visit(node.children ?? [], depth + 1);
+    });
+    visit(orgTree);
+    return options;
+  }, [orgTree]);
+  const years = useMemo(() => Array.from({ length: 11 }, (_, index) => String(2565 + index)), []);
+  const welfareTypes = ["ค่ารักษาพยาบาล", "ค่าเดินทาง", "ค่าอาหาร", "สวัสดิการอื่น ๆ"];
+  const controlClass = "mt-0.5 h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] text-sm leading-[22px] text-black/85 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)] disabled:cursor-not-allowed disabled:bg-[#f5f5f5] disabled:text-black/25";
+  const headClass = "h-[54.8px] border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium leading-[22.001px] tracking-[-0.1px] text-white";
+  const canDownload = Boolean(templateOrganizationId && templateWelfareType);
+  const canSelectFile = Boolean(importYear);
+  const canSearch = Boolean(year && welfareType);
+  const yearSelect = (value: string, onChange: (value: string) => void, placeholder: string, testId?: string) => (
+    <select data-testid={testId} value={value} onChange={(event) => { onChange(event.target.value); setSaved(false); }} className={controlClass}>
+      <option value="">{placeholder}</option>
+      {years.map((option) => <option key={option} value={option}>{option}</option>)}
+    </select>
+  );
+
+  return (
+    <Card
+      data-welfare-settings
+      className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white"
+      style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}
+    >
+      <CardInputHeader title="ตั้งค่าสวัสดิการ" />
+      <style>{`
+        [data-welfare-settings] .card-input-body {
+          color: rgba(0, 0, 0, 0.87);
+          font-family: Kanit, sans-serif;
+          font-size: 14px;
+          font-weight: 400;
+          letter-spacing: -0.1px;
+          line-height: 22.001px;
+        }
+        [data-welfare-settings] .welfare-main-table {
+          width: calc(100% + 3.2px);
+          overflow: hidden;
+          border: 0;
+          border-top: 0.8px solid #f0f0f0;
+          border-left: 0.8px solid #f0f0f0;
+          border-radius: 2px;
+          background: #fff;
+          box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2), 0px 1px 1px 0px rgba(0, 0, 0, 0.14), 0px 1px 3px 0px rgba(0, 0, 0, 0.12);
+        }
+        [data-welfare-settings] .welfare-history-table {
+          width: calc(100% + 3.2px);
+          overflow: hidden;
+          border: 0.8px solid #f0f0f0;
+          border-radius: 2px;
+          background: #fff;
+          box-shadow: 0px 2px 1px -1px rgba(0, 0, 0, 0.2), 0px 1px 1px 0px rgba(0, 0, 0, 0.14), 0px 1px 3px 0px rgba(0, 0, 0, 0.12);
+        }
+        [data-welfare-settings] .welfare-main-table > div,
+        [data-welfare-settings] .welfare-history-table > div {
+          overflow: visible;
+        }
+        [data-welfare-settings] .welfare-main-table table {
+          width: 100%;
+          min-width: 0;
+          table-layout: auto;
+          border-collapse: separate;
+          border-spacing: 0;
+          color: rgba(0, 0, 0, 0.65);
+          font-family: Kanit, sans-serif;
+          font-size: 14px;
+          font-weight: 400;
+          letter-spacing: -0.1px;
+          line-height: 22.001px;
+        }
+        [data-welfare-settings] .welfare-history-table table {
+          width: calc(100% + 0.8px);
+          min-width: 0;
+          table-layout: auto;
+          color: rgba(0, 0, 0, 0.65);
+          font-family: Kanit, sans-serif;
+          font-size: 14px;
+          font-weight: 400;
+          letter-spacing: -0.1px;
+          line-height: 22.001px;
+        }
+        [data-welfare-settings] .welfare-main-table thead tr {
+          height: 98.8px;
+          background: #61a8ff;
+        }
+        [data-welfare-settings] .welfare-main-table th,
+        [data-welfare-settings] .welfare-history-table th {
+          height: auto;
+          padding: 16px;
+          border: 0;
+          border-right: 0.8px solid #f0f0f0;
+          border-bottom: 0.8px solid #f0f0f0;
+          background: transparent;
+          color: #fff;
+          font-family: Kanit, sans-serif;
+          font-size: 14px;
+          font-weight: 500;
+          letter-spacing: -0.1px;
+          line-height: 22.001px;
+          text-align: center;
+          text-transform: none;
+          vertical-align: middle;
+        }
+        [data-welfare-settings] .welfare-main-table td,
+        [data-welfare-settings] .welfare-history-table td {
+          border: 0;
+          border-right: 0.8px solid #f0f0f0;
+          border-bottom: 0.8px solid #f0f0f0;
+          letter-spacing: -0.1px;
+        }
+        [data-welfare-settings] .welfare-main-table .welfare-empty-cell {
+          height: 150.8px;
+          padding: 8px;
+          background: #fff;
+          color: rgba(0, 0, 0, 0.65);
+          font-family: Kanit, sans-serif;
+          font-size: 14px;
+          font-weight: 400;
+          line-height: 22.001px;
+        }
+        [data-welfare-settings] .welfare-main-table .welfare-empty-description,
+        [data-welfare-settings] .welfare-history-table .welfare-empty-description {
+          margin: 0;
+          color: rgba(0, 0, 0, 0.25);
+          font-family: Kanit, sans-serif;
+          font-size: 14px;
+          font-weight: 400;
+          letter-spacing: -0.1px;
+          line-height: 22px;
+        }
+        [data-welfare-settings] .welfare-history-title {
+          margin: 0;
+          color: rgba(0, 0, 0, 0.87);
+          font-family: Kanit, sans-serif;
+          font-size: 18px;
+          font-weight: 700;
+          letter-spacing: -0.1px;
+          line-height: 28.287px;
+        }
+        [data-welfare-settings] .welfare-section-divider {
+          margin: 12px 0;
+        }
+        [data-welfare-settings] .welfare-template-fields > label > select {
+          margin-top: 8px;
+        }
+        [data-welfare-settings] .welfare-template-fields > .grid select {
+          margin-top: 0;
+        }
+      `}</style>
+      <CardContent className="card-input-body px-2 py-4 text-sm font-normal leading-[22.001px] tracking-[-0.1px] text-[rgba(0,0,0,0.87)]">
+        <div className="welfare-import-panel flex min-h-[276.1875px] flex-col divide-y divide-black/[0.12] lg:flex-row lg:divide-x lg:divide-y-0">
+          <section className="m-6 flex min-w-0 flex-1 flex-col">
+            <span className="import-no mb-4 flex size-10 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">1</span>
+            <div className="min-w-0 flex-1">
+              <h2 className="h-10 text-lg font-bold leading-10">ดาวน์โหลดเทมเพลต (*.xlsx)</h2>
+              <div className="welfare-template-fields mb-2 flex flex-col gap-2">
+                <label className="text-sm leading-[22px]">โครงสร้างองค์กร <span className="text-red-600">*</span>
+                  <select value={templateOrganizationId} onChange={(event) => { setTemplateOrganizationId(event.target.value); setSaved(false); }} className={controlClass}>
+                    <option value="">โครงสร้างองค์กร</option>
+                    {organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                  </select>
+                </label>
+                <div className="grid items-end gap-2 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
+                  <label className="text-sm leading-[22px]">ประเภทสวัสดิการ <span className="text-red-600">*</span>
+                    <select value={templateWelfareType} onChange={(event) => { setTemplateWelfareType(event.target.value); setSaved(false); }} className={controlClass}>
+                      <option value="">ประเภทสวัสดิการ</option>
+                      {welfareTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                    </select>
+                  </label>
+                  <label className="text-sm leading-[22px]">ดึงยอดคงเหลือ
+                    {yearSelect(balanceYear, setBalanceYear, "เลือกปี")}
+                  </label>
+                  <button type="button" disabled={!canDownload} onClick={() => setSaved(false)} className="h-9 max-w-[100px] rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] disabled:bg-[#bfbfbf]">ดาวน์โหลด</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="m-6 flex min-w-0 flex-1 flex-col">
+            <span className="import-no mb-4 flex size-10 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">2</span>
+            <div className="min-w-0">
+              <h2 className="h-10 text-lg font-bold leading-10">นำเข้าข้อมูล</h2>
+              <div className="flex gap-2">
+                <label className="min-w-0 flex-1 text-sm leading-[22px]">ปี <span className="text-red-600">*</span>
+                  {yearSelect(importYear, setImportYear, "กรุณาเลือกปี", "wcl-import-year-picker")}
+                </label>
+                <div className="flex min-w-0 flex-1 flex-col justify-end pb-0.5">
+                  <button data-testid="wcl-import-select-file-btn" type="button" disabled={!canSelectFile} onClick={() => importFileRef.current?.click()} className="h-9 w-fit rounded-[4px] bg-white px-4 text-sm font-medium leading-9 text-black/87 shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] disabled:bg-[#f5f5f5] disabled:text-black/25">เลือกไฟล์</button>
+                  {importFileName && <span className="mt-1 truncate text-xs leading-4 text-black/65">{importFileName}</span>}
+                  <input ref={importFileRef} type="file" accept="application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(event) => { setImportFileName(event.target.files?.[0]?.name ?? ""); setSaved(false); }} />
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div className="welfare-section-divider border-t border-black/[0.12]" />
+        <div className="m-6 mb-0">
+          <div className="mb-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-[repeat(4,minmax(0,1fr))_auto] xl:items-end">
+            <label className="text-sm leading-[22px]">ปี <span className="text-red-600">*</span>
+              {yearSelect(year, setYear, "เลือกปี")}
+            </label>
+            <label className="text-sm leading-[22px]">โครงสร้างองค์กร
+              <select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className={controlClass}>
+                <option value="">โครงสร้างองค์กร</option>
+                {organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+              </select>
+            </label>
+            <label className="text-sm leading-[22px]">ประเภทสวัสดิการ <span className="text-red-600">*</span>
+              <select data-testid="wcl-bulk-type-select" value={welfareType} onChange={(event) => { setWelfareType(event.target.value); setSaved(false); }} className={controlClass}>
+                <option value="">ประเภทสวัสดิการ</option>
+                {welfareTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
+            </label>
+            <label className="text-sm leading-[22px]">Hashtag
+              <input value={hashtag} onChange={(event) => setHashtag(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && canSearch) setHasSearched(true); }} placeholder="#Hashtag" className={controlClass} />
+            </label>
+            <button data-testid="wcl-bulk-search-btn" type="button" disabled={!canSearch} onClick={() => { setHasSearched(true); setSaved(false); }} className="h-9 rounded-[4px] bg-[#2299ff] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] disabled:bg-[#bfbfbf]">ค้นหา</button>
+          </div>
+
+          <div className="welfare-main-table">
+            <Table className="table-auto text-sm leading-[22.001px]">
+              <colgroup>{[8, 15, 12, 12, 12, 10, 10, 10, 10, 10, 10].map((width, index) => <col key={index} style={{ width: `${width}%`, minWidth: `${width}%` }} />)}</colgroup>
+              <TableHeader><TableRow className="bg-[#61a8ff] hover:bg-[#61a8ff]">{["ลำดับ", "พนักงาน", "บริษัท", "แผนก", "ตำแหน่ง", "ยกมา", "วงเงิน", "วงเงินต่อฉบับ", "ใช้ไป", "คงเหลือ", ""].map((header, index) => <TableHead key={`${header}-${index}`} className={headClass}>{header}{header === "พนักงาน" && <svg aria-hidden="true" viewBox="64 64 896 896" className="ml-1 inline size-[14px] align-[-2px] fill-current"><path d="M909.6 854.5 649.9 594.8C690.2 542.7 712 479 712 412c0-80.2-31.3-155.4-87.9-212.1-56.6-56.7-132-87.9-212.1-87.9s-155.5 31.3-212.1 87.9C143.2 256.5 112 331.8 112 412c0 80.1 31.3 155.5 87.9 212.1C256.5 680.8 331.8 712 412 712c67 0 130.6-21.8 182.7-62l259.7 259.6a8.2 8.2 0 0 0 11.6 0l43.6-43.5a8.2 8.2 0 0 0 0-11.6zM570.4 570.4C528 612.7 471.8 636 412 636s-116-23.3-158.4-65.6C211.3 528 188 471.8 188 412s23.3-116.1 65.6-158.4C296 211.3 352.2 188 412 188s116.1 23.2 158.4 65.6S636 352.2 636 412s-23.3 116.1-65.6 158.4Z" /></svg>}{header === "วงเงินต่อฉบับ" && <svg aria-hidden="true" viewBox="64 64 896 896" className="ml-1 inline size-[14px] align-[-2px] fill-current"><path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 820c-205.4 0-372-166.6-372-372s166.6-372 372-372 372 166.6 372 372-166.6 372-372 372z" /><path d="M464 336a48 48 0 1096 0 48 48 0 10-96 0zm72 112h-48c-4.4 0-8 3.6-8 8v272c0 4.4 3.6 8 8 8h48c4.4 0 8-3.6 8-8V456c0-4.4-3.6-8-8-8z" /></svg>}</TableHead>)}</TableRow></TableHeader>
+              <TableBody><TableRow className="hover:bg-transparent"><TableCell colSpan={11} className="welfare-empty-cell text-center"><div className="flex flex-col items-center justify-center"><svg width="64" height="41" viewBox="0 0 64 41" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(0 1)" fill="none" fillRule="evenodd"><ellipse cx="32" cy="33" rx="32" ry="7" fill="#f5f5f5" /><g fillRule="nonzero" fill="#fafafa"><path d="M55 12.76 44.854 1.258C44.367.474 43.656 0 42.907 0H21.093c-.749 0-1.46.474-1.947 1.257L9 12.761V22h46v-9.24z" /><path d="M41.613 15.931c0-1.605.994-2.93 2.227-2.931H55v18.137C55 33.26 53.68 35 52.05 35h-40.1C10.32 35 9 33.259 9 31.137V13h11.16c1.233 0 2.227 1.323 2.227 2.928v.022c0 1.605 1.005 2.901 2.237 2.901h14.752c1.232 0 2.237-1.308 2.237-2.913v-.007z" /></g></g></svg><p className="welfare-empty-description">ไม่มีข้อมูล</p></div></TableCell></TableRow></TableBody>
+            </Table>
+          </div>
+          <p className="text-sm leading-[22.001px] text-[#ff0000]">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p>
+          <div className="mt-4 flex justify-end"><button type="button" onClick={() => setSaved(true)} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">{saved ? "บันทึกแล้ว" : "บันทึก"}</button></div>
+        </div>
+
+        <div className="mt-[11px] border-t border-black/[0.12]" />
+        <section className="m-6 mt-[13px]">
+          <div className="welfare-history-title">ประวัติการนำเข้าข้อมูลสวัสดิการ</div>
+          <div className="welfare-history-table mt-[0.8px] max-h-[60vh] overflow-auto">
+            <Table id="tbl-history-welfare-import" className="table-fixed text-sm leading-[22.001px]">
+              <colgroup>{[8, 15, 15, 10, 10, 10, 10, 10].map((width, index) => <col key={index} style={{ width: `${width}%`, minWidth: `${width}%` }} />)}</colgroup>
+              <TableHeader className="sticky top-0 z-10"><TableRow className="bg-[#61a8ff] hover:bg-[#61a8ff]">{["ลำดับ", "File", "วันที่", "จำนวนข้อมูล", "นำเข้าข้อมูล", "อัพเดตข้อมูล", "ข้อมูลผิดพลาด", "Log"].map((header) => <TableHead key={header} className={headClass}>{header}</TableHead>)}</TableRow></TableHeader>
+              <TableBody><TableRow className="h-[150.8px] hover:bg-transparent"><TableCell colSpan={8} className="text-center"><div className="flex flex-col items-center justify-center"><svg width="64" height="41" viewBox="0 0 64 41" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(0 1)" fill="none" fillRule="evenodd"><ellipse cx="32" cy="33" rx="32" ry="7" fill="#f5f5f5" /><g fillRule="nonzero" fill="#fafafa"><path d="M55 12.76 44.854 1.258C44.367.474 43.656 0 42.907 0H21.093c-.749 0-1.46.474-1.947 1.257L9 12.761V22h46v-9.24z" /><path d="M41.613 15.931c0-1.605.994-2.93 2.227-2.931H55v18.137C55 33.26 53.68 35 52.05 35h-40.1C10.32 35 9 33.259 9 31.137V13h11.16c1.233 0 2.227 1.323 2.227 2.928v.022c0 1.605 1.005 2.901 2.237 2.901h14.752c1.232 0 2.237-1.308 2.237-1.913v-.007z" /></g></g></svg><p className="welfare-empty-description">ไม่มีข้อมูล</p></div></TableCell></TableRow></TableBody>
+            </Table>
+          </div>
+        </section>
+      </CardContent>
+    </Card>
+  );
+}
+
+function HistoricalSavingsContent({ orgTree, companyId }: { orgTree: OrgNode[]; companyId: string }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const savingsHeaderScrollRef = useRef<HTMLDivElement>(null);
+  const [templateOrganizationId, setTemplateOrganizationId] = useState("");
+  const [taxYear, setTaxYear] = useState("");
+  const [organizationId, setOrganizationId] = useState("");
+  const [hashtag, setHashtag] = useState("");
+  const [filters, setFilters] = useState({ organizationId: "", hashtag: "" });
+  const [fileName, setFileName] = useState("");
+  const [rows, setRows] = useState<BasicEmployeeRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saved, setSaved] = useState(false);
+  const [values, setValues] = useState<Record<string, Record<string, string>>>({});
+
+  const organizationOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => {
+      options.push({ id: node.id, label: `${"\u00a0\u00a0".repeat(depth)}${node.name}` });
+      visit(node.children ?? [], depth + 1);
+    });
+    visit(orgTree);
+    return options;
+  }, [orgTree]);
+
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ view: "basic" });
+      if (companyId) params.set("companyId", companyId);
+      const response = await fetch(`/api/employee?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("load failed");
+      const data = (await response.json()) as { employees: BasicEmployeeRow[] };
+      setRows(data.employees);
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    void loadRows();
+  }, [loadRows]);
+
+  const visibleRows = useMemo(() => {
+    const normalizedHashtag = filters.hashtag.trim().replace(/^#/, "").toLocaleLowerCase();
+    return rows.filter((row) => {
+      const matchesOrganization = !filters.organizationId || row.organizationIds.includes(filters.organizationId);
+      return matchesOrganization && (!normalizedHashtag || row.hashtag.toLocaleLowerCase().includes(normalizedHashtag));
+    });
+  }, [filters, rows]);
+
+  const updateValue = (employeeId: string, field: string, value: string) => {
+    setSaved(false);
+    setValues((current) => ({ ...current, [employeeId]: { ...current[employeeId], [field]: value } }));
+  };
+
+  const controlClass = "mt-0.5 h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] text-sm leading-[22px] text-black/85 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+  const numberShellClass = "h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white";
+  const numberInputClass = "h-[30px] w-full rounded-[2px] border-0 bg-transparent px-[11px] text-right text-sm font-normal leading-[16.1px] tracking-normal text-[rgba(0,0,0,0.65)] outline-none";
+  const head = "h-[76.8px] border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 align-middle text-center text-sm font-medium leading-[22.001px] tracking-[-0.1px] text-white";
+  const cell = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] p-2 align-middle text-sm leading-[22.001px] tracking-[-0.1px] text-[rgba(0,0,0,0.65)]";
+  const savingsFields = [
+    ["income", "รายได้"],
+    ["socialSecurity", "ประกันสังคม"],
+    ["tax", "ภาษี"],
+    ["providentFund", "กองทุนสำรองเลี้ยงชีพ"],
+    ["providentFundCompany", "กองทุนสำรองเลี้ยงชีพ (บริษัทสมทบ)"],
+    ["providentFund2", "กองทุนสำรองเลี้ยงชีพ 2"],
+    ["providentFundCompany2", "กองทุนสำรองเลี้ยงชีพ (บริษัทสมทบ) 2"],
+    ["providentFund3", "กองทุนสำรองเลี้ยงชีพ 3"],
+    ["providentFundCompany3", "กองทุนสำรองเลี้ยงชีพ (บริษัทสมทบ) 3"],
+  ] as const;
+
+  return (
+    <Card
+      className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white"
+      style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}
+    >
+      <CardInputHeader title="เงินสะสมย้อนหลัง" />
+      <CardContent className="card-input-body px-2 py-4">
+        <div className="flex flex-col lg:flex-row">
+          <section className="flex flex-1 gap-2 px-6 py-4 lg:pr-6">
+            <span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">1</span>
+            <div className="m-2 min-w-0 flex-1">
+              <h2 className="h-10 text-lg font-bold leading-10 text-black/87">ดาวน์โหลดเทมเพลต (*.xlsx)</h2>
+              <div className="flex items-end gap-2">
+                <label className="min-w-0 flex-[0_1_70%] text-sm leading-[22px] text-black/87">โครงสร้างองค์กร
+                  <select value={templateOrganizationId} onChange={(event) => setTemplateOrganizationId(event.target.value)} className={controlClass}>
+                    <option value="">โครงสร้างองค์กร</option>
+                    {organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                  </select>
+                </label>
+                <button type="button" onClick={() => setSaved(false)} className="h-9 shrink-0 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ดาวน์โหลด</button>
+              </div>
+            </div>
+          </section>
+          <section className="flex flex-1 gap-2 px-6 py-4 lg:pl-6">
+            <span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">2</span>
+            <div className="m-2 min-w-0 flex-1">
+              <h2 className="h-10 text-lg font-bold leading-10 text-black/87">นำเข้าข้อมูล</h2>
+              <div className="flex items-center text-sm leading-[22.001px] text-black/65">
+                <button type="button" onClick={() => fileInputRef.current?.click()} className="h-9 rounded-[4px] bg-white px-4 text-sm font-medium leading-9 text-black/87 shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">เลือกไฟล์</button>
+                <span className="ml-2 truncate">{fileName || "ยังไม่ได้เลือกไฟล์"}</span>
+                <input ref={fileInputRef} type="file" accept="application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(event) => { setFileName(event.target.files?.[0]?.name ?? ""); setSaved(false); }} />
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div className="border-t border-black/[0.12]" />
+        <div className="m-6">
+          <div className="mb-2 flex flex-col gap-2 lg:flex-row lg:items-end">
+            <label className="flex-1 text-sm leading-[22.001px] text-black/85">ปีภาษี <span className="text-red-600">*</span>
+              <input value={taxYear} onChange={(event) => { setTaxYear(event.target.value.replace(/[^0-9]/g, "")); setSaved(false); }} inputMode="numeric" maxLength={4} placeholder="เลือกวันที่" className={controlClass} aria-label="ปีภาษี" />
+            </label>
+            <label className="flex-1 text-sm leading-[22.001px] text-black/85">โครงสร้างองค์กร
+              <select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className={controlClass}>
+                <option value="">โครงสร้างองค์กร</option>
+                {organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+              </select>
+            </label>
+            <label className="flex-1 text-sm leading-[22.001px] text-black/85">Hashtag
+              <input value={hashtag} onChange={(event) => setHashtag(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") setFilters({ organizationId, hashtag }); }} placeholder="#Hashtag" className={controlClass} />
+            </label>
+            <button type="button" onClick={() => setFilters({ organizationId, hashtag })} className="h-9 shrink-0 rounded-[4px] bg-[#2299ff] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-[#1685e8]">ค้นหา</button>
+          </div>
+
+          <div className="fix-column-table overflow-hidden rounded-[8px] border-[0.8px] border-[#f0f0f0] bg-white font-[kanit] text-[14px] leading-[22.001px] tracking-[-0.1px] text-[rgba(0,0,0,0.87)] shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]">
+            <div ref={savingsHeaderScrollRef} className="flex h-[76.8px] overflow-hidden">
+              <Table className="min-w-[2570px] table-fixed font-[kanit] text-sm leading-[22.001px]">
+                <colgroup>{[10, 20, 15, 15, 15, 15, ...Array(9).fill(14)].map((width, index) => <col key={index} style={{ width: `${width}%`, minWidth: `${width}%` }} />)}</colgroup>
+                <TableHeader className="border-b-0 bg-[#61a8ff]"><TableRow className="border-b-0 bg-[#61a8ff] hover:bg-[#61a8ff]"><TableHead className={head}>ลำดับ</TableHead><TableHead className={cn(head, "sticky left-[118.975px] z-10 shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>ชื่อพนักงาน <Search className="ml-1 inline size-3 align-[-1px]" /></TableHead><TableHead className={head}>แผนก</TableHead><TableHead className={head}>ฝ่ายงาน</TableHead><TableHead className={head}>หน่วยงาน</TableHead><TableHead className={head}>ตำแหน่ง</TableHead>{savingsFields.map(([field, label]) => <TableHead key={field} className={head}>{label}</TableHead>)}</TableRow></TableHeader>
+              </Table>
+            </div>
+            <div className="max-h-[60vh] overflow-scroll" onScroll={(event) => { if (savingsHeaderScrollRef.current) savingsHeaderScrollRef.current.scrollLeft = event.currentTarget.scrollLeft; }}>
+              <Table className="min-w-[2570px] table-fixed font-[kanit] text-sm leading-[22.001px]">
+                <colgroup>{[10, 20, 15, 15, 15, 15, ...Array(9).fill(14)].map((width, index) => <col key={index} style={{ width: `${width}%`, minWidth: `${width}%` }} />)}</colgroup>
+                <TableBody>{loading ? <TableRow className="border-b-0"><TableCell colSpan={15} className="h-24 text-center text-black/45">กำลังโหลดข้อมูล...</TableCell></TableRow> : visibleRows.length === 0 ? <TableRow className="border-b-0"><TableCell colSpan={15} className="h-32 text-center text-black/45">ไม่มีข้อมูล</TableCell></TableRow> : visibleRows.map((row, index) => <TableRow key={row.id} className={cn("border-b-0 hover:bg-transparent", index % 2 === 0 ? "[&>td]:bg-[#f2fafe]" : "[&>td]:bg-white")}><TableCell className={`${cell} text-center`}>{index + 1}</TableCell><TableCell className={cn(cell, "sticky left-[118.975px] z-10 shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]", index % 2 === 0 ? "bg-[#f2fafe]" : "bg-white")}>{row.employeeCode}: {row.name}</TableCell><TableCell className={cell}>{row.department}</TableCell><TableCell className={cell}>{row.division}</TableCell><TableCell className={cell}>{row.unit}</TableCell><TableCell className={cell}>{row.position}</TableCell>{savingsFields.map(([field, label]) => <TableCell key={field} className={cell}><div className={numberShellClass}><input type="text" inputMode="decimal" value={values[row.id]?.[field] ?? "0.00"} onChange={(event) => updateValue(row.id, field, event.target.value)} aria-label={`${label} ${row.name}`} className={numberInputClass} /></div></TableCell>)}</TableRow>)}</TableBody>
+              </Table>
+            </div>
+            {!loading && visibleRows.length > 0 && <nav className="flex h-16 items-center justify-end px-4" aria-label="แบ่งหน้าเงินสะสมย้อนหลัง"><span className="flex size-8 items-center justify-center rounded-[2px] border-[0.8px] border-[#1890ff] bg-white text-sm leading-[30px] text-[#1890ff]">1</span></nav>}
+          </div>
+          <p className="mt-0 text-sm leading-[22.001px] text-[#ff0000]">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p>
+          <div className="mt-3 flex justify-end"><button type="button" onClick={() => setSaved(true)} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">{saved ? "บันทึกแล้ว" : "บันทึก"}</button></div>
+        </div>
+
+        <div className="border-t border-black/[0.12]" />
+        <section className="m-6">
+          <h2 className="sub-header mb-3 text-lg font-bold leading-10 text-black/87">ประวัติการนำเข้าข้อมูล</h2>
+          <div className="overflow-x-auto border border-[#f0f0f0]"><Table className="min-w-[720px] table-fixed text-sm leading-[22.001px]"><TableHeader><TableRow className="h-[54.8px] bg-[#61a8ff] hover:bg-[#61a8ff]">{["วันที่", "จำนวนข้อมูล", "นำเข้าข้อมูล", "อัพเดตข้อมูล", "ลบข้อมูล", "ข้อมูลผิดพลาด", ""].map((label, index) => <TableHead key={`${label}-${index}`} className="border border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium text-white">{label}</TableHead>)}</TableRow></TableHeader><TableBody><TableRow className="h-32 hover:bg-transparent"><TableCell colSpan={7} className="border border-[#f0f0f0] text-center text-sm text-black/45">ไม่มีข้อมูล</TableCell></TableRow></TableBody></Table></div>
+        </section>
+      </CardContent>
+    </Card>
+  );
+}
+
+function WorkInsuranceContent({ orgTree }: { orgTree: OrgNode[] }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [templateOrganizationId, setTemplateOrganizationId] = useState("");
+  const [importMonth, setImportMonth] = useState("");
+  const [fileName, setFileName] = useState("");
+  const organizationOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => {
+      options.push({ id: node.id, label: `${"\u00a0\u00a0".repeat(depth)}${node.name}` });
+      visit(node.children ?? [], depth + 1);
+    });
+    visit(orgTree);
+    return options;
+  }, [orgTree]);
+  const controlClass = "h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] text-sm leading-[22px] text-black/85 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+  const historyColumns = ["วันที่", "จำนวนข้อมูล", "นำเข้าข้อมูล", "อัพเดตข้อมูล", "ลบข้อมูล", "ข้อมูลผิดพลาด", ""];
+
+  return (
+    <Card
+      className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white"
+      style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}
+    >
+      <CardInputHeader title="เงินประกันการทำงาน" />
+      <CardContent className="card-input-body px-2 py-4 text-sm leading-[22.001px] text-[rgba(0,0,0,0.87)]">
+        <div className="flex flex-col lg:flex-row">
+          <section className="m-6 flex min-w-0 flex-1 flex-col">
+            <span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">1</span>
+            <div className="m-2 min-w-0 flex-1">
+              <h2 className="h-10 text-lg font-bold leading-10 text-black/87">ดาวน์โหลดเทมเพลต (*.xlsx)</h2>
+              <div className="flex items-end gap-2">
+                <label className="min-w-0 flex-[0_1_40%] text-sm leading-[22px] text-black/87">โครงสร้างองค์กร
+                  <select value={templateOrganizationId} onChange={(event) => setTemplateOrganizationId(event.target.value)} className={controlClass}>
+                    <option value="">โครงสร้างองค์กร</option>
+                    {organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                  </select>
+                </label>
+                <button type="button" className="h-9 shrink-0 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ดาวน์โหลด</button>
+              </div>
+            </div>
+          </section>
+          <div className="hidden w-[17px] shrink-0 lg:flex"><div className="mx-2 h-full border-l border-black/[0.12]" /></div>
+          <section className="m-6 flex min-w-0 flex-1 flex-col">
+            <span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">2</span>
+            <div className="m-2 min-w-0">
+              <h2 className="h-10 text-lg font-bold leading-10 text-black/87">นำเข้าข้อมูล</h2>
+              <div className="flex h-11 min-w-0 flex-col gap-2 sm:flex-row sm:items-center">
+                <input type="month" value={importMonth} onChange={(event) => setImportMonth(event.target.value)} className="h-[31.6px] min-w-0 flex-1 rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] text-sm leading-[22px] text-black/85 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]" aria-label="เดือนที่นำเข้า" />
+                <div className="flex min-w-0 flex-1 items-center text-sm leading-[22.001px] text-black/65">
+                  <button type="button" onClick={() => fileInputRef.current?.click()} className="h-9 shrink-0 rounded-[4px] bg-white px-4 text-sm font-medium leading-9 text-black/87 shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">เลือกไฟล์</button>
+                  <span className="ml-2 truncate">{fileName || "ยังไม่ได้เลือกไฟล์"}</span>
+                  <input ref={fileInputRef} type="file" accept="application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? "")} />
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <div className="my-3 border-t border-black/[0.12]" />
+        <section className="mx-6 mb-6 mt-9">
+          <div className="sub-header text-lg font-bold leading-[28.287px] text-[rgba(0,0,0,0.87)]">ประวัติการนำเข้าข้อมูล</div>
+          <div className="overflow-x-auto border-[0.8px] border-[#f0f0f0]">
+            <Table className="min-w-[720px] table-auto text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)]">
+              <colgroup>{[15, 15, 15, 15, 15, 15, 10].map((width, index) => <col key={index} style={{ width: `${width}%`, minWidth: `${width}%` }} />)}</colgroup>
+              <TableHeader><TableRow className="h-[54.8px] bg-[#61a8ff] hover:bg-[#61a8ff]">{historyColumns.map((label, index) => <TableHead key={`${label}-${index}`} className="border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium leading-[22.001px] text-white">{label}</TableHead>)}</TableRow></TableHeader>
+              <TableBody><TableRow className="h-[150.8px] hover:bg-transparent"><TableCell colSpan={7} className="border-r-[0.8px] border-[#f0f0f0] p-2"><div className="my-8 flex h-[70px] flex-col items-center gap-2 text-sm leading-[22px] text-[rgba(0,0,0,0.25)]"><svg width="64" height="41" viewBox="0 0 64 41" xmlns="http://www.w3.org/2000/svg" className="h-10" aria-hidden="true"><g transform="translate(0 1)" fill="none" fillRule="evenodd"><ellipse cx="32" cy="33" rx="32" ry="7" fill="#f5f5f5" /><g fillRule="nonzero" stroke="#d9d9d9"><path d="M55 12.76 44.854 1.258C44.367.474 43.656 0 42.907 0H21.093c-.749 0-1.46.474-1.947 1.257L9 12.761V22h46v-9.24z" /><path d="M41.613 15.931c0-1.605.994-2.93 2.227-2.931H55v18.137C55 33.26 53.68 35 52.05 35h-40.1C10.32 35 9 33.259 9 31.137V13h11.16c1.233 0 2.227 1.323 2.227 2.928v.022c0 1.605 1.005 2.901 2.237 2.901h14.752c1.232 0 2.237-1.308 2.237-2.913v-.007z" /></g></g></svg><span>ไม่มีข้อมูล</span></div></TableCell></TableRow></TableBody>
+            </Table>
+          </div>
+        </section>
+      </CardContent>
+    </Card>
+  );
+}
+
+function EditDataSettingsContent() {
+  const editOptions = [
+    "แก้ไขรูปโปรไฟล์", "คำนำหน้าชื่อ", "ชื่อ", "นามสกุล", "ชื่อเล่น", "เพศ", "สัญชาติ", "สถานะ", "วันเกิด", "หมายเลขโทรศัพท์", "อีเมล", "ที่อยู่", "ครอบครัว", "ประวัติการทำงาน", "ประวัติการศึกษา", "ความสามารถพิเศษ", "ข้อมูลเอกสาร", "ลดหย่อนภาษี",
+  ];
+  const [enabled, setEnabled] = useState<Record<string, boolean>>({});
+
+  return (
+    <Card
+      className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white"
+      style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}
+    >
+      <CardInputHeader title="ตั้งค่าการแก้ไขข้อมูล" />
+      <CardContent className="card-input-body px-2 py-4 text-sm leading-[22.001px] text-[rgba(0,0,0,0.87)]">
+        <div className="m-6">
+          <div className="max-h-[760px] overflow-y-auto rounded-[2px] border-[0.8px] border-[#f0f0f0]">
+            <Table className="table-fixed text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)]">
+              <colgroup><col className="w-[120px]" /><col /></colgroup>
+              <TableHeader className="sticky top-0 z-10 bg-[#61a8ff]"><TableRow className="h-[54.8px] border-b-0 bg-[#61a8ff] hover:bg-[#61a8ff]"><TableHead className="border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium leading-[22.001px] text-white">เปิด/ปิด</TableHead><TableHead className="border-b-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium leading-[22.001px] text-white">รายการ</TableHead></TableRow></TableHeader>
+              <TableBody>{editOptions.map((option) => {
+                const checked = enabled[option] ?? false;
+                return <TableRow key={option} className="h-[54.8px] border-b-[0.8px] border-[#f0f0f0] hover:bg-transparent"><TableCell className="border-r-[0.8px] border-[#f0f0f0] p-4 text-center"><button type="button" role="switch" aria-checked={checked} aria-label={`${checked ? "ปิด" : "เปิด"} ${option}`} onClick={() => setEnabled((current) => ({ ...current, [option]: !checked }))} className={`relative inline-flex h-[22px] w-11 shrink-0 items-center rounded-full text-[12px] leading-[22px] text-white transition-colors ${checked ? "justify-start bg-[#1890ff]" : "justify-end bg-black/25"}`}><span className="absolute size-[18px] rounded-full bg-white shadow-[0_2px_4px_rgba(0,0,0,0.2)]" style={{ left: checked ? "24px" : "2px" }} /><span className={`relative mx-[7px] ${checked ? "mr-auto" : "ml-auto"}`}>{checked ? "Y" : "N"}</span></button></TableCell><TableCell className="p-4 text-left text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)]">{option}</TableCell></TableRow>;
+              })}</TableBody>
+            </Table>
+          </div>
+          <div className="mt-3 flex justify-end"><button type="button" className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">บันทึก</button></div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function GeneralSettingsContent({ orgTree, companyId }: { orgTree: OrgNode[]; companyId: string }) {
+  type SettingKey = "workDays" | "workHours" | "payrollCycle" | "specialCycle" | "otCycle" | "timeCycle" | "holiday" | "accounting" | "notify";
+  type EmployeeSettings = Record<SettingKey, string>;
+  const defaults: EmployeeSettings = { workDays: "0", workHours: "00:00:00", payrollCycle: "Full", specialCycle: "Y", otCycle: "N", timeCycle: "N", holiday: "Y", accounting: "", notify: "ยึดตามการตั้งค่าทั่วไป" };
+  const [organizationId, setOrganizationId] = useState("");
+  const [hashtag, setHashtag] = useState("");
+  const [payrollFilter, setPayrollFilter] = useState("ทั้งหมด");
+  const [rows, setRows] = useState<BasicEmployeeRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [settings, setSettings] = useState<Record<string, EmployeeSettings>>({});
+  const [saved, setSaved] = useState(false);
+  const organizationOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => {
+      options.push({ id: node.id, label: `${"\u00a0\u00a0".repeat(depth)}${node.name}` });
+      visit(node.children ?? [], depth + 1);
+    });
+    visit(orgTree);
+    return options;
+  }, [orgTree]);
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({ view: "basic" });
+        if (companyId) params.set("companyId", companyId);
+        const response = await fetch(`/api/employee?${params.toString()}`, { cache: "no-store" });
+        if (!response.ok) throw new Error("load failed");
+        const data = (await response.json()) as { employees: BasicEmployeeRow[] };
+        if (!cancelled) setRows(data.employees);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [companyId]);
+  const valueOf = (employeeId: string, key: SettingKey) => settings[employeeId]?.[key] ?? defaults[key];
+  const setValue = (employeeId: string, key: SettingKey, value: string) => {
+    setSaved(false);
+    setSettings((current) => ({ ...current, [employeeId]: { ...defaults, ...current[employeeId], [key]: value } }));
+  };
+  const controlClass = "mt-0.5 h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] text-sm leading-[22px] text-black/85 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+  const head = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 align-middle text-center text-sm font-medium leading-[22.001px] tracking-[-0.1px] text-white";
+  const cell = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] p-2 align-middle text-sm leading-[22.001px] tracking-[-0.1px] text-black/65";
+  const RadioGroup = ({ employeeId, field, options }: { employeeId: string; field: SettingKey; options: { value: string; label: string }[] }) => (
+    <div className="flex flex-wrap gap-x-2 gap-y-1">
+      {options.map((option) => <label key={option.value} className="inline-flex cursor-pointer items-center gap-1 whitespace-nowrap text-sm leading-[22.001px] text-black/65"><input type="radio" name={`${employeeId}-${field}`} value={option.value} checked={valueOf(employeeId, field) === option.value} onChange={() => setValue(employeeId, field, option.value)} className="size-4 accent-[#1890ff]" />{option.label}</label>)}
+    </div>
+  );
+  const HeaderRadios = ({ name, options, selected }: { name: string; options: string[]; selected?: number }) => (
+    <div className="mt-1 flex flex-wrap justify-center gap-x-2 gap-y-1 text-left">
+      {options.map((option, index) => <label key={option} className="inline-flex items-center gap-1 whitespace-nowrap text-sm font-normal leading-[22.001px] text-white"><input type="radio" name={name} defaultChecked={selected === index} className="size-4 accent-[#1890ff]" />{option}</label>)}
+    </div>
+  );
+  return (
+    <Card
+      className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white"
+      style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}
+    >
+      <CardInputHeader title="ตั้งค่าทั่วไป" />
+      <CardContent className="card-input-body px-2 py-4">
+        <div className="m-6">
+          <div className="mb-2 flex flex-col gap-2 lg:flex-row lg:items-end">
+            <label className="flex-1 text-sm leading-[22.001px] text-black/85">โครงสร้างองค์กร<select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label>
+            <label className="flex-1 text-sm leading-[22.001px] text-black/85">Hashtag<input value={hashtag} onChange={(event) => setHashtag(event.target.value)} placeholder="#Hashtag" className={controlClass} /></label>
+            <label className="flex-1 text-sm leading-[22.001px] text-black/85">รอบการคำนวณเงินเดือน<select value={payrollFilter} onChange={(event) => setPayrollFilter(event.target.value)} className={controlClass}><option>ทั้งหมด</option><option>เต็มงวด</option><option>แบ่งงวดจ่าย</option></select></label>
+            <button type="button" onClick={() => setSaved(false)} className="h-9 shrink-0 rounded-[4px] bg-[#2299ff] px-4 text-sm font-semibold text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ค้นหา</button>
+          </div>
+          <div className="fix-column-table max-h-[600px] overflow-auto rounded-[8px] bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]">
+            <Table className="w-[1800px] min-w-full table-fixed font-[Kanit,sans-serif] text-sm leading-[22.001px]">
+              <colgroup>{[80,250,200,200,200,200,300,250,250,200,200,200,250,250,250].map((width, index) => <col key={index} style={{ width }} />)}</colgroup>
+              <TableHeader className="sticky top-0 z-10 bg-[#61a8ff]"><TableRow className="bg-[#61a8ff] hover:bg-[#61a8ff]">
+                {[["ลำดับ", "center"], ["ชื่อพนักงาน", "center"], ["แผนก", "center"], ["ฝ่ายงาน", "center"], ["หน่วยงาน", "center"], ["ตำแหน่ง", "center"]].map(([label, align], index) => <TableHead key={label} className={cn(head, align === "center" && "text-center", index === 1 && "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{label}{index === 1 && <Search className="ml-1 inline size-3 align-[-1px]" />}</TableHead>)}
+                <TableHead className={head}><div>จำนวนวันทำงาน</div><HeaderRadios name="general-header-work-days" options={["26 วัน", "30 วัน", "ตามจริง", "ตามการตั้งค่าองค์กร"]} /></TableHead>
+                <TableHead className={cn(head, "text-left")}><div className="text-center">จำนวนชั่วโมงการทำงาน</div><HeaderRadios name="general-header-work-hours" options={["8.00 ชั่วโมง", "8.30 ชั่วโมง", "9.00 ชั่วโมง", "ตามจริง", "ตามการตั้งค่าองค์กร"]} /></TableHead>
+                <TableHead className={head}><div>รอบการคำนวณเงินเดือน</div><HeaderRadios name="general-header-payroll" options={["เต็มงวด", "แบ่งงวดจ่าย"]} selected={0} /></TableHead><TableHead className={head}><div>รอบการคำนวณงวดพิเศษ</div><HeaderRadios name="general-header-special" options={["ใช่", "ไม่ใช่"]} selected={0} /></TableHead><TableHead className={head}><div>รอบการคำนวณงวดแยกโอที</div><HeaderRadios name="general-header-ot" options={["ใช่", "ไม่ใช่"]} selected={1} /></TableHead><TableHead className={head}><div>รอบการคำนวณงวดแยกเวลาการทำงาน</div><HeaderRadios name="general-header-time" options={["ใช่", "ไม่ใช่"]} selected={1} /></TableHead><TableHead className={head}>ตั้งค่าผังบัญชี</TableHead><TableHead className={head}><div>อนุญาตให้หยุดวันหยุดนักขัตฤกษ์</div><HeaderRadios name="general-header-holiday" options={["อนุญาต", "ไม่อนุญาต"]} selected={0} /></TableHead><TableHead className={head}>HumanSoft Notify</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>{loading ? <TableRow><TableCell colSpan={15} className="h-24 text-center text-black/45">กำลังโหลดข้อมูล...</TableCell></TableRow> : rows.length === 0 ? <TableRow><TableCell colSpan={15} className="h-24 text-center text-black/45">ไม่มีข้อมูล</TableCell></TableRow> : rows.map((row, index) => <TableRow key={row.id} className={cn("hover:bg-transparent", index % 2 === 0 ? "[&>td]:bg-[#f2fafe]" : "[&>td]:bg-white")}><TableCell className={`${cell} text-center`}>{index + 1}</TableCell><TableCell className={cn(cell, "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{row.employeeCode}: {row.name}</TableCell><TableCell className={cell}>{row.department}</TableCell><TableCell className={cell}>{row.division}</TableCell><TableCell className={cell}>{row.unit}</TableCell><TableCell className={cell}>{row.position}</TableCell><TableCell className={cell}><RadioGroup employeeId={row.id} field="workDays" options={[{ value: "26", label: "26 วัน" }, { value: "30", label: "30 วัน" }, { value: "31", label: "ตามจริง" }, { value: "0", label: "ตามการตั้งค่าองค์กร" }]} /></TableCell><TableCell className={cell}><RadioGroup employeeId={row.id} field="workHours" options={[{ value: "08:00:00", label: "8.00 ชั่วโมง" }, { value: "08:30:00", label: "8.30 ชั่วโมง" }, { value: "09:00:00", label: "9.00 ชั่วโมง" }, { value: "24:00:00", label: "ตามจริง" }, { value: "00:00:00", label: "ตามการตั้งค่าองค์กร" }]} /></TableCell><TableCell className={cell}><RadioGroup employeeId={row.id} field="payrollCycle" options={[{ value: "Full", label: "เต็มเดือน" }, { value: "Split", label: "แบ่งงวดจ่าย" }]} /></TableCell><TableCell className={cell}><RadioGroup employeeId={row.id} field="specialCycle" options={[{ value: "Y", label: "ใช่" }, { value: "N", label: "ไม่ใช่" }]} /></TableCell><TableCell className={cell}><RadioGroup employeeId={row.id} field="otCycle" options={[{ value: "Y", label: "ใช่" }, { value: "N", label: "ไม่ใช่" }]} /></TableCell><TableCell className={cell}><RadioGroup employeeId={row.id} field="timeCycle" options={[{ value: "Y", label: "ใช่" }, { value: "N", label: "ไม่ใช่" }]} /></TableCell><TableCell className={cell}><select aria-label={`ตั้งค่าผังบัญชี ${row.name}`} value={valueOf(row.id, "accounting")} onChange={(event) => setValue(row.id, "accounting", event.target.value)} className="h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] text-sm"><option value="" /><option value="ผังบัญชีหลัก">ผังบัญชีหลัก</option></select></TableCell><TableCell className={cell}><RadioGroup employeeId={row.id} field="holiday" options={[{ value: "Y", label: "อนุญาต" }, { value: "N", label: "ไม่อนุญาต" }]} /></TableCell><TableCell className={cell}><select aria-label={`HumanSoft Notify ${row.name}`} value={valueOf(row.id, "notify")} onChange={(event) => setValue(row.id, "notify", event.target.value)} className="h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] text-sm"><option>ยึดตามการตั้งค่าทั่วไป</option><option>เปิดใช้งาน</option><option>ปิดใช้งาน</option></select></TableCell></TableRow>)}</TableBody>
+            </Table>
+            {!loading && rows.length > 0 && <nav className="flex h-16 items-center justify-end px-4"><span className="flex size-8 items-center justify-center rounded-[2px] border border-[#1890ff] bg-white text-sm text-[#1890ff]">1</span></nav>}
+          </div>
+          <p className="text-sm leading-[22.001px] text-[#ff0000]">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p>
+          <div className="mt-3 flex justify-end"><button type="button" onClick={() => setSaved(true)} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">{saved ? "บันทึกแล้ว" : "บันทึก"}</button></div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function FixedIncomeExpenseContent({ orgTree, companyId }: { orgTree: OrgNode[]; companyId: string }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [templateOrg, setTemplateOrg] = useState("");
+  const [organizationId, setOrganizationId] = useState("");
+  const [itemType, setItemType] = useState("");
+  const [hashtag, setHashtag] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [rows, setRows] = useState<BasicEmployeeRow[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const organizationOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => {
+      options.push({ id: node.id, label: `${"\u00a0\u00a0".repeat(depth)}${node.name}` });
+      visit(node.children ?? [], depth + 1);
+    });
+    visit(orgTree);
+    return options;
+  }, [orgTree]);
+  const search = async () => {
+    if (!itemType) { setRows([]); return; }
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ view: "basic" });
+      if (companyId) params.set("companyId", companyId);
+      const response = await fetch(`/api/employee?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("load failed");
+      const data = (await response.json()) as { employees: BasicEmployeeRow[] };
+      setRows(data.employees);
+    } finally { setLoading(false); }
+  };
+  const controlClass = "mt-0.5 h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] text-sm leading-[22px] text-black/85 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+  const head = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 align-middle text-center text-sm font-medium leading-[22.001px] tracking-[-0.1px] text-white";
+  const cell = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] p-2 align-middle text-sm leading-[22.001px] tracking-[-0.1px] text-black/65";
+  return (
+    <Card
+      className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white"
+      style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}
+    >
+      <CardInputHeader title="รายรับรายจ่ายคงที่" />
+      <CardContent className="card-input-body px-2 py-4">
+        <div className="m-6 flex flex-col divide-y divide-black/[0.12] lg:flex-row lg:divide-x lg:divide-y-0">
+          <section className="flex flex-1 gap-2 py-2 pr-0 lg:pr-6"><span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl text-white">1</span><div className="m-2 min-w-0 flex-1"><h2 className="h-10 text-lg font-bold leading-10">ดาวน์โหลดเทมเพลต (*.xlsx)</h2><div className="mb-2 flex items-end gap-2"><label className="min-w-0 flex-[0_1_40%] text-sm leading-[22px]">โครงสร้างองค์กร<select value={templateOrg} onChange={(event) => setTemplateOrg(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><button type="button" className="h-9 max-w-[100px] rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ดาวน์โหลด</button></div></div></section>
+          <section className="flex flex-1 gap-2 py-2 pl-0 lg:pl-6"><span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl text-white">2</span><div className="m-2 min-w-0 flex-1"><h2 className="h-10 text-lg font-bold leading-10">นำเข้าข้อมูล</h2><div className="flex items-center text-sm leading-[22.001px]"><button type="button" onClick={() => fileInputRef.current?.click()} className="h-9 rounded-[4px] bg-white px-4 text-sm font-medium text-black/85 shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">เลือกไฟล์</button><span className="ml-2">{fileName || "ยังไม่ได้เลือกไฟล์"}</span><input ref={fileInputRef} type="file" accept="application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? "")} /></div></div></section>
+        </div>
+        <div className="my-0 border-t border-black/[0.12]" />
+        <div className="m-6">
+          <div className="mb-2 flex flex-col gap-2 lg:flex-row lg:items-end"><label className="flex-1 text-sm leading-[22.001px] text-black/85">โครงสร้างองค์กร<select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><label className="flex-1 text-sm leading-[22.001px] text-black/85">ประเภทรายการรายรับ-รายจ่ายคงที่<select value={itemType} onChange={(event) => { setItemType(event.target.value); setSaved(false); }} className={controlClass}><option value="" /><option value="ค่าเดินทาง">ค่าเดินทาง</option><option value="ค่าโทรศัพท์">ค่าโทรศัพท์</option><option value="เบี้ยเลี้ยง">เบี้ยเลี้ยง</option></select></label><label className="flex-1 text-sm leading-[22.001px] text-black/85">Hashtag<input value={hashtag} onChange={(event) => setHashtag(event.target.value)} placeholder="#Hashtag" className={controlClass} /></label><button type="button" onClick={() => void search()} className="h-9 shrink-0 rounded-[4px] bg-[#2299ff] px-4 text-sm font-semibold text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ค้นหา</button></div>
+          <div className="mb-2 text-sm leading-[22.001px] text-[#ff0000]"><span className="block h-[22px]">&nbsp;</span>***ต้องไปตั้งค่าประเภทรายรับรายจ่ายเป็นรูปแบบ Constant ไปตั้งค่าที่นี้ <a href="/setting/setting-salarytype" target="_blank" className="text-[#2299ff] underline">Link</a></div>
+          <div className="fix-column-table max-h-[650px] overflow-auto rounded-[8px] bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]"><Table className="min-w-[3840px] table-fixed font-[Kanit,sans-serif] text-sm leading-[22.001px]"><colgroup>{[80,300,200,200,200,200,880,880,900].map((width, index) => <col key={index} style={{ width }} />)}</colgroup><TableHeader className="sticky top-0 z-10 bg-[#61a8ff]"><TableRow className="h-[54.8px] bg-[#61a8ff] hover:bg-[#61a8ff]"><TableHead rowSpan={2} className={head}>ลำดับ</TableHead><TableHead rowSpan={2} className={cn(head, "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>ชื่อพนักงาน <Search className="ml-1 inline size-3 align-[-1px]" /></TableHead><TableHead rowSpan={2} className={head}>แผนก</TableHead><TableHead rowSpan={2} className={head}>ฝ่ายงาน</TableHead><TableHead rowSpan={2} className={head}>หน่วยงาน</TableHead><TableHead rowSpan={2} className={head}>ตำแหน่ง</TableHead><TableHead colSpan={3} className={head}>{itemType}</TableHead></TableRow><TableRow className="h-[54.8px] bg-[#61a8ff] hover:bg-[#61a8ff]"><TableHead className={head}>มูลค่า</TableHead><TableHead className={head}>วันที่เริ่ม</TableHead><TableHead className={head}>วันที่สิ้นสุด</TableHead></TableRow></TableHeader><TableBody>{loading ? <TableRow><TableCell colSpan={9} className="h-24 text-center text-black/45">กำลังโหลดข้อมูล...</TableCell></TableRow> : rows.length === 0 ? <TableRow><TableCell colSpan={9} className="h-[202px] p-0"><div className="flex h-[202px] flex-col items-center justify-center text-sm leading-[22.001px] text-black/45"><svg width="64" height="41" viewBox="0 0 64 41" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><g transform="translate(0 1)" fill="none" fillRule="evenodd"><ellipse cx="32" cy="33" rx="32" ry="7" fill="#f5f5f5" /><g fillRule="nonzero" fill="#fafafa"><path d="M55 12.76 44.854 1.258C44.367.474 43.656 0 42.907 0H21.093c-.749 0-1.46.474-1.947 1.257L9 12.761V22h46v-9.24Z" /><path d="M41.613 15.931c0-1.605.994-2.93 2.227-2.931H55v18.137C55 33.26 53.68 35 52.05 35h-40.1C10.32 35 9 33.259 9 31.137V13h11.16c1.233 0 2.227 1.323 2.227 2.928v.022c0 1.605 1.005 2.901 2.237 2.901h14.752c1.232 0 2.237-1.308 2.237-2.913v-.007Z" /></g></g></svg><span className="mt-2">ไม่มีข้อมูล</span></div></TableCell></TableRow> : rows.map((row, index) => <TableRow key={row.id} className={cn("!h-[38.8px] hover:bg-transparent", index % 2 === 0 ? "[&>td]:bg-[#f2fafe]" : "[&>td]:bg-white")}><TableCell className={`${cell} text-center`}>{index + 1}</TableCell><TableCell className={cn(cell, "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{row.employeeCode}: {row.name}</TableCell><TableCell className={cell}>{row.department}</TableCell><TableCell className={cell}>{row.division}</TableCell><TableCell className={cell}>{row.unit}</TableCell><TableCell className={cell}>{row.position}</TableCell><TableCell className={cell}><input aria-label={`มูลค่า ${row.name}`} className="h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] px-[11px]" /></TableCell><TableCell className={cell}><input type="date" aria-label={`วันที่เริ่ม ${row.name}`} className="h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] px-[11px]" /></TableCell><TableCell className={cell}><input type="date" aria-label={`วันที่สิ้นสุด ${row.name}`} className="h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] px-[11px]" /></TableCell></TableRow>)}</TableBody></Table>{!loading && rows.length > 0 && <nav className="flex h-16 items-center justify-end px-4"><span className="flex size-8 items-center justify-center rounded-[2px] border border-[#1890ff] bg-white text-sm text-[#1890ff]">1</span></nav>}</div>
+          <p className="text-sm leading-[22.001px] text-[#ff0000]">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p><div className="mt-3 flex justify-end"><button type="button" onClick={() => setSaved(true)} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">{saved ? "บันทึกแล้ว" : "บันทึก"}</button></div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AutomaticIncomeExpenseContent({ orgTree, companyId }: { orgTree: OrgNode[]; companyId: string }) {
+  const [organizationId, setOrganizationId] = useState("");
+  const [hashtag, setHashtag] = useState("");
+  const [rows, setRows] = useState<BasicEmployeeRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selection, setSelection] = useState<Record<string, boolean[]>>({});
+  const [saved, setSaved] = useState(false);
+  const organizationOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => { options.push({ id: node.id, label: `${"\u00a0\u00a0".repeat(depth)}${node.name}` }); visit(node.children ?? [], depth + 1); });
+    visit(orgTree);
+    return options;
+  }, [orgTree]);
+  const load = async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ view: "basic" });
+      if (companyId) params.set("companyId", companyId);
+      const response = await fetch(`/api/employee?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("load failed");
+      const data = (await response.json()) as { employees: BasicEmployeeRow[] };
+      setRows(data.employees);
+    } finally { setLoading(false); }
+  };
+  useEffect(() => { void load(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
+  const checked = (id: string, index: number) => selection[id]?.[index] ?? false;
+  const toggle = (id: string, index: number) => { setSaved(false); setSelection((current) => { const next = [...(current[id] ?? [false, false, false])]; next[index] = !next[index]; return { ...current, [id]: next }; }); };
+  const controlClass = "mt-0.5 h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] text-sm leading-[22px] text-black/85 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+  const head = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 align-middle text-center text-sm font-medium leading-[22.001px] tracking-[-0.1px] text-white";
+  const cell = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] p-2 align-middle text-sm leading-[22.001px] tracking-[-0.1px] text-black/65";
+  return (
+    <Card
+      className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white"
+      style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}
+    >
+      <CardInputHeader title="รายรับรายจ่ายอัตโนมัติ" />
+      <CardContent className="card-input-body px-2 py-4"><div className="m-6"><div className="mb-2 flex flex-col gap-2 lg:flex-row lg:items-end"><label className="flex-1 text-sm leading-[22.001px] text-black/85">โครงสร้างองค์กร<select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><label className="flex-1 text-sm leading-[22.001px] text-black/85">Hashtag<input value={hashtag} onChange={(event) => setHashtag(event.target.value)} placeholder="#Hashtag" className={controlClass} /></label><button type="button" onClick={() => void load()} className="h-9 shrink-0 rounded-[4px] bg-[#2299ff] px-4 text-sm font-semibold text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ค้นหา</button></div><div className="mb-2 text-sm leading-[22.001px] text-[#ff0000]"><span className="block h-[22px]">&nbsp;</span>***หากต้องการใช้ฟังชั่นนี้ กรุณาติดต่อเจ้าหน้าที่</div><div className="fix-column-table max-h-[650px] overflow-auto rounded-[8px] bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]"><Table className="w-[1230px] min-w-full table-fixed font-[Kanit,sans-serif] text-sm leading-[22.001px]"><colgroup>{[80,300,140,140,140,140,96,96,98].map((width, index) => <col key={index} style={{ width }} />)}</colgroup><TableHeader className="sticky top-0 z-10 bg-[#61a8ff]"><TableRow className="h-[54.8px] bg-[#61a8ff] hover:bg-[#61a8ff]"><TableHead className={head}>ลำดับ</TableHead><TableHead className={cn(head, "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>ชื่อพนักงาน <Search className="ml-1 inline size-3 align-[-1px]" /></TableHead><TableHead className={head}>แผนก</TableHead><TableHead className={head}>ฝ่ายงาน</TableHead><TableHead className={head}>หน่วยงาน</TableHead><TableHead className={head}>ตำแหน่ง</TableHead><TableHead className={head}>ประกันสังคม</TableHead><TableHead className={head}>ภาษี</TableHead><TableHead className={head}>สาย</TableHead></TableRow></TableHeader><TableBody>{loading ? <TableRow><TableCell colSpan={9} className="h-24 text-center text-black/45">กำลังโหลดข้อมูล...</TableCell></TableRow> : rows.length === 0 ? <TableRow><TableCell colSpan={9} className="h-24 text-center text-black/45">ไม่มีข้อมูล</TableCell></TableRow> : rows.map((row, rowIndex) => <TableRow key={row.id} className={cn("!h-[38.8px] hover:bg-transparent", rowIndex % 2 === 0 ? "[&>td]:bg-[#f2fafe]" : "[&>td]:bg-white")}><TableCell className={`${cell} text-center`}>{rowIndex + 1}</TableCell><TableCell className={cn(cell, "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{row.employeeCode}: {row.name}</TableCell><TableCell className={cell}>{row.department}</TableCell><TableCell className={cell}>{row.division}</TableCell><TableCell className={cell}>{row.unit}</TableCell><TableCell className={cell}>{row.position}</TableCell>{[0, 1, 2].map((index) => <TableCell key={index} className={`${cell} text-center`}><input type="checkbox" aria-label={`${["ประกันสังคม", "ภาษี", "สาย"][index]} ${row.name}`} checked={checked(row.id, index)} onChange={() => toggle(row.id, index)} className="size-[16px] shrink-0 cursor-pointer accent-[#1890ff]" /></TableCell>)}</TableRow>)}</TableBody></Table>{!loading && rows.length > 0 && <nav className="flex h-16 items-center justify-end px-4"><span className="flex size-8 items-center justify-center rounded-[2px] border border-[#1890ff] bg-white text-sm text-[#1890ff]">1</span></nav>}</div><p className="text-sm leading-[22.001px] text-[#ff0000]">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p><div className="mt-3 flex justify-end"><button type="button" onClick={() => setSaved(true)} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">{saved ? "บันทึกแล้ว" : "บันทึก"}</button></div></div></CardContent>
+    </Card>
+  );
+}
+
+function FundContent({ orgTree, companyId }: { orgTree: OrgNode[]; companyId: string }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [templateFund, setTemplateFund] = useState(""); const [templateYear, setTemplateYear] = useState(""); const [templateOrg, setTemplateOrg] = useState("");
+  const [importMonth, setImportMonth] = useState(""); const [fileName, setFileName] = useState("");
+  const [fundName, setFundName] = useState(""); const [organizationId, setOrganizationId] = useState(""); const [hashtag, setHashtag] = useState(""); const [year, setYear] = useState("");
+  const [rows, setRows] = useState<BasicEmployeeRow[]>([]); const [loading, setLoading] = useState(true); const [saved, setSaved] = useState(false);
+  const organizationOptions = useMemo(() => { const options: { id: string; label: string }[] = []; const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => { options.push({ id: node.id, label: `${"\u00a0\u00a0".repeat(depth)}${node.name}` }); visit(node.children ?? [], depth + 1); }); visit(orgTree); return options; }, [orgTree]);
+  const load = async () => { setLoading(true); try { const params = new URLSearchParams({ view: "basic" }); if (companyId) params.set("companyId", companyId); const response = await fetch(`/api/employee?${params.toString()}`, { cache: "no-store" }); if (!response.ok) throw new Error("load failed"); const data = (await response.json()) as { employees: BasicEmployeeRow[] }; setRows(data.employees); } finally { setLoading(false); } };
+  useEffect(() => { void load(); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [companyId]);
+  const controlClass = "mt-0.5 h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] text-sm leading-[22px] text-black/85 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+  const head = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 align-middle text-center text-sm font-medium leading-[22.001px] tracking-[-0.1px] text-white";
+  const cell = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] p-2 align-middle text-sm leading-[22.001px] tracking-[-0.1px] text-black/65";
+  const funds = ["กองทุนสำรองเลี้ยงชีพ", "กองทุนเงินทดแทน"];
+  return (
+    <Card
+      className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white"
+      style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}
+    >
+      <CardInputHeader title="กองทุน" />
+      <CardContent className="card-input-body px-2 py-4"><div className="m-6 flex flex-col divide-y divide-black/[0.12] lg:flex-row lg:divide-x lg:divide-y-0"><section className="flex-[0_1_60%] py-2 pr-0 lg:pr-6"><div className="flex gap-2"><span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl text-white">1</span><div className="m-2 min-w-0 flex-1"><h2 className="h-10 text-lg font-bold leading-10">ดาวน์โหลดเทมเพลต (*.xlsx)</h2><div className="mb-2 flex flex-wrap items-end gap-2"><label className="min-w-[150px] flex-[0_1_28%] text-sm leading-[22px]">ชื่อกองทุน <span className="text-red-600">*</span><select value={templateFund} onChange={(event) => setTemplateFund(event.target.value)} className={controlClass}><option value="" />{funds.map((fund) => <option key={fund}>{fund}</option>)}</select></label><label className="min-w-[130px] flex-[0_1_28%] text-sm leading-[22px]">ปี <span className="text-red-600">*</span><input value={templateYear} onChange={(event) => setTemplateYear(event.target.value)} placeholder="Select year" inputMode="numeric" className={controlClass} /></label><label className="min-w-[160px] flex-[0_1_28%] text-sm leading-[22px]">โครงสร้างองค์กร<select value={templateOrg} onChange={(event) => setTemplateOrg(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><button type="button" className="h-9 max-w-[100px] rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ดาวน์โหลด</button></div></div></div></section><section className="flex-[0_1_40%] py-2 pl-0 lg:pl-6"><div className="flex gap-2"><span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl text-white">2</span><div className="m-2 min-w-0 flex-1"><h2 className="h-10 text-lg font-bold leading-10">นำเข้าข้อมูล</h2><div className="flex flex-col gap-2 sm:flex-row sm:items-center"><input value={importMonth} onChange={(event) => setImportMonth(event.target.value)} type="month" className="h-[31.6px] rounded-[4px] border-[0.8px] border-[#d9d9d9] px-[11px] text-sm" /><div className="flex items-center text-sm"><button type="button" onClick={() => fileInputRef.current?.click()} className="h-9 rounded-[4px] bg-white px-4 text-sm font-medium text-black/85 shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">เลือกไฟล์</button><span className="ml-2 truncate">{fileName || "ยังไม่ได้เลือกไฟล์"}</span><input ref={fileInputRef} type="file" accept="application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? "")} /></div></div></div></div></section></div><div className="border-t border-black/[0.12]" /><div className="m-6"><div className="mb-2 flex flex-col gap-2 lg:flex-row lg:items-end"><label className="flex-1 text-sm leading-[22.001px] text-black/85">ชื่อกองทุน <span className="text-red-600">*</span><select value={fundName} onChange={(event) => setFundName(event.target.value)} className={controlClass}><option value="" />{funds.map((fund) => <option key={fund}>{fund}</option>)}</select></label><label className="flex-1 text-sm leading-[22.001px] text-black/85">โครงสร้างองค์กร<select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><label className="flex-1 text-sm leading-[22.001px] text-black/85">Hashtag<input value={hashtag} onChange={(event) => setHashtag(event.target.value)} placeholder="#Hashtag" className={controlClass} /></label><label className="flex-1 text-sm leading-[22.001px] text-black/85">ปี<input value={year} onChange={(event) => setYear(event.target.value)} placeholder="Select year" inputMode="numeric" className={controlClass} /></label><button type="button" onClick={() => void load()} className="h-9 max-w-[80px] rounded-[4px] bg-[#2299ff] px-4 text-sm font-semibold text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ค้นหา</button></div><div className="mb-2 text-right text-sm leading-[22.001px] text-[#ff0000]">***ต้องไปตั้งค่าประเภทรายรับรายจ่ายเป็นรูปแบบ Fund ไปตั้งค่าได้ที่นี้ <a href="/setting/setting-salarytype" target="_blank" className="text-[#2299ff] underline">Link</a></div><div className="fix-column-table max-h-[60vh] overflow-auto rounded-[8px] bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]"><Table className="min-w-[1650px] table-fixed font-[Kanit,sans-serif] text-sm leading-[22.001px]"><colgroup>{[70,260,170,150,150,150,150,150,150,150,200,150].map((width, index) => <col key={index} style={{ width }} />)}</colgroup><TableHeader className="sticky top-0 z-10 bg-[#61a8ff]"><TableRow className="h-[54.8px] bg-[#61a8ff] hover:bg-[#61a8ff]">{["ลำดับ", "ชื่อพนักงาน", "เลขที่กองทุน", "วันที่สัญญากองทุน", "วิธีการหักเงิน", "เรทกองทุน", "วิธีการสมทบ", "บริษัทสมทบ", "ยอดสะสม", "ยอดสะสมบริษัทสมทบ", "ผู้ได้รับผลประโยชน์", ""].map((label, index) => <TableHead key={`${label}-${index}`} className={cn(head, index === 1 && "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{label}{index === 1 && <Search className="ml-1 inline size-3 align-[-1px]" />}</TableHead>)}</TableRow></TableHeader><TableBody>{loading ? <TableRow><TableCell colSpan={12} className="h-24 text-center text-black/45">กำลังโหลดข้อมูล...</TableCell></TableRow> : rows.length === 0 ? <TableRow><TableCell colSpan={12} className="h-24 text-center text-black/45">ไม่มีข้อมูล</TableCell></TableRow> : <><TableRow className="hover:bg-transparent"><TableCell colSpan={2} className="border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#f2fafe] p-2 text-sm font-medium text-black/65">แผนก: {rows[0]?.department || "-"}</TableCell><TableCell colSpan={10} className="border-b-[0.8px] border-[#f0f0f0] bg-[#f2fafe]" /></TableRow>{rows.map((row, index) => <TableRow key={row.id} className={cn("hover:bg-transparent", index % 2 === 0 ? "[&>td]:bg-white" : "[&>td]:bg-[#f2fafe]")}><TableCell className={`${cell} text-center`}>{index + 1}</TableCell><TableCell className={cn(cell, "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}><div className="flex min-w-0 gap-2"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-[#e8f4ff] text-xs font-medium text-[#61a8ff]">{row.name.slice(0, 1)}</span><span className="min-w-0"><span className="block truncate"><b className="font-normal text-[#61a8ff]">{row.employeeCode}</b>: {row.name}</span><span className="block truncate text-xs text-black/45">{row.position}</span><span className="block truncate text-xs text-black/45">{row.department}</span></span></div></TableCell><TableCell className={cell}><input className="h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] px-[11px]" /></TableCell><TableCell className={cell}><input type="date" className="h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] px-[11px]" /></TableCell><TableCell className={cell}><select className="h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] px-[11px]"><option>หักเงินเดือน</option></select></TableCell><TableCell className={cell}><input className="h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] px-[11px]" /></TableCell><TableCell className={cell}><select className="h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] px-[11px]"><option>ตามอัตรา</option></select></TableCell><TableCell className={cell}><input className="h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] px-[11px]" /></TableCell><TableCell className={cell}><input className="h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] px-[11px]" /></TableCell><TableCell className={cell}><input className="h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] px-[11px]" /></TableCell><TableCell className={cell}><input className="h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] px-[11px]" /></TableCell><TableCell className={`${cell} text-center`}><button type="button" className="text-[#2299ff]">แก้ไข</button></TableCell></TableRow>)}</>}</TableBody></Table>{!loading && rows.length > 0 && <nav className="flex h-16 items-center justify-end px-4"><span className="flex size-8 items-center justify-center rounded-[2px] border border-[#1890ff] bg-white text-sm text-[#1890ff]">1</span></nav>}</div><p className="text-sm leading-[22.001px] text-[#ff0000]">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p><div className="mt-3 flex justify-end"><button type="button" onClick={() => setSaved(true)} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">{saved ? "บันทึกแล้ว" : "บันทึก"}</button></div></div><FundImportHistory /></CardContent>
+    </Card>
+  );
+}
+
+function FundImportHistory() {
+  const headers = ["ลำดับ", "File", "วันที่", "จำนวนข้อมูล", "นำเข้าข้อมูล", "อัพเดตข้อมูล", "ข้อมูลผิดพลาด", "Log"];
+  return (
+    <section className="mt-9 border-t border-black/[0.12] px-6 pt-9">
+      <div className="sub-header text-lg font-medium leading-[28px] text-[rgba(0,0,0,0.87)]">ประวัติการนำเข้าข้อมูล</div>
+      <div className="mt-2 max-h-[300px] overflow-auto rounded-[8px] bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]">
+        <Table className="min-w-[800px] table-fixed font-[Kanit,sans-serif] text-sm leading-[22.001px]">
+          <colgroup>{[8, 20, 20, 15, 15, 15, 15, 15].map((width, index) => <col key={index} style={{ width: `${width}%` }} />)}</colgroup>
+          <TableHeader className="sticky top-0 z-10 bg-[#61a8ff]"><TableRow className="h-[54.8px] bg-[#61a8ff] hover:bg-[#61a8ff]">{headers.map((header) => <TableHead key={header} className="border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium leading-[22.001px] tracking-[-0.1px] text-white">{header}</TableHead>)}</TableRow></TableHeader>
+          <TableBody><TableRow className="hover:bg-transparent"><TableCell colSpan={8} className="h-[180px] border-b-[0.8px] border-[#f0f0f0] text-center text-sm leading-[22.001px] text-black/45">ไม่มีข้อมูล</TableCell></TableRow></TableBody>
+        </Table>
+      </div>
+    </section>
+  );
+}
+
+function WorkShiftVisibilityContent({ orgTree, companyId }: { orgTree: OrgNode[]; companyId: string }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [templateOrganizationId, setTemplateOrganizationId] = useState("");
+  const [organizationId, setOrganizationId] = useState("");
+  const [hashtag, setHashtag] = useState("");
+  const [filters, setFilters] = useState({ organizationId: "", hashtag: "" });
+  const [fileName, setFileName] = useState("");
+  const [rows, setRows] = useState<BasicEmployeeRow[]>([]);
+  const [visibility, setVisibility] = useState<Record<string, boolean[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [dirty, setDirty] = useState(false);
+
+  const organizationOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => {
+      if (node.count === undefined && (node.children?.length ?? 0) === 0) options.push({ id: node.id, label: `${"  ".repeat(depth)}${node.name}` });
+      else visit(node.children ?? [], depth + 1);
+    });
+    visit(orgTree);
+    return options;
+  }, [orgTree]);
+
+  const employeeOrganizationIds = useMemo(() => {
+    const ids = new Map<string, string[]>();
+    const visit = (nodes: OrgNode[]) => nodes.forEach((node) => {
+      if (node.count === undefined && (node.children?.length ?? 0) === 0) ids.set(node.id, node.organizationIds ?? []);
+      else visit(node.children ?? []);
+    });
+    visit(orgTree);
+    return ids;
+  }, [orgTree]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({ view: "basic" });
+        if (companyId) params.set("companyId", companyId);
+        const response = await fetch(`/api/employee?${params.toString()}`, { cache: "no-store" });
+        if (!response.ok) throw new Error("load failed");
+        const data = (await response.json()) as { employees: BasicEmployeeRow[] };
+        if (cancelled) return;
+        const saved = typeof window === "undefined" ? {} : JSON.parse(window.localStorage.getItem(`work-shift-visibility:${companyId}`) ?? "{}");
+        setRows(data.employees);
+        setVisibility(Object.fromEntries(data.employees.map((employee) => [employee.id, Array.isArray(saved[employee.id]) && saved[employee.id].length === 3 ? saved[employee.id] : [true, true, true]])));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void load();
+    return () => { cancelled = true; };
+  }, [companyId]);
+
+  const visibleRows = rows.filter((row) => {
+    const matchesOrganization = !filters.organizationId || employeeOrganizationIds.get(row.id)?.includes(filters.organizationId);
+    const normalizedHashtag = filters.hashtag.trim().replace(/^#/, "").toLocaleLowerCase();
+    return matchesOrganization && (!normalizedHashtag || row.hashtag.toLocaleLowerCase().includes(normalizedHashtag));
+  });
+  const updateVisibility = (employeeId: string, column: number, checked: boolean) => {
+    setVisibility((current) => ({ ...current, [employeeId]: (current[employeeId] ?? [true, true, true]).map((value, index) => index === column ? checked : value) }));
+    setDirty(true);
+  };
+  const updateAllVisibility = (employeeId: string, checked: boolean) => {
+    setVisibility((current) => ({ ...current, [employeeId]: [checked, checked, checked] }));
+    setDirty(true);
+  };
+  const save = () => {
+    window.localStorage.setItem(`work-shift-visibility:${companyId}`, JSON.stringify(visibility));
+    setDirty(false);
+  };
+  const controlClass = "h-[31.6px] w-full min-w-0 rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 text-sm leading-[22.001px] text-black/65 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+  const cellClass = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] p-2 align-middle text-sm leading-[22.001px] text-black/65";
+  const shiftColumns = ["เปิดกะการทำงาน\nทั้งหมด", "WC001\n08:30-12:00-13:00-17:00", "WC002\n08:30-12:00-13:00-17:00"];
+
+  return (
+    <Card className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white" style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}>
+      <CardInputHeader title="ตั้งค่าการมองเห็นกะการทำงาน" />
+      <style>{`
+        .card-input-container .fix-column-table table { min-width: 2000px !important; letter-spacing: -0.1px; }
+        .card-input-container .fix-column-table thead th { letter-spacing: -0.1px; text-transform: none; }
+        .card-input-container .fix-column-table thead tr,
+        .card-input-container .fix-column-table thead th { height: 112.8px !important; }
+        .card-input-container .fix-column-table tbody tr { height: 38.8px !important; }
+        .card-input-container .fix-column-table input[type="checkbox"] {
+          appearance: none; width: 16px; height: 16px; margin: 0; border: 1px solid #d9d9d9;
+          border-radius: 2px; background: #fff; vertical-align: middle;
+        }
+        .card-input-container .fix-column-table input[type="checkbox"]:checked {
+          border-color: #1890ff; background: #1890ff url("data:image/svg+xml,%3Csvg viewBox='0 0 12 12' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.1 6.1 4.7 8.6 9.9 3.4' fill='none' stroke='white' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px 12px no-repeat;
+        }
+        nav[aria-label="แบ่งหน้าตั้งค่าการมองเห็นกะการทำงาน"]::before,
+        nav[aria-label="แบ่งหน้าตั้งค่าการมองเห็นกะการทำงาน"]::after {
+          content: ""; display: block; width: 32px; height: 32px; opacity: .25;
+          background: center / 12px 12px no-repeat;
+        }
+        nav[aria-label="แบ่งหน้าตั้งค่าการมองเห็นกะการทำงาน"]::before {
+          margin-right: 8px;
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='64 64 896 896' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23000' d='M724 218.3V141c0-6.7-7.7-10.4-12.9-6.3L260.3 486.8a31.86 31.86 0 0 0 0 50.3l450.8 352.1c5.3 4.1 12.9.4 12.9-6.3v-77.3c0-4.9-2.3-9.6-6.1-12.6l-360-281 360-281.1c3.8-3 6.1-7.7 6.1-12.6z'/%3E%3C/svg%3E");
+        }
+        nav[aria-label="แบ่งหน้าตั้งค่าการมองเห็นกะการทำงาน"] > span { margin-right: 8px; }
+        nav[aria-label="แบ่งหน้าตั้งค่าการมองเห็นกะการทำงาน"]::after {
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='64 64 896 896' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath fill='%23000' d='M765.7 486.8 314.9 134.7A7.97 7.97 0 0 0 302 141v77.3c0 4.9 2.3 9.6 6.1 12.6l360 281.1-360 281.1c-3.9 3-6.1 7.7-6.1 12.6V883c0 6.7 7.7 10.4 12.9 6.3l450.8-352.1a31.96 31.96 0 0 0 0-50.4z'/%3E%3C/svg%3E");
+        }
+      `}</style>
+      <CardContent className="card-input-body px-2 py-4">
+        <div className="flex flex-col divide-y divide-black/[0.12] lg:flex-row lg:divide-x lg:divide-y-0">
+          <section className="m-6 flex flex-1 gap-2 py-2 pr-0 lg:pr-6"><span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">1</span><div className="m-2 min-w-0 flex-1"><h2 className="h-10 text-lg font-bold leading-10 text-[rgba(0,0,0,0.87)]">ดาวน์โหลดเทมเพลต (*.xlsx)</h2><div className="mb-2 flex items-end gap-2"><label className="min-w-0 flex-[0_1_40%] text-sm leading-[22px] text-[rgba(0,0,0,0.87)]">โครงสร้างองค์กร<select value={templateOrganizationId} onChange={(event) => setTemplateOrganizationId(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><div className="flex-[0_1_20%]"><label className="block text-sm leading-[22px]">&nbsp;</label><button type="button" className="h-9 max-w-[100px] rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ดาวน์โหลด</button></div></div></div></section>
+          <section className="m-6 flex flex-1 gap-2 py-2 pl-0 lg:pl-6"><span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">2</span><div className="m-2 flex-1"><h2 className="h-10 text-lg font-bold leading-10 text-[rgba(0,0,0,0.87)]">นำเข้าข้อมูล</h2><div className="m-1 flex items-center"><button type="button" onClick={() => fileInputRef.current?.click()} className="h-9 rounded-[4px] bg-white px-4 text-sm font-medium leading-9 text-[rgba(0,0,0,0.87)] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">เลือกไฟล์</button><span className="ml-2 truncate text-sm leading-[22px] text-[rgba(0,0,0,0.65)]">{fileName || "ยังไม่ได้เลือกไฟล์"}</span><input ref={fileInputRef} type="file" accept="application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? "")} /></div></div></section>
+        </div>
+        <div className="my-6 border-t border-black/[0.12]" />
+        <div className="m-6"><div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-end"><label className="flex min-w-0 flex-1 flex-col text-sm leading-[22px] text-black/87">โครงสร้างองค์กร<select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><label className="flex min-w-0 flex-1 flex-col text-sm leading-[22px] text-black/87">Hashtag<input value={hashtag} onChange={(event) => setHashtag(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") setFilters({ organizationId, hashtag }); }} placeholder="#Hashtag" className={controlClass} /></label><button type="button" onClick={() => setFilters({ organizationId, hashtag })} className="h-9 min-w-[64px] rounded-[4px] bg-[#2299ff] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-[#1685e8]">ค้นหา</button></div>
+          <div className="fix-column-table max-h-[60vh] overflow-auto rounded-[8px] bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]"><Table className="min-w-[1570px] table-fixed font-[Kanit,sans-serif] text-sm leading-[22.001px]"><colgroup>{[80, 250, 180, 180, 180, 180, 120, 200, 200].map((width, index) => <col key={index} style={{ width }} />)}</colgroup><TableHeader className="sticky top-0 z-10 bg-[#61a8ff]"><TableRow className="bg-[#61a8ff] hover:bg-[#61a8ff]">{["ลำดับ", "ชื่อพนักงาน", "แผนก", "ฝ่ายงาน", "หน่วยงาน", "ตำแหน่ง"].map((column) => <TableHead key={column} className={cn("border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium leading-[22.001px] text-white", column === "ชื่อพนักงาน" && "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{column}{column === "ชื่อพนักงาน" && <svg aria-hidden="true" viewBox="64 64 896 896" className="ml-1 inline size-3 align-[-1px] fill-[rgba(0,0,0,0.54)]"><path d="M909.6 854.5 649.9 594.8C690.2 542.7 712 479 712 412c0-80.2-31.3-155.4-87.9-212.1-56.6-56.7-132-87.9-212.1-87.9s-155.5 31.3-212.1 87.9C143.2 256.5 112 331.8 112 412c0 80.1 31.3 155.5 87.9 212.1C256.5 680.8 331.8 712 412 712c67 0 130.6-21.8 182.7-62l259.7 259.6a8.2 8.2 0 0 0 11.6 0l43.6-43.5a8.2 8.2 0 0 0 0-11.6ZM570.4 570.4C528 612.7 471.8 636 412 636s-116-23.3-158.4-65.6C211.3 528 188 471.8 188 412s23.3-116.1 65.6-158.4C296 211.3 352.2 188 412 188s116.1 23.2 158.4 65.6S636 352.2 636 412s-23.3 116.1-65.6 158.4Z" /></svg>}</TableHead>)}{shiftColumns.map((column, index) => <TableHead key={column} className="min-h-[112px] border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 align-bottom text-center text-sm font-medium leading-[22.001px] text-white"><div className="flex min-h-20 flex-col justify-between whitespace-pre-wrap text-sm font-normal leading-[19.6px]"><span>{column}</span><label className="mt-2 inline-flex justify-center"><input type="checkbox" checked={visibleRows.length > 0 && visibleRows.every((row) => index === 0 ? visibility[row.id]?.every(Boolean) : visibility[row.id]?.[index - 1])} onChange={(event) => visibleRows.forEach((row) => index === 0 ? updateAllVisibility(row.id, event.target.checked) : updateVisibility(row.id, index - 1, event.target.checked))} className="size-4 accent-[#1890ff]" aria-label={`เลือก${column}ทั้งหมด`} /></label></div></TableHead>)}</TableRow></TableHeader><TableBody>{loading ? <TableRow><TableCell colSpan={9} className="h-24 text-center text-black/45">กำลังโหลดข้อมูล...</TableCell></TableRow> : visibleRows.length === 0 ? <TableRow><TableCell colSpan={9} className="h-24 text-center text-black/45">ไม่มีข้อมูล</TableCell></TableRow> : visibleRows.map((row, index) => <TableRow key={row.id} className={cn("!h-[40.8px] border-b-0 hover:bg-transparent", index % 2 === 0 ? "[&>td]:bg-[#f2fafe]" : "[&>td]:bg-white")}><TableCell className={`${cellClass} text-center`}>{index + 1}</TableCell><TableCell className={cn(cellClass, "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{row.employeeCode}: {row.name}</TableCell><TableCell className={cellClass}>{row.department}</TableCell><TableCell className={cellClass}>{row.division}</TableCell><TableCell className={cellClass}>{row.unit}</TableCell><TableCell className={cellClass}>{row.position}</TableCell><TableCell className={`${cellClass} text-center`}><input type="checkbox" checked={visibility[row.id]?.every(Boolean) ?? true} onChange={(event) => updateAllVisibility(row.id, event.target.checked)} className="size-4 accent-[#1890ff]" aria-label={`เปิดกะทั้งหมดของ ${row.name}`} /></TableCell>{[0, 1].map((column) => <TableCell key={column} className={`${cellClass} text-center`}><input type="checkbox" checked={visibility[row.id]?.[column] ?? true} onChange={(event) => updateVisibility(row.id, column, event.target.checked)} className="size-4 accent-[#1890ff]" aria-label={`เปิด WC00${column + 1} ของ ${row.name}`} /></TableCell>)}</TableRow>)}</TableBody></Table>{!loading && visibleRows.length > 0 && <nav className="flex h-16 items-center justify-end px-4" aria-label="แบ่งหน้าตั้งค่าการมองเห็นกะการทำงาน"><span className="flex size-8 items-center justify-center rounded-[2px] border border-[#1890ff] bg-white text-sm text-[#1890ff]">1</span></nav>}</div>
+          <p className="mt-0 text-sm leading-[22.001px] text-[#ff0000]">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p><div className="mt-3 flex justify-end"><button type="button" disabled={!dirty} onClick={save} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] disabled:bg-[#bfbfbf]">บันทึก</button></div>
+          <div className="my-6 border-t border-black/[0.12]" /><h3 className="sub-header text-lg font-medium text-[rgba(0,0,0,0.87)]">ประวัติการนำเข้าตั้งค่าการมองเห็นกะการทำงาน</h3><div className="mt-2 overflow-auto rounded-[8px] bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]"><Table className="min-w-[900px] table-fixed text-sm leading-[22.001px]"><TableHeader><TableRow className="bg-[#61a8ff] hover:bg-[#61a8ff]">{["ลำดับ", "File", "วันที่", "จำนวนข้อมูล", "นำเข้าข้อมูล", "อัพเดตข้อมูล", "ข้อมูลผิดพลาด", "ผู้นำเข้า", "Log"].map((header) => <TableHead key={header} className="border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium text-white">{header}</TableHead>)}</TableRow></TableHeader><TableBody><TableRow><TableCell colSpan={9} className="h-40 text-center text-black/45">ไม่มีข้อมูล</TableCell></TableRow></TableBody></Table></div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function WorkdayHolidayContent({ orgTree, companyId }: { orgTree: OrgNode[]; companyId: string }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [templateOrg, setTemplateOrg] = useState(""); const [org, setOrg] = useState(""); const [hashtag, setHashtag] = useState("");
+  const [filters, setFilters] = useState({ org: "", hashtag: "" }); const [fileName, setFileName] = useState("");
+  const [rows, setRows] = useState<BasicEmployeeRow[]>([]); const [loading, setLoading] = useState(true); const [dirty, setDirty] = useState(false);
+  const organizationOptions = useMemo(() => { const options: { id: string; name: string }[] = []; const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => { if (node.count === undefined && (node.children?.length ?? 0) === 0) options.push({ id: node.id, name: `${"  ".repeat(depth)}${node.name}` }); else visit(node.children ?? [], depth + 1); }); visit(orgTree); return options; }, [orgTree]);
+  useEffect(() => { let cancelled = false; const load = async () => { setLoading(true); try { const params = new URLSearchParams({ view: "basic" }); if (companyId) params.set("companyId", companyId); const response = await fetch(`/api/employee?${params.toString()}`, { cache: "no-store" }); if (!response.ok) throw new Error("load failed"); const data = (await response.json()) as { employees: BasicEmployeeRow[] }; if (!cancelled) setRows(data.employees); } finally { if (!cancelled) setLoading(false); } }; void load(); return () => { cancelled = true; }; }, [companyId]);
+  const visibleRows = rows.filter((row) => !filters.hashtag || row.hashtag.toLocaleLowerCase().includes(filters.hashtag.trim().replace(/^#/, "").toLocaleLowerCase()));
+  const controlClass = "h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 text-sm leading-[22.001px] text-black/65 outline-none focus:border-[#40a9ff]";
+  const cellClass = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] p-2 align-middle text-sm leading-[22.001px] text-black/65";
+  const days = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"];
+  return <Card className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white" style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}><CardInputHeader title="ตั้งค่าวันทำงาน-วันหยุด" /><CardContent className="card-input-body px-2 py-4"><div className="m-6 flex flex-col divide-y divide-black/[0.12] lg:flex-row lg:divide-x lg:divide-y-0"><section className="flex flex-1 gap-2 py-2 pr-0 lg:pr-6"><span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl text-white">1</span><div className="m-2 min-w-0 flex-1"><h2 className="h-10 text-lg font-bold leading-10">ดาวน์โหลดเทมเพลต (*.xlsx)</h2><div className="flex items-end gap-2"><label className="min-w-0 flex-[0_1_70%] text-sm leading-[22px]">โครงสร้างองค์กร<select value={templateOrg} onChange={(event) => setTemplateOrg(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label><button type="button" className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ดาวน์โหลด</button></div></div></section><section className="flex flex-1 gap-2 py-2 pl-0 lg:pl-6"><span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl text-white">2</span><div className="m-2 flex-1"><h2 className="h-10 text-lg font-bold leading-10">นำเข้าข้อมูล</h2><div className="m-1 flex items-center"><button type="button" onClick={() => fileInputRef.current?.click()} className="h-9 rounded-[4px] bg-white px-4 text-sm font-medium leading-9 shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">เลือกไฟล์</button><span className="ml-2 truncate text-sm text-black/65">{fileName || "ยังไม่ได้เลือกไฟล์"}</span><input ref={fileInputRef} type="file" accept="application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? "")} /></div></div></section></div><div className="my-6 border-t border-black/[0.12]" /><div className="m-6"><div className="flex flex-col gap-2 sm:flex-row sm:items-end"><label className="flex flex-1 flex-col text-sm leading-[22px]">โครงสร้างองค์กร<select value={org} onChange={(event) => setOrg(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}</select></label><label className="flex flex-1 flex-col text-sm leading-[22px]">Hashtag<input value={hashtag} onChange={(event) => setHashtag(event.target.value)} placeholder="#Hashtag" className={controlClass} /></label><button type="button" onClick={() => setFilters({ org, hashtag })} className="h-9 rounded-[4px] bg-[#2299ff] px-4 text-sm font-semibold leading-9 text-white">ค้นหา</button></div><label className="mt-2 flex flex-col text-sm leading-[22px]">วันทำงาน - วันหยุด<select className={controlClass} onChange={() => setDirty(true)} defaultValue=""><option value="">วันทำงาน - วันหยุด</option><option>วันทำงาน</option><option>วันหยุดพนักงาน</option></select></label><div className="fix-column-table m-1 mt-2 max-h-[60vh] overflow-auto rounded-[8px] bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]"><Table className="min-w-[1920px] table-fixed font-[Kanit,sans-serif] text-sm leading-[22.001px]"><colgroup>{[80,200,160,160,160,160,160,...Array(7).fill(120)].map((width,index)=><col key={index} style={{width}} />)}</colgroup><TableHeader className="sticky top-0 z-10 bg-[#61a8ff]"><TableRow className="h-[54.8px] bg-[#61a8ff] hover:bg-[#61a8ff]">{["ลำดับ","ชื่อพนักงาน","สำนักงาน/สาขา","แผนก","ฝ่ายงาน","หน่วยงาน","ตำแหน่ง",...days].map((column)=><TableHead key={column} className={cn("border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium leading-[22.001px] text-white",column==="ชื่อพนักงาน"&&"shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{column}{column==="ชื่อพนักงาน"&&<Search className="ml-1 inline size-3 align-[-1px]" />}</TableHead>)}</TableRow></TableHeader><TableBody>{loading?<TableRow><TableCell colSpan={14} className="h-24 text-center text-black/45">กำลังโหลดข้อมูล...</TableCell></TableRow>:visibleRows.length===0?<TableRow><TableCell colSpan={14} className="h-24 text-center text-black/45">ไม่มีข้อมูล</TableCell></TableRow>:visibleRows.map((row,index)=><TableRow key={row.id} className={cn("!h-[38.8px] border-b-0 hover:bg-transparent",index%2===0?"[&>td]:bg-[#f2fafe]":"[&>td]:bg-white")}><TableCell className={`${cellClass} text-center`}>{index+1}</TableCell><TableCell className={cn(cellClass,"shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{row.employeeCode}: {row.name}</TableCell><TableCell className={cellClass}>{row.branch}</TableCell><TableCell className={cellClass}>{row.department}</TableCell><TableCell className={cellClass}>{row.division}</TableCell><TableCell className={cellClass}>{row.unit}</TableCell><TableCell className={cellClass}>{row.position}</TableCell>{days.map((day,index)=><TableCell key={day} className={`${cellClass} text-center`}><button type="button" onClick={()=>setDirty(true)} className="h-[22.001px] bg-transparent p-0 text-sm leading-[22.001px] text-black/65">{index<5?"วันทำงาน":"วันหยุดพนักงาน"}</button></TableCell>)}</TableRow>)}</TableBody></Table>{!loading&&visibleRows.length>0&&<nav className="flex h-16 items-center justify-end px-4"><span className="flex size-8 items-center justify-center rounded-[2px] border border-[#1890ff] bg-white text-sm text-[#1890ff]">1</span></nav>}</div><p className="text-sm leading-[22.001px] text-red-600">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p><p className="mt-2 text-sm leading-[22.001px] text-red-600">*** หากมีการเปลี่ยนแปลงวันทำงาน - วันหยุดในหน้านี้ จะเป็นการเปลี่ยนข้อมูลพื้นฐาน ซึ่งจะไม่ส่งผลกระทบข้อมูลในแต่ละเดือน หากต้องการอัพเดทข้อมูลในแต่ละเดือน กรุณา “รีเซ็ตค่าตั้งต้น” ในเดือนที่ต้องการอีกครั้ง</p><div className="flex justify-end pt-3"><button type="button" disabled={!dirty} onClick={()=>setDirty(false)} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white disabled:bg-[#bfbfbf]">บันทึก</button></div></div><div className="my-6 border-t border-black/[0.12]" /><div className="sub-header m-6 text-lg font-medium">ประวัติการนำเข้าข้อมูล วันทำงาน - วันหยุด</div></CardContent></Card>;
+}
+
+function ShiftHolidayContent({ companyId }: { companyId: string }) {
+  const [rows, setRows] = useState<BasicEmployeeRow[]>([]); const [loading, setLoading] = useState(true);
+  useEffect(() => { let cancelled = false; const load = async () => { setLoading(true); try { const params = new URLSearchParams({ view: "basic" }); if (companyId) params.set("companyId", companyId); const response = await fetch(`/api/employee?${params.toString()}`, { cache: "no-store" }); if (!response.ok) throw new Error("load failed"); const data = (await response.json()) as { employees: BasicEmployeeRow[] }; if (!cancelled) setRows(data.employees); } finally { if (!cancelled) setLoading(false); } }; void load(); return () => { cancelled = true; }; }, [companyId]);
+  const days = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"];
+  const cell = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] p-2 align-middle text-sm leading-[22.001px] text-black/65";
+  const head = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium leading-[22.001px] text-white";
+  return <Card className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white" style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}><CardInputHeader title="ตั้งค่ากะการทำงาน-วันหยุด" /><CardContent className="card-input-body px-2 py-4"><div className="m-6"><div className="flex flex-col gap-2 sm:flex-row sm:items-end"><label className="flex flex-1 flex-col text-sm leading-[22px]">โครงสร้างองค์กร<select className="h-[31.6px] rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] text-sm"><option>โครงสร้างองค์กร</option></select></label><label className="flex flex-1 flex-col text-sm leading-[22px]">Hashtag<input placeholder="#Hashtag" className="h-[31.6px] rounded-[4px] border-[0.8px] border-[#d9d9d9] px-[11px] text-sm" /></label><button type="button" className="h-9 rounded-[4px] bg-[#2299ff] px-4 text-sm font-semibold text-white">ค้นหา</button></div><div className="mt-2 grid gap-2 sm:grid-cols-2"><label className="flex flex-col text-sm leading-[22px]">กะการทำงาน<select className="h-[31.6px] rounded-[4px] border-[0.8px] border-[#d9d9d9] px-[11px] text-sm"><option>กะการทำงาน</option><option>WC001</option><option>WC002</option></select></label><label className="flex flex-col text-sm leading-[22px]">วันทำงาน - วันหยุด<select className="h-[31.6px] rounded-[4px] border-[0.8px] border-[#d9d9d9] px-[11px] text-sm"><option>วันทำงาน - วันหยุด</option><option>วันทำงาน</option><option>วันหยุดพนักงาน</option></select></label></div><span className="block pt-2 text-right text-sm text-red-600">***เพิ่มกะการทำงานได้ที่นี่ <a href="/organization/organization-workcycle" className="text-[#2299ff] underline">Link</a></span><div className="fix-column-table mt-1 max-h-[60vh] overflow-auto rounded-[8px] bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]"><Table className="min-w-[4520px] table-fixed font-[Kanit,sans-serif] text-sm leading-[22.001px]"><colgroup>{[80,200,160,160,160,160,160,...Array(14).fill(200)].map((width,index)=><col key={index} style={{width}} />)}</colgroup><TableHeader className="sticky top-0 z-10 bg-[#61a8ff]"><TableRow className="h-[54.8px] bg-[#61a8ff] hover:bg-[#61a8ff]">{["ลำดับ","ชื่อพนักงาน","สำนักงาน/สาขา","แผนก","ฝ่ายงาน","หน่วยงาน","ตำแหน่ง"].map((label,index)=><TableHead key={label} rowSpan={2} className={cn(head,index===1&&"shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{label}{index===1&&<Search className="ml-1 inline size-3 align-[-1px]" />}</TableHead>)}{days.map(day=><TableHead key={day} colSpan={2} className={head}>{day}</TableHead>)}</TableRow><TableRow className="h-[54.8px] bg-[#61a8ff] hover:bg-[#61a8ff]">{days.flatMap(day=>[<TableHead key={`${day}-shift`} className={head}>กะการทำงาน</TableHead>,<TableHead key={`${day}-holiday`} className={head}>วันทำงาน/วันหยุด</TableHead>])}</TableRow></TableHeader><TableBody>{loading?<TableRow><TableCell colSpan={21} className="h-24 text-center text-black/45">กำลังโหลดข้อมูล...</TableCell></TableRow>:rows.length===0?<TableRow><TableCell colSpan={21} className="h-24 text-center text-black/45">ไม่มีข้อมูล</TableCell></TableRow>:rows.map((row,index)=><TableRow key={row.id} className={cn("!h-[38.8px] border-b-0 hover:bg-transparent",index%2===0?"[&>td]:bg-[#f2fafe]":"[&>td]:bg-white")}><TableCell className={`${cell} text-center`}>{index+1}</TableCell><TableCell className={cn(cell,"shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{row.employeeCode}: {row.name}</TableCell><TableCell className={cell}>{row.branch}</TableCell><TableCell className={cell}>{row.department}</TableCell><TableCell className={cell}>{row.division}</TableCell><TableCell className={cell}>{row.unit}</TableCell><TableCell className={cell}>{row.position}</TableCell>{days.flatMap((day,dayIndex)=>[<TableCell key={`${day}-shift`} className={`${cell} text-center`}>WC00{index%2+1}</TableCell>,<TableCell key={`${day}-holiday`} className={`${cell} text-center`}>{dayIndex<5?"วันทำงาน":"วันหยุดพนักงาน"}</TableCell>])}</TableRow>)}</TableBody></Table>{!loading&&rows.length>0&&<nav className="flex h-16 items-center justify-end px-4"><span className="flex size-8 items-center justify-center rounded-[2px] border border-[#1890ff] bg-white text-sm text-[#1890ff]">1</span></nav>}</div><p className="text-sm leading-[22.001px] text-red-600">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p></div></CardContent></Card>;
+}
+
+/* eslint-disable @next/next/no-img-element -- the reference table renders a 24px avatar directly in the employee cell. */
+function WorkShiftSettingsContent({ orgTree, companyId }: { orgTree: OrgNode[]; companyId: string }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [templateOrganizationId, setTemplateOrganizationId] = useState("");
+  const [organizationId, setOrganizationId] = useState("");
+  const [hashtag, setHashtag] = useState("");
+  const [filters, setFilters] = useState({ organizationId: "", hashtag: "" });
+  const [selectedShift, setSelectedShift] = useState("WC001");
+  const [fileName, setFileName] = useState("");
+  const [rows, setRows] = useState<BasicEmployeeRow[]>([]);
+  const [weeklyShifts, setWeeklyShifts] = useState<Record<string, string[]>>({});
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+
+  const organizationOptions = useMemo(() => {
+    const options: { id: string; label: string }[] = [];
+    const visit = (nodes: OrgNode[], depth = 0) => nodes.forEach((node) => {
+      if (node.count !== undefined) options.push({ id: node.id, label: `${"  ".repeat(depth)}${node.code}: ${node.name}` });
+      visit(node.children ?? [], depth + 1);
+    });
+    visit(orgTree);
+    return options;
+  }, [orgTree]);
+
+  const employeeOrganizationIds = useMemo(() => {
+    const ids = new Map<string, string[]>();
+    const visit = (nodes: OrgNode[]) => nodes.forEach((node) => {
+      if (node.count === undefined && (node.children?.length ?? 0) === 0) ids.set(node.id, node.organizationIds ?? []);
+      else visit(node.children ?? []);
+    });
+    visit(orgTree);
+    return ids;
+  }, [orgTree]);
+
+  const loadRows = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ view: "basic" });
+      if (companyId) params.set("companyId", companyId);
+      const response = await fetch(`/api/employee?${params.toString()}`, { cache: "no-store" });
+      if (!response.ok) throw new Error("load failed");
+      const data = (await response.json()) as { employees: BasicEmployeeRow[] };
+      setRows(data.employees);
+      const settings = await Promise.all(data.employees.map(async (employee) => {
+        try {
+          const settingResponse = await fetch(`/api/payroll/individual-shift-holiday-settings?${new URLSearchParams({ employeeId: employee.id }).toString()}`, { cache: "no-store" });
+          if (!settingResponse.ok) return [employee.id, Array(7).fill("WC001")] as const;
+          const payload = (await settingResponse.json()) as { settings?: { weeklyShifts?: string[] } };
+          return [employee.id, payload.settings?.weeklyShifts?.length === 7 ? payload.settings.weeklyShifts : Array(7).fill("WC001")] as const;
+        } catch {
+          return [employee.id, Array(7).fill("WC001")] as const;
+        }
+      }));
+      setWeeklyShifts(Object.fromEntries(settings));
+    } finally {
+      setLoading(false);
+    }
+  }, [companyId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadRows(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadRows]);
+
+  const visibleRows = rows.filter((row) => {
+    const matchesOrganization = !filters.organizationId || employeeOrganizationIds.get(row.id)?.includes(filters.organizationId);
+    const normalizedHashtag = filters.hashtag.trim().replace(/^#/, "").toLocaleLowerCase();
+    return matchesOrganization && (!normalizedHashtag || row.hashtag.toLocaleLowerCase().includes(normalizedHashtag));
+  });
+
+  const updateShift = (employeeId: string, dayIndex: number, value: string) => {
+    setWeeklyShifts((current) => ({ ...current, [employeeId]: (current[employeeId] ?? Array(7).fill("WC001")).map((shift, index) => index === dayIndex ? value : shift) }));
+    setDirty(true);
+  };
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const responses = await Promise.all(rows.map((row) => fetch("/api/payroll/individual-shift-holiday-settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ employeeId: row.id, section: "shift", selectedShift: weeklyShifts[row.id]?.[0] ?? selectedShift, weeklyShifts: weeklyShifts[row.id] ?? Array(7).fill(selectedShift) }),
+      })));
+      if (responses.some((response) => !response.ok)) throw new Error("save failed");
+      setDirty(false);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const controlClass = "h-[31.6px] w-full min-w-0 rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 text-sm leading-[22.001px] text-black/65 outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
+  const cellClass = "border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] p-2 align-middle text-sm leading-[22.001px] text-black/65";
+  const days = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"];
+
+  return (
+    <Card
+      className="card-input-container relative mx-4 mb-3 overflow-hidden rounded-lg border-0 bg-white"
+      style={{ boxShadow: "0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12)" }}
+      >
+      <style>{`.card-input-container .fix-column-table thead th { letter-spacing: -0.1px; text-transform: none; }`}</style>
+      <CardInputHeader title="ตั้งค่ากะการทำงาน" />
+      <CardContent className="card-input-body px-2 py-4">
+        <div className="m-6">
+          <div className="flex flex-col divide-y divide-black/[0.12] lg:flex-row lg:divide-x lg:divide-y-0">
+            <section className="flex flex-1 gap-2 py-2 pr-0 lg:pr-6">
+              <span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">1</span>
+              <div className="m-2 min-w-0 flex-1"><h2 className="h-10 text-lg font-bold leading-10 text-[rgba(0,0,0,0.87)]">ดาวน์โหลดเทมเพลต (*.xlsx)</h2><div className="flex items-end gap-2"><label className="min-w-0 flex-[0_1_70%] text-sm leading-[22px] text-[rgba(0,0,0,0.87)]">โครงสร้างองค์กร<select value={templateOrganizationId} onChange={(event) => setTemplateOrganizationId(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><button type="button" className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ดาวน์โหลด</button></div></div>
+            </section>
+            <section className="flex flex-1 gap-2 py-2 pl-0 lg:pl-6">
+              <span className="import-no m-2 flex size-10 shrink-0 items-center justify-center rounded-full bg-[#61a8ff] text-xl font-normal text-white">2</span>
+              <div className="m-2 flex-1"><h2 className="h-10 text-lg font-bold leading-10 text-[rgba(0,0,0,0.87)]">นำเข้าข้อมูล</h2><div className="flex items-center"><button type="button" onClick={() => fileInputRef.current?.click()} className="h-9 rounded-[4px] bg-white px-4 text-sm font-medium leading-9 text-[rgba(0,0,0,0.87)] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">เลือกไฟล์</button><span className="ml-2 truncate text-sm leading-[22px] text-[rgba(0,0,0,0.65)]">{fileName || "ยังไม่ได้เลือกไฟล์"}</span><input ref={fileInputRef} type="file" accept="application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={(event) => setFileName(event.target.files?.[0]?.name ?? "")} /></div></div>
+            </section>
+          </div>
+
+          <div className="my-6 border-t border-black/[0.12]" />
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end"><label className="flex min-w-0 flex-1 flex-col text-sm leading-[22px] text-black/87">โครงสร้างองค์กร<select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className={controlClass}><option value="">โครงสร้างองค์กร</option>{organizationOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}</select></label><label className="flex min-w-0 flex-1 flex-col text-sm leading-[22px] text-black/87">Hashtag<input value={hashtag} onChange={(event) => setHashtag(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") setFilters({ organizationId, hashtag }); }} placeholder="#Hashtag" className={controlClass} /></label><button type="button" onClick={() => setFilters({ organizationId, hashtag })} className="h-9 min-w-[64px] rounded-[4px] bg-[#2299ff] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-[#1685e8]">ค้นหา</button></div>
+          <label className="mt-2 flex flex-col text-sm leading-[22px] text-black/87">กะการทำงาน <span className="text-red-600">***เพิ่มกะการทำงานได้ที่นี่ <a href="/organization/organization-workcycle" className="text-[#2299ff] underline">Link</a></span><select value={selectedShift} onChange={(event) => setSelectedShift(event.target.value)} className={controlClass}><option>WC001</option><option>WC002</option></select></label>
+
+          <div className="fix-column-table mt-2 max-h-[650px] overflow-auto rounded-[8px] bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]"><Table className="min-w-[2200px] table-fixed font-[Kanit,sans-serif] text-sm leading-[22.001px]"><colgroup>{[80, 280, 200, 200, 200, 200, 200, ...Array(7).fill(120)].map((width, index) => <col key={index} style={{ width }} />)}</colgroup><TableHeader className="sticky top-0 z-10 bg-[#61a8ff]"><TableRow className="h-[54.8px] bg-[#61a8ff] hover:bg-[#61a8ff]">{["ลำดับ", "ชื่อพนักงาน", "สำนักงาน/สาขา", "แผนก", "ฝ่ายงาน", "หน่วยงาน", "ตำแหน่ง", ...days].map((column) => <TableHead key={column} className={cn("border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium leading-[22.001px] text-white", column === "ชื่อพนักงาน" && "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{column}{column === "ชื่อพนักงาน" && <svg aria-hidden="true" viewBox="64 64 896 896" className="ml-1 inline size-3 align-[-1px] fill-[rgba(0,0,0,0.54)]"><path d="M909.6 854.5 649.9 594.8C690.2 542.7 712 479 712 412c0-80.2-31.3-155.4-87.9-212.1-56.6-56.7-132-87.9-212.1-87.9s-155.5 31.3-212.1 87.9C143.2 256.5 112 331.8 112 412c0 80.1 31.3 155.5 87.9 212.1C256.5 680.8 331.8 712 412 712c67 0 130.6-21.8 182.7-62l259.7 259.6a8.2 8.2 0 0 0 11.6 0l43.6-43.5a8.2 8.2 0 0 0 0-11.6ZM570.4 570.4C528 612.7 471.8 636 412 636s-116-23.3-158.4-65.6C211.3 528 188 471.8 188 412s23.3-116.1 65.6-158.4C296 211.3 352.2 188 412 188s116.1 23.2 158.4 65.6S636 352.2 636 412s-23.3 116.1-65.6 158.4Z" /></svg>}</TableHead>)}</TableRow></TableHeader><TableBody>{loading ? <TableRow><TableCell colSpan={14} className="h-24 text-center text-black/45">กำลังโหลดข้อมูล...</TableCell></TableRow> : visibleRows.length === 0 ? <TableRow><TableCell colSpan={14} className="h-24 text-center text-black/45">ไม่มีข้อมูล</TableCell></TableRow> : visibleRows.map((row, index) => <TableRow key={row.id} className={cn("!h-[40.8px] border-b-0 hover:bg-transparent", index % 2 === 0 ? "[&>td]:bg-[#f2fafe]" : "[&>td]:bg-white")}><TableCell className={`${cellClass} text-center`}>{index + 1}</TableCell><TableCell className={cn(cellClass, "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}><img src={`${USER_IMAGE_ORIGIN}/images/userPlaceHolder.png`} alt="" className="mr-2 inline-block size-6 min-w-6 rounded-full border-[1.6px] border-[#61a8ff] p-px align-middle" />{row.employeeCode}: {row.name}</TableCell><TableCell className={cellClass}>{row.branch}</TableCell><TableCell className={cellClass}>{row.department}</TableCell><TableCell className={cellClass}>{row.division}</TableCell><TableCell className={cellClass}>{row.unit}</TableCell><TableCell className={cellClass}>{row.position}</TableCell>{days.map((day, dayIndex) => <TableCell key={day} className={`${cellClass} text-center`}><button type="button" title={`เปลี่ยนกะ ${day}`} onClick={() => updateShift(row.id, dayIndex, weeklyShifts[row.id]?.[dayIndex] === "WC002" ? "WC001" : "WC002")} className="h-[22.001px] border-0 bg-transparent p-0 text-center text-sm font-normal leading-[22.001px] text-black/65">{weeklyShifts[row.id]?.[dayIndex] ?? "WC001"}</button></TableCell>)}</TableRow>)}</TableBody></Table>{!loading && visibleRows.length > 0 && <nav className="flex h-16 items-center justify-end px-4" aria-label="แบ่งหน้าตั้งค่ากะการทำงาน"><span className="flex size-8 items-center justify-center rounded-[2px] border border-[#1890ff] bg-white text-sm text-[#1890ff]">1</span></nav>}</div>
+          <p className="mt-0 text-sm leading-[22.001px] text-[#ff0000]">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p><p className="mt-2 text-sm leading-[22.001px] text-[#ff0000]">*** หากมีการเปลี่ยนแปลงกะการทำงานในหน้านี้ จะเป็นการเปลี่ยนข้อมูลพื้นฐาน ซึ่งจะไม่ส่งผลกระทบข้อมูลในแต่ละเดือน หากต้องการอัพเดทข้อมูลในแต่ละเดือน กรุณา “รีเซ็ตค่าตั้งต้น” ในเดือนที่ต้องการอีกครั้ง</p><div className="flex justify-end pt-3"><button type="button" disabled={!dirty || saving} onClick={() => void save()} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] disabled:bg-[#bfbfbf]">{saving ? "กำลังบันทึก..." : "บันทึก"}</button></div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/* eslint-enable @next/next/no-img-element */
 
 /* ---------------------------------- Page ---------------------------------- */
 
@@ -1934,7 +4128,7 @@ export default function OrganizationEmployeePage() {
                     type="button"
                     onClick={() => {
                       setActiveTab(item);
-                      if (item === "นำเข้าข้อมูลพนักงาน" || item === "รูปพนักงาน" || item === "ข้อมูลพื้นฐาน" || item === "ข้อมูลเงินเดือน" || item === "กำหนดผู้อนุมัติรายบุคคล") void loadOrgTree();
+                      if (item === "นำเข้าข้อมูลพนักงาน" || item === "รูปพนักงาน" || item === "ข้อมูลพื้นฐาน" || item === "ข้อมูลเงินเดือน" || item === "กำหนดผู้อนุมัติรายบุคคล" || item === "ตั้งค่า Hashtag" || item === "ตั้งค่า Cost Distribution" || item === "ตั้งค่าคำนวณโควตาการลา") void loadOrgTree();
                     }}
                     className={cn(
                       "mb-3 block h-[41.2px] w-full rounded-[8px] border-[1.6px] px-2 py-2 text-center text-sm font-normal leading-[22.001px] tracking-[-0.1px] transition-colors",
@@ -1969,8 +4163,50 @@ export default function OrganizationEmployeePage() {
             ) : activeTab === "กำหนดผู้อนุมัติรายบุคคล" ? (
               <IndividualApproverContent orgTree={orgTree ?? []} companyId={companyId} />
             ) : activeTab === "ช่องทางการรับเงิน" ? (
-              <PaymentMethodContent />
-            ) : activeTab !== "Dashboard" ? (
+              <PaymentMethodContent orgTree={orgTree ?? []} companyId={companyId} />
+            ) : activeTab === "ตั้งค่ากะการทำงาน" ? (
+              <WorkShiftSettingsContent orgTree={orgTree ?? []} companyId={companyId} />
+            ) : activeTab === "ตั้งค่าการมองเห็นกะการทำงาน" ? (
+              <WorkShiftVisibilityContent orgTree={orgTree ?? []} companyId={companyId} />
+            ) : activeTab === "ตั้งค่าวันทำงาน-วันหยุด" ? (
+              <WorkdayHolidayContent orgTree={orgTree ?? []} companyId={companyId} />
+) : activeTab === "ตั้งค่ากะการทำงาน-วันหยุด" ? (
+  <ShiftHolidayContent companyId={companyId} />
+) : activeTab === "ตั้งค่าทั่วไป" ? (
+  <GeneralSettingsContent orgTree={orgTree ?? []} companyId={companyId} />
+) : activeTab === "รายรับรายจ่ายคงที่" ? (
+  <FixedIncomeExpenseContent orgTree={orgTree ?? []} companyId={companyId} />
+) : activeTab === "รายรับรายจ่ายอัตโนมัติ" ? (
+  <AutomaticIncomeExpenseContent orgTree={orgTree ?? []} companyId={companyId} />
+) : activeTab === "กองทุน" ? (
+  <FundContent orgTree={orgTree ?? []} companyId={companyId} />
+) : activeTab === "เงินสะสมย้อนหลัง" ? (
+  <HistoricalSavingsContent orgTree={orgTree ?? []} companyId={companyId} />
+) : activeTab === "เงินประกันการทำงาน" ? (
+  <WorkInsuranceContent orgTree={orgTree ?? []} />
+) : activeTab === "ตั้งค่าการแก้ไขข้อมูล" ? (
+  <EditDataSettingsContent />
+) : activeTab === "ตั้งค่า Hashtag" ? (
+  <HashtagSettingsContent orgTree={orgTree ?? []} companyId={companyId} />
+) : activeTab === "ตั้งค่าสวัสดิการ" ? (
+  <WelfareSettingsContent orgTree={orgTree ?? []} />
+) : activeTab === "ตั้งค่าการมองเห็นประเภทโอที" ? (
+  <OvertimeTypeVisibilityContent orgTree={orgTree ?? []} companyId={companyId} />
+) : activeTab === "ตั้งค่าการมองเห็นประเภทการลา" ? (
+  <LeaveTypeVisibilityContent orgTree={orgTree ?? []} companyId={companyId} />
+) : activeTab === "ตั้งค่า Cost Distribution" ? (
+  <CostDistributionContent orgTree={orgTree ?? []} companyId={companyId} />
+) : activeTab === "ตั้งค่าคำนวณโควตาการลา" ? (
+  <LeaveQuotaCalculationContent orgTree={orgTree ?? []} companyId={companyId} />
+) : activeTab === "ลดหย่อนภาษี" ? (
+  <TaxDeductionContent orgTree={orgTree ?? []} />
+) : activeTab === "นำเข้าฝึกอบรม" ? (
+  <TrainingImportContent orgTree={orgTree ?? []} />
+) : activeTab === "นำเข้าสินทรัพย์ถือครอง" ? (
+  <AssetImportContent orgTree={orgTree ?? []} />
+) : activeTab === "นำเข้าประวัติส่วนตัว" ? (
+  <PersonalHistoryImportContent orgTree={orgTree ?? []} />
+) : activeTab !== "Dashboard" ? (
               <TabPlaceholder tab={activeTab} />
             ) : loadError ? (
               <ErrorContent onRetry={runLoad} />
