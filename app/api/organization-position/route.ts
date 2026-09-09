@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { Prisma } from "@/generated/prisma/client";
 import { getActiveCompany } from "@/lib/active-company";
+import { invalidateReadCache, readCacheKey, readThroughCache } from "@/lib/cache/read-through";
+import { invalidateReadModel } from "@/lib/cache/read-model-version";
 import { prisma } from "@/lib/prisma";
 
 type PositionRequest = {
@@ -99,9 +101,16 @@ async function response(companyId?: string | null) {
   return { companyId: selectedCompanyId, positions: await positionTree(selectedCompanyId) };
 }
 
+const positionCacheKey = (companyId?: string | null) => readCacheKey("organization-positions", companyId ?? "none");
+
+async function cachedResponse(companyId?: string | null) {
+  return readThroughCache(positionCacheKey(companyId), 60 * 5, () => response(companyId));
+}
+
 export async function GET() {
   try {
-    return NextResponse.json(await response());
+    const companyId = await activeCompanyId();
+    return NextResponse.json(await cachedResponse(companyId));
   } catch (error) {
     console.error("GET /api/organization-position failed:", error);
     return NextResponse.json({ error: "ไม่สามารถโหลดโครงสร้างตำแหน่งได้" }, { status: 500 });
@@ -135,6 +144,10 @@ export async function POST(request: Request) {
       VALUES (${id}::uuid, ${companyId}::uuid, ${parentId}::uuid, ${name}, ${code}, ${(parent[0]?.level ?? 0) + 1}, NOW(), NOW())
     `);
     await auditPosition("insert", id, companyId, { name, code, parentId });
+    await Promise.all([
+      invalidateReadCache(positionCacheKey(companyId)),
+      invalidateReadModel("workforce", companyId),
+    ]);
     return NextResponse.json(await response(companyId), { status: 201 });
   } catch (error) {
     const prismaCode = (error as { code?: string }).code;
@@ -160,6 +173,10 @@ export async function PATCH(request: Request) {
     if (existing[0]) return NextResponse.json({ error: "รหัสนี้มีอยู่แล้วในระบบ" }, { status: 409 });
     await prisma.$executeRaw(Prisma.sql`UPDATE "Position" SET "name" = ${name}, "code" = ${code}, "updatedAt" = NOW() WHERE "id" = ${id}::uuid`);
     await auditPosition("update", id, position[0].companyId, { name, code });
+    await Promise.all([
+      invalidateReadCache(positionCacheKey(position[0].companyId)),
+      invalidateReadModel("workforce", position[0].companyId),
+    ]);
     return NextResponse.json(await response(position[0].companyId));
   } catch (error) {
     const prismaCode = (error as { code?: string }).code;
@@ -188,6 +205,10 @@ export async function DELETE(request: Request) {
     }
     await prisma.$executeRaw(Prisma.sql`UPDATE "Position" SET "deletedAt" = NOW(), "updatedAt" = NOW() WHERE "id" = ${id}::uuid`);
     await auditPosition("delete", id, position[0].companyId, { name: position[0].name, code: position[0].code });
+    await Promise.all([
+      invalidateReadCache(positionCacheKey(position[0].companyId)),
+      invalidateReadModel("workforce", position[0].companyId),
+    ]);
     return NextResponse.json(await response(position[0].companyId));
   } catch (error) {
     const prismaCode = (error as { code?: string }).code;

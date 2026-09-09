@@ -1,8 +1,8 @@
-import bcrypt from "bcryptjs";
+import bcrypt from "bcrypt";
 
 const BCRYPT_ROUNDS = 10;
 
-/** Hash a plaintext password (bcrypt — matches the production database format). */
+/** Hash a plaintext password with native bcrypt — matches the production database format. */
 export async function hashPassword(password: string): Promise<string> {
   return bcrypt.hash(password, BCRYPT_ROUNDS);
 }

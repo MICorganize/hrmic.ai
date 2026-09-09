@@ -1,13 +1,29 @@
 import type { Metadata } from "next";
-import { Kanit } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 
-import { SessionProviderWrapper } from "@/providers/session";
+import { WebVitals } from "@/components/web-vitals";
 
-const kanit = Kanit({
+const kanit = localFont({
   variable: "--font-kanit",
-  subsets: ["thai", "latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  // Kanit is the product typeface. Preload the self-hosted files so the login
+  // UI consistently renders in Kanit, while `swap` keeps the form visible if
+  // a very slow connection delays the font response.
+  display: "swap",
+  preload: true,
+  fallback: ["system-ui", "sans-serif"],
+  src: [
+    {
+      path: "../public/fonts/humansoft/Kanit-Regular.woff2",
+      weight: "300 400",
+      style: "normal",
+    },
+    {
+      path: "../public/fonts/humansoft/Kanit-Medium.woff2",
+      weight: "500 700",
+      style: "normal",
+    },
+  ],
 });
 
 export const metadata: Metadata = {
@@ -25,7 +41,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${kanit.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <SessionProviderWrapper>{children}</SessionProviderWrapper>
+        <WebVitals />
+        {children}
       </body>
     </html>
   );

@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { getActiveCompany } from "@/lib/active-company";
+import { invalidateReadCache, readCacheKey, readThroughCache } from "@/lib/cache/read-through";
+import { invalidateReadModel } from "@/lib/cache/read-model-version";
+import { invalidatePublicCompanies } from "@/lib/public-companies";
 import { prisma } from "@/lib/prisma";
 
 type OrganizationKind = "company" | "branch" | "department";
@@ -141,10 +144,16 @@ async function organizationTree(companyId?: string): Promise<OrganizationNode[]>
   });
 }
 
+const organizationCacheKey = (companyId?: string) => readCacheKey("organization-tree", companyId ?? "all");
+
+async function cachedOrganizationTree(companyId?: string) {
+  return readThroughCache(organizationCacheKey(companyId), 60 * 5, () => organizationTree(companyId));
+}
+
 export async function GET() {
   try {
     const company = await getActiveCompany();
-    return NextResponse.json({ companies: await organizationTree(company?.id) });
+    return NextResponse.json({ companies: await cachedOrganizationTree(company?.id) });
   } catch (error) {
     console.error("GET /api/organization failed:", error);
     return NextResponse.json({ error: "ไม่สามารถโหลดโครงสร้างองค์กรได้" }, { status: 500 });
@@ -215,6 +224,11 @@ export async function POST(request: Request) {
     // The editor replaces its tree directly with this response.  Keep that
     // response in the current company context, just like GET, so saving a
     // PECTH detail never makes MIC nodes appear in the result.
+    await Promise.all([
+      invalidateReadCache(organizationCacheKey(activeCompany?.id)),
+      invalidateReadModel("workforce", kind === "company" ? undefined : companyId),
+    ]);
+    if (kind === "company") await invalidatePublicCompanies();
     return NextResponse.json({ companies: await organizationTree(activeCompany?.id) }, { status: 201 });
   } catch (error) {
     const prismaCode = (error as { code?: string }).code;
@@ -247,19 +261,28 @@ export async function PATCH(request: Request) {
     }
 
     const updatedAt = new Date();
+    let affectedCompanyId: string | undefined;
     if (kind === "company") {
       const company = await prisma.company.update({
         where: { id },
         data: { name: englishName || name, companyNameTH: name, companyCode: code, updatedAt },
       });
+      affectedCompanyId = company.id;
       await auditOrganization("update", kind, id, company.id, { name, code });
     } else if (kind === "branch") {
       const branch = await prisma.branch.update({ where: { id }, data: { name, code, updatedAt } });
+      affectedCompanyId = branch.companyId;
       await auditOrganization("update", kind, id, branch.companyId, { name, code });
     } else {
       const department = await prisma.department.update({ where: { id }, data: { name, code, updatedAt } });
+      affectedCompanyId = department.companyId;
       await auditOrganization("update", kind, id, department.companyId, { name, code });
     }
+    await Promise.all([
+      invalidateReadCache(organizationCacheKey(activeCompany?.id)),
+      invalidateReadModel("workforce", affectedCompanyId),
+    ]);
+    if (kind === "company") await invalidatePublicCompanies();
     return NextResponse.json({ companies: await organizationTree(activeCompany?.id) });
   } catch (error) {
     const prismaCode = (error as { code?: string }).code;
@@ -304,13 +327,20 @@ export async function DELETE(request: Request) {
       );
     }
     const deletedAt = new Date();
+    let affectedCompanyId: string;
     if (kind === "branch") {
       const branch = await prisma.branch.update({ where: { id }, data: { deletedAt } });
+      affectedCompanyId = branch.companyId;
       await auditOrganization("delete", kind, id, branch.companyId, { name: branch.name, code: branch.code });
     } else {
       const department = await prisma.department.update({ where: { id }, data: { deletedAt } });
+      affectedCompanyId = department.companyId;
       await auditOrganization("delete", kind, id, department.companyId, { name: department.name, code: department.code });
     }
+    await Promise.all([
+      invalidateReadCache(organizationCacheKey(activeCompany?.id)),
+      invalidateReadModel("workforce", affectedCompanyId),
+    ]);
     return NextResponse.json({ companies: await organizationTree(activeCompany?.id) });
   } catch (error) {
     const prismaCode = (error as { code?: string }).code;

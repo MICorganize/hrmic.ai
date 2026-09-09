@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { Gender, MaritalStatus, Prisma } from "@/generated/prisma/client";
 
 import { getActiveCompany } from "@/lib/active-company";
+import { refreshEmployeeSummarySnapshot } from "@/lib/employee/summary";
 import { toPhoneDigits } from "@/lib/phone";
 import { prisma } from "@/lib/prisma";
 
@@ -220,7 +221,7 @@ export async function PATCH(
     const company = await getActiveCompany();
     const currentEmployee = await prisma.employee.findFirst({
       where: { id, ...(company ? { companyId: company.id } : {}) },
-      select: { id: true },
+      select: { id: true, companyId: true },
     });
     if (!currentEmployee) return NextResponse.json({ error: "ไม่พบข้อมูลพนักงาน" }, { status: 404 });
     const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
@@ -412,6 +413,7 @@ export async function PATCH(
         });
       }
     }
+    await refreshEmployeeSummarySnapshot(currentEmployee.companyId);
     // Keep PATCH responses in the same shape as GET.  The employee detail page
     // immediately replaces its local record with this response after saving the
     // personal-history address form; returning only `{ ok: true }` left that

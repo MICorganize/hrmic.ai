@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { verifyPassword } from "@/lib/encryption/password";
 import { getActiveCompany } from "@/lib/active-company";
+import { effectiveEmployeeLimit, employeeCapacityMessage } from "@/lib/employee/limit";
+import { refreshEmployeeSummarySnapshot } from "@/lib/employee/summary";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
@@ -60,7 +62,7 @@ export async function POST(request: Request) {
         deletedAt: { not: null },
         ...(company ? { companyId: company.id } : {}),
       },
-      select: { id: true, firstNameTH: true, lastNameTH: true, employeeNumber: true },
+      select: { id: true, companyId: true, firstNameTH: true, lastNameTH: true, employeeNumber: true },
     });
 
     if (existingEmployees.length === 0) {
@@ -71,6 +73,30 @@ export async function POST(request: Request) {
     }
 
     const existingIds = existingEmployees.map((e) => e.id);
+    const companyIds = [...new Set(existingEmployees.map((employee) => employee.companyId))];
+    const [companies, activeCounts] = await Promise.all([
+      prisma.company.findMany({
+        where: { id: { in: companyIds }, deletedAt: null },
+        select: { id: true, employeeLimit: true },
+      }),
+      prisma.employee.groupBy({
+        by: ["companyId"],
+        where: { companyId: { in: companyIds }, deletedAt: null },
+        _count: { _all: true },
+      }),
+    ]);
+    const companyLimits = new Map(companies.map((company) => [company.id, effectiveEmployeeLimit(company.employeeLimit)]));
+    const activeCountByCompany = new Map(activeCounts.map((entry) => [entry.companyId, entry._count._all]));
+    const restoringCountByCompany = new Map<string, number>();
+    for (const employee of existingEmployees) {
+      restoringCountByCompany.set(employee.companyId, (restoringCountByCompany.get(employee.companyId) ?? 0) + 1);
+    }
+    for (const [companyId, restoringCount] of restoringCountByCompany) {
+      const employeeLimit = companyLimits.get(companyId) ?? effectiveEmployeeLimit(null);
+      if ((activeCountByCompany.get(companyId) ?? 0) + restoringCount > employeeLimit) {
+        return NextResponse.json({ error: employeeCapacityMessage(employeeLimit) }, { status: 409 });
+      }
+    }
 
     // Restore — clear deletedAt and deletedBy
     const now = new Date();
@@ -97,6 +123,7 @@ export async function POST(request: Request) {
     if (timelineEntries.length > 0) {
       await prisma.employeeTimeline.createMany({ data: timelineEntries });
     }
+    if (company) await refreshEmployeeSummarySnapshot(company.id);
 
     return NextResponse.json({
       success: true,

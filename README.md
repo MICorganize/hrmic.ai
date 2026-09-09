@@ -39,6 +39,14 @@ Copy `.env.example` to `.env` and fill in credentials for:
 - **Auth.js** — `AUTH_SECRET` (generate with `npx auth secret`)
 - **Inngest** — keep `INNGEST_DEV=1` locally; add `INNGEST_EVENT_KEY` / `INNGEST_SIGNING_KEY` for Cloud
 
+### Production performance
+
+- Configure both Upstash variables. Without them, the application remains functional but dashboard read caches are local to one server instance and cold requests will be slower.
+- Set `PERFORMANCE_LOGGING=true` and `NEXT_PUBLIC_PERFORMANCE_LOGGING=true` to record anonymous Web Vitals and login-to-dashboard timings. Keep both unset outside a profiling session if logs are not being collected.
+- Set `CRON_SECRET` in the deployment environment so the scheduled cache warmer configured in `vercel.json` can run.
+
+After a production build, run `npm run analyze:bundles` to list the largest client chunks and catch bundle-size regressions before deployment.
+
 ## Database
 
 The app connects to the real Neon database via the pooled `DATABASE_URL` in `.env`.

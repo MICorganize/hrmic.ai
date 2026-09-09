@@ -2,9 +2,18 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { auth } from "@/auth";
+import { MAX_EMPLOYEE_RECORDS } from "@/lib/employee/limit";
+import { invalidatePublicCompanies } from "@/lib/public-companies";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
+
+// Company access is authenticated and tenant-scoped. Browser-only caching
+// avoids repeated reads during portal navigation without exposing it to a CDN.
+const privateCacheHeaders = {
+  "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
+  Vary: "Cookie",
+};
 
 const companyInput = z.object({
   code: z.string().trim().min(2).max(64).regex(/^[A-Za-z0-9_-]+$/, "รหัสบริษัทใช้ได้เฉพาะภาษาอังกฤษ ตัวเลข _ และ -"),
@@ -15,7 +24,7 @@ const companyInput = z.object({
     return protocol === "https:" || protocol === "http:";
   }, "URL portal ต้องเป็น http หรือ https"),
   planName: z.string().trim().min(2).max(64).default("Standard"),
-  employeeLimit: z.coerce.number().int().positive().max(1_000_000).nullable().optional(),
+  employeeLimit: z.coerce.number().int().positive().max(MAX_EMPLOYEE_RECORDS, "จำนวนพนักงานสูงสุดไม่เกิน 500 คน").nullable().optional(),
 });
 
 type Actor = {
@@ -108,7 +117,10 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ companies: companies.map(companyResponse), canCreate: actor.isTenantAdmin });
+    return NextResponse.json(
+      { companies: companies.map(companyResponse), canCreate: actor.isTenantAdmin },
+      { headers: privateCacheHeaders }
+    );
   } catch (error) {
     console.error("GET /api/companies failed:", error);
     return NextResponse.json({ error: "ไม่สามารถโหลดข้อมูลบริษัทได้" }, { status: 500 });
@@ -137,7 +149,7 @@ export async function POST(request: Request) {
           companyNameTH: input.nameTH,
           portalUrl: input.portalUrl,
           planName: input.planName,
-          employeeLimit: input.employeeLimit ?? null,
+          employeeLimit: input.employeeLimit ?? MAX_EMPLOYEE_RECORDS,
           updatedAt: new Date(),
           createdBy: actor.id,
           updatedBy: actor.id,
@@ -163,6 +175,8 @@ export async function POST(request: Request) {
 
       return created;
     });
+
+    await invalidatePublicCompanies();
 
     return NextResponse.json({ company: { ...companyResponse({ ...company, _count: { Employee: 0 } }), accessRole: "owner" } }, { status: 201 });
   } catch (error) {

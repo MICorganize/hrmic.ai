@@ -147,7 +147,7 @@ export function UserDropdown() {
 
       {open && <div style={{ fontFamily: "HumansoftKanit, Kanit, sans-serif" }} className="mat-menu-content absolute right-[14px] top-full z-50 mt-[12.0125px] box-border h-auto min-h-0 w-[284px] max-w-[284px] overflow-visible rounded-[4px] bg-white py-2 text-sm font-normal leading-[22.001px] tracking-[-0.1px] shadow-[0_2px_4px_-1px_rgba(0,0,0,0.2),0_4px_5px_rgba(0,0,0,0.14),0_1px_10px_rgba(0,0,0,0.12)]" role="menu">
         <div className="sub-user-profile-menu m-3 flex items-start justify-between gap-3">
-          <div className="flex h-[62.4px] w-[210px] items-center"><img className="mr-3 size-[51px] shrink-0 rounded-[50px] border border-[#ff6100] object-cover" src={avatarUrl} alt="" /><div className="w-[147px]"><div className="text-[16px] font-medium leading-[normal] text-black/[0.87]">Adirek Chumchuen</div><div className="text-[13px] font-normal leading-[normal] text-black/[0.87]">cadirek@gmail.com</div><div className="text-[13px] font-normal leading-[normal] text-black/[0.87]">Admin (Owner)</div></div></div>
+          <div className="flex h-[62.4px] w-[210px] items-center"><img className="mr-3 size-[51px] shrink-0 rounded-[50px] border border-[#ff6100] object-cover" src={avatarUrl} alt="" loading="lazy" decoding="async" /><div className="w-[147px]"><div className="text-[16px] font-medium leading-[normal] text-black/[0.87]">Adirek Chumchuen</div><div className="text-[13px] font-normal leading-[normal] text-black/[0.87]">cadirek@gmail.com</div><div className="text-[13px] font-normal leading-[normal] text-black/[0.87]">Admin (Owner)</div></div></div>
           <PermissionIcon />
         </div>
         <div className="mx-[15px] h-px w-[256px] bg-[#e0e0e0]" />

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { verifyPassword } from "@/lib/encryption/password";
 import { getActiveCompany } from "@/lib/active-company";
+import { refreshEmployeeSummarySnapshot } from "@/lib/employee/summary";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: Request) {
@@ -91,6 +92,7 @@ export async function POST(request: Request) {
     const result = await prisma.employee.deleteMany({
       where: { id: { in: employeeIdsToPurge }, ...(company ? { companyId: company.id } : {}) },
     });
+    if (company) await refreshEmployeeSummarySnapshot(company.id);
 
     return NextResponse.json({
       success: true,

@@ -1,5 +1,6 @@
-import { redirect } from "next/navigation";
+import { LoginForm } from "@/components/auth/LoginForm";
 
+/** The root route is the login screen, avoiding a redirect round trip. */
 export default function Home() {
-  redirect("/login");
+  return <LoginForm kind="employee" />;
 }

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { getActiveCompany } from "@/lib/active-company";
+import { invalidateReadCache, readCacheKey, readThroughCache } from "@/lib/cache/read-through";
+import { invalidateReadModel } from "@/lib/cache/read-model-version";
 import { prisma } from "@/lib/prisma";
 
 const GROUPS = ["monthly", "daily", "partTime", "contract"] as const;
@@ -92,10 +94,16 @@ async function definitions(companyId: string) {
   });
 }
 
+const employeeTypeCacheKey = (companyId: string) => readCacheKey("employee-types", companyId);
+
+async function cachedDefinitions(companyId: string) {
+  return readThroughCache(employeeTypeCacheKey(companyId), 60 * 5, () => definitions(companyId));
+}
+
 async function listResponse(companyId?: string | null) {
   const company = await activeCompany(companyId);
   if (!company) throw new Error("NO_COMPANY");
-  return { companyId: company.id, employeeTypes: await definitions(company.id) };
+  return { companyId: company.id, employeeTypes: await cachedDefinitions(company.id) };
 }
 
 function payload(body: EmployeeTypeRequest) {
@@ -149,6 +157,10 @@ export async function POST(request: Request) {
     await prisma.employeeTypeDefinition.create({
       data: { companyId: company.id, code: await nextCode(company.id), ...value },
     });
+    await Promise.all([
+      invalidateReadCache(employeeTypeCacheKey(company.id)),
+      invalidateReadModel("payroll-dashboard", company.id),
+    ]);
     return NextResponse.json(await listResponse(), { status: 201 });
   } catch (error) {
     const code = (error as { code?: string }).code;
@@ -178,6 +190,10 @@ export async function PATCH(request: Request) {
       if (!value) return invalid("กรุณาระบุรูปแบบการคำนวณ ชื่อไทย ชื่ออังกฤษ และภาษีให้ถูกต้อง");
       await prisma.employeeTypeDefinition.update({ where: { id }, data: value });
     }
+    await Promise.all([
+      invalidateReadCache(employeeTypeCacheKey(company.id)),
+      invalidateReadModel("payroll-dashboard", company.id),
+    ]);
     return NextResponse.json(await listResponse());
   } catch (error) {
     console.error("PATCH /api/employee-type-definition failed:", error);
@@ -198,6 +214,10 @@ export async function DELETE(request: Request) {
     if (!item) return NextResponse.json({ error: "ไม่พบข้อมูลประเภทพนักงาน" }, { status: 404 });
     if (item.locked) return NextResponse.json({ error: "ไม่สามารถลบประเภทพนักงานเริ่มต้นได้" }, { status: 409 });
     await prisma.employeeTypeDefinition.update({ where: { id }, data: { deletedAt: new Date() } });
+    await Promise.all([
+      invalidateReadCache(employeeTypeCacheKey(company.id)),
+      invalidateReadModel("payroll-dashboard", company.id),
+    ]);
     return NextResponse.json(await listResponse());
   } catch (error) {
     console.error("DELETE /api/employee-type-definition failed:", error);

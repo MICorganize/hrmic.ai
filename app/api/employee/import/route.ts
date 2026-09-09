@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { EmploymentType, Gender, Status } from "@/generated/prisma/client";
 
 import { getActiveCompany } from "@/lib/active-company";
+import { effectiveEmployeeLimit, employeeCapacityMessage } from "@/lib/employee/limit";
+import { refreshEmployeeSummarySnapshot } from "@/lib/employee/summary";
 import { parseEmployeeImportWorkbook, type EmployeeImportUploadRow } from "@/lib/excel/employeeImportTemplate";
 import { prisma } from "@/lib/prisma";
 
@@ -131,7 +133,12 @@ async function importEmployees(rows: EmployeeImportUploadRow[], filename: string
   ]);
   if (!defaultCompany) throw new Error("ไม่พบบริษัทที่ใช้งานได้ในระบบ");
 
+  const employeeLimit = effectiveEmployeeLimit(defaultCompany.employeeLimit);
+  const currentEmployeeCount = await prisma.employee.count({
+    where: { companyId: defaultCompany.id, deletedAt: null },
+  });
   let nextNumber = await nextEmployeeNumber();
+  let insertedThisImport = 0;
   const summary: ImportSummary = { total: rows.length, inserted: 0, updated: 0, deleted: 0, errors: [] };
 
   for (const row of rows) {
@@ -160,6 +167,9 @@ async function importEmployees(rows: EmployeeImportUploadRow[], filename: string
         where: { employeeCode, companyId: defaultCompany.id },
         include: { Employment: { select: { id: true } } },
       });
+      if (!existing && currentEmployeeCount + insertedThisImport >= employeeLimit) {
+        throw new Error(employeeCapacityMessage(employeeLimit));
+      }
       const employeeNumber = existing?.employeeNumber ?? `EMP-${String(nextNumber++).padStart(4, "0")}`;
       const hireDate = dateValue(text(row, "AB")) ?? new Date();
       const email = text(row, "Y") || `${employeeNumber.toLowerCase()}@hrmic.local`;
@@ -204,6 +214,7 @@ async function importEmployees(rows: EmployeeImportUploadRow[], filename: string
       const employee = existing
         ? await prisma.employee.update({ where: { id: existing.id }, data })
         : await prisma.employee.create({ data: { id: crypto.randomUUID(), employeeNumber, ...data } });
+      if (!existing) insertedThisImport += 1;
 
       if (existing?.Employment) {
         await prisma.employment.update({
@@ -307,7 +318,11 @@ export async function POST(request: Request) {
     if (!file.name.toLowerCase().endsWith(".xlsx")) return NextResponse.json({ error: "รองรับเฉพาะไฟล์ .xlsx" }, { status: 400 });
     const rows = parseEmployeeImportWorkbook(Buffer.from(await file.arrayBuffer()));
     const company = await getActiveCompany();
-    return NextResponse.json(await importEmployees(rows, file.name, company?.id));
+    const summary = await importEmployees(rows, file.name, company?.id);
+    if (company && (summary.inserted > 0 || summary.updated > 0 || summary.deleted > 0)) {
+      await refreshEmployeeSummarySnapshot(company.id);
+    }
+    return NextResponse.json(summary);
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "นำเข้าข้อมูลพนักงานไม่สำเร็จ" }, { status: 400 });
   }
@@ -320,6 +335,7 @@ export async function PATCH(request: Request) {
     if (!body.scope || !body.targetId || employeeIds.length === 0) return NextResponse.json({ error: "กรุณาเลือกรายการและข้อมูลที่ต้องการกำหนด" }, { status: 400 });
     const company = await getActiveCompany();
     const employeeWhere = { id: { in: employeeIds }, ...(company ? { companyId: company.id } : {}) };
+    const affectedCompanyIds = new Set((await prisma.employee.findMany({ where: employeeWhere, select: { companyId: true } })).map((employee) => employee.companyId));
     if (body.scope === "position") {
       const position = await prisma.position.findFirst({ where: { id: body.targetId, deletedAt: null, ...(company ? { companyId: company.id } : {}) } });
       if (!position) return NextResponse.json({ error: "ไม่พบตำแหน่งที่เลือก" }, { status: 404 });
@@ -336,7 +352,9 @@ export async function PATCH(request: Request) {
       }
       if (!department) return NextResponse.json({ error: "ไม่พบหน่วยงานที่เลือกหรือไม่มีแผนกในหน่วยงานนั้น" }, { status: 400 });
       await prisma.employee.updateMany({ where: employeeWhere, data: { companyId: department.companyId, branchId: department.branchId, departmentId: department.id } });
+      affectedCompanyIds.add(department.companyId);
     }
+    await Promise.all([...affectedCompanyIds].map((companyId) => refreshEmployeeSummarySnapshot(companyId)));
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "บันทึกการกำหนดข้อมูลไม่สำเร็จ" }, { status: 500 });

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getActiveCompany } from "@/lib/active-company";
+import { invalidateReadModel } from "@/lib/cache/read-model-version";
 import { companyPeriodKey } from "@/lib/payroll/company-period";
 import { prisma } from "@/lib/prisma";
 import { CLOSED_PAYROLL_PERIOD_MESSAGE, isPayrollPeriodClosed } from "@/lib/payroll/period-lock";
@@ -102,6 +103,7 @@ export async function PUT(request: Request) {
       update: { periodStart: startDate, periodEnd: endDate, updatedAt: now },
       select: { periodStart: true, periodEnd: true },
     });
+    await invalidateReadModel("payroll-dashboard", company?.id);
     return NextResponse.json(responsePeriod(month, run));
   } catch (error) {
     console.error("PUT /api/payroll/period failed:", error);
@@ -123,6 +125,7 @@ export async function DELETE(request: Request) {
       where: { period },
       data: { periodStart: null, periodEnd: null, updatedAt: new Date() },
     });
+    await invalidateReadModel("payroll-dashboard", company?.id);
     return NextResponse.json(defaultPeriod(month));
   } catch (error) {
     console.error("DELETE /api/payroll/period failed:", error);

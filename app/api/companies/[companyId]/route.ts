@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { auth } from "@/auth";
+import { MAX_EMPLOYEE_RECORDS } from "@/lib/employee/limit";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ type CompanyRouteContext = { params: Promise<{ companyId: string }> };
 const companyUpdate = z.object({
   code: z.string().trim().min(2).max(64).regex(/^[A-Za-z0-9_-]+$/, "รหัสบริษัทใช้ได้เฉพาะภาษาอังกฤษ ตัวเลข _ และ -"),
   planName: z.enum(["Free-Try", "Free-Forever", "PaySlip", "Lite", "Basic", "Standard", "Advanced", "Professional"]),
-  employeeLimit: z.coerce.number().int().positive().max(1_000_000),
+  employeeLimit: z.coerce.number().int().positive().max(MAX_EMPLOYEE_RECORDS, "จำนวนพนักงานสูงสุดไม่เกิน 500 คน"),
 });
 
 function hasTenantManagementRole(roles: Array<{ code: string; name: string }>) {

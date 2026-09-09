@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { readCacheKey, readThroughCache } from "@/lib/cache/read-through";
 import { prisma } from "@/lib/prisma";
 
 function withPrefix(value: string, prefix: string) {
@@ -35,27 +36,31 @@ export async function GET(request: NextRequest) {
   if (!query) return NextResponse.json([]);
   const normalizedQuery = normalizeSearchQuery(query);
 
-  const locations = await prisma.subdistrict.findMany({
-    where: {
-      OR: [
-        { nameTH: { contains: query, mode: "insensitive" } },
-        ...(normalizedQuery && normalizedQuery !== query
-          ? [{ nameTH: { contains: normalizedQuery, mode: "insensitive" as const } }]
-          : []),
-        { postalCode: { contains: query } },
-      ],
-    },
-    include: {
-      District: {
-        include: { Province: true },
+  const locations = await readThroughCache(
+    readCacheKey("address-locations", query.toLowerCase(), normalizedQuery.toLowerCase()),
+    60 * 60 * 24,
+    () => prisma.subdistrict.findMany({
+      where: {
+        OR: [
+          { nameTH: { contains: query, mode: "insensitive" } },
+          ...(normalizedQuery && normalizedQuery !== query
+            ? [{ nameTH: { contains: normalizedQuery, mode: "insensitive" as const } }]
+            : []),
+          { postalCode: { contains: query } },
+        ],
       },
-    },
-    orderBy: [
-      { postalCode: "asc" },
-      { nameTH: "asc" },
-    ],
-    take: 20,
-  });
+      include: {
+        District: {
+          include: { Province: true },
+        },
+      },
+      orderBy: [
+        { postalCode: "asc" },
+        { nameTH: "asc" },
+      ],
+      take: 20,
+    })
+  );
 
   return NextResponse.json(
     locations.map((location) => ({

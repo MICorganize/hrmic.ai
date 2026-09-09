@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { ChevronDown, Filter, FolderOpen, Search } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -160,7 +160,13 @@ function EmployeeNode({
       aria-selected={false}
       className={cn(
         "relative pb-[2.8px] pt-[2px]",
-        level > 1 && "before:absolute before:left-0 before:top-[23px] before:w-4 before:border-t before:border-dotted before:border-[#bfbfbf]"
+        // The original tree carries a continuous dotted rail at every depth.
+        // Each rail begins one row above its card, matching the Material-tree
+        // layout used by the source screen.
+        // Child groups start 30.6px from the parent edge, while the expand
+        // button is 40px wide. Position the rail at 20px (its centre) so it
+        // runs directly from the centre of the down-arrow.
+        level > 1 && "before:absolute before:left-[-10.6px] before:top-[-31px] before:bottom-0 before:border-l-[0.8px] before:border-dotted before:border-[#808080]"
       )}
     >
       {onEmployeeSelect ? (
@@ -208,13 +214,21 @@ function OrganizationNode({
   // The employee list is a browsing surface: show every employee card when
   // it opens, while still allowing a department to be collapsed manually.
   const [expanded, setExpanded] = useState(true);
-  useEffect(() => {
+  const [previousForceExpanded, setPreviousForceExpanded] = useState(forceExpanded);
+  if (previousForceExpanded !== forceExpanded) {
+    setPreviousForceExpanded(forceExpanded);
     if (forceExpanded) setExpanded(true);
-  }, [forceExpanded]);
+  }
   if (isEmployee) return <EmployeeNode node={node} level={level} onSelect={onSelect} onEmployeeSelect={onEmployeeSelect} />;
 
   return (
-    <li role="treeitem" aria-level={level} aria-selected={false} aria-expanded={hasChildren ? expanded : undefined} className="list-none">
+    <li
+      role="treeitem"
+      aria-level={level}
+      aria-selected={false}
+      aria-expanded={hasChildren ? expanded : undefined}
+      className="relative list-none before:absolute before:left-[-10.6px] before:top-[-31px] before:bottom-0 before:border-l-[0.8px] before:border-dotted before:border-[#808080]"
+    >
       <div className="mb-[2.8px] flex h-10 items-center text-sm leading-[22.001px] text-[rgba(0,0,0,0.87)]">
         {hasChildren ? (
           <button
@@ -238,7 +252,10 @@ function OrganizationNode({
       </div>
 
       {expanded && (
-        <ul role="group" className="ml-5 list-none border-l border-dotted border-[#bfbfbf] p-0">
+        <ul
+          role="group"
+          className="relative mb-3 ml-[30.6px] list-none p-0"
+        >
           {children.map((child) => (
             <OrganizationNode key={child.id} node={child} level={level + 1} onSelect={onSelect} onEmployeeSelect={onEmployeeSelect} forceExpanded={forceExpanded} />
           ))}
@@ -252,12 +269,16 @@ export function EmployeeSelectPanel({
   onClose,
   orgTree,
   loading = false,
+  error = false,
+  onRetry,
   onEmployeeSelect,
   placement = "page",
 }: {
   onClose: () => void;
   orgTree: OrgNode[];
   loading?: boolean;
+  error?: boolean;
+  onRetry?: () => void;
   onEmployeeSelect?: (employee: OrgNode) => void;
   /** The detail view establishes its own positioned content area. */
   placement?: "page" | "detail";
@@ -371,14 +392,27 @@ export function EmployeeSelectPanel({
         <div
           className="-ml-[12.2px] min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-[21px] font-[Kanit,sans-serif] text-[14px] leading-[22.001px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           data-testid="org-emp-select-tree"
+          aria-busy={loading}
         >
           <ul role="tree" className="m-0 list-none p-0" aria-label="โครงสร้างองค์กรและรายชื่อพนักงาน">
             {loading ? (
-              <li role="treeitem" className="flex min-h-[160px] items-center justify-center text-sm text-muted-foreground">
-                กำลังโหลดรายชื่อพนักงาน...
+              <li role="none" className="px-4">
+                <p role="status" className="sr-only">กำลังโหลดรายชื่อพนักงาน...</p>
+                <div aria-hidden="true" className="space-y-3 motion-safe:animate-pulse">
+                  <div className="h-10 w-60 rounded-md bg-slate-200" />
+                  <div className="ml-5 h-10 w-52 rounded-md bg-slate-100" />
+                  <div className="ml-10 space-y-3 border-l border-dotted border-slate-300 pl-4">
+                    {[0, 1, 2, 3, 4].map((row) => <div key={row} className="h-[43.2px] rounded-md border border-slate-200 bg-slate-50 p-2"><div className="h-3 w-36 rounded bg-slate-200" /><div className="mt-2 h-2 w-20 rounded bg-blue-100" /></div>)}
+                  </div>
+                </div>
+              </li>
+            ) : error ? (
+              <li role="none" className="py-10 text-center text-sm text-muted-foreground">
+                <p role="alert">ไม่สามารถโหลดรายชื่อพนักงานได้</p>
+                <button type="button" onClick={onRetry} className="mt-3 text-[#2299ff]">ลองใหม่</button>
               </li>
             ) : visibleTree.length === 0 ? (
-              <li role="treeitem" className="flex min-h-[160px] flex-col items-center justify-center gap-2 text-center text-muted-foreground">
+              <li role="none" className="flex min-h-[160px] flex-col items-center justify-center gap-2 text-center text-muted-foreground">
                 <FolderOpen className="size-8" />
                 <span className="text-sm">ไม่มีข้อมูลพนักงาน</span>
               </li>

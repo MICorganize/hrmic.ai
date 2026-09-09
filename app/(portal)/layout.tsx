@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore, type ComponentType } from "react";
@@ -53,8 +54,33 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { preloadEmployeeSummary, promotePreloadedEmployeeSummary } from "@/lib/employee/summary-client";
+import { preloadDashboardEmployeeSummary, resetDashboardEmployeeSummary } from "@/lib/employee/dashboard-summary-client";
+import { preloadPayrollDashboard } from "@/lib/payroll/dashboard-client";
 
-import { UserDropdown } from "@/components/layouts/UserDropdown";
+const UserDropdown = dynamic(
+  () => import("@/components/layouts/UserDropdown").then((module) => module.UserDropdown),
+  {
+    ssr: false,
+    loading: () => <div aria-hidden className="size-6.5 rounded-full bg-[#4d4d4d]" />,
+  }
+);
+
+const SearchFavoritesPanel = dynamic(
+  () => import("@/components/layouts/SearchFavoritesPanel").then((module) => module.SearchFavoritesPanel),
+  {
+    ssr: false,
+    loading: () => <div aria-busy className="h-full animate-pulse bg-[#fafafa]" />,
+  }
+);
+
+const SubmenuPanel = dynamic(
+  () => import("@/components/layouts/SubmenuPanel").then((module) => module.SubmenuPanel),
+  {
+    ssr: false,
+    loading: () => <div aria-busy className="h-24 animate-pulse bg-[#fafafa]" />,
+  }
+);
 
 type IconComponent = ComponentType<{ className?: string }>;
 
@@ -577,215 +603,12 @@ function findExpandedParent(pathname: string): string | null {
     : activeItem?.href ?? null;
 }
 
-function SubmenuPanel({
-  item,
-  currentPath,
-  onNavigate,
-}: {
-  item: NavItem;
-  currentPath: string;
-  onNavigate?: () => void;
-}) {
-  const children = item.children ?? [];
-  const isOrganizationMenu = item.href === "/organization";
-  const findExpandedGroup = () =>
-    children.find(
-      (child) =>
-        child.children?.length &&
-        isChildActive(child, currentPath)
-    )?.href ?? null;
-
-  // Auto-expand the group matching the current page; re-sync on navigation
-  // via a render-phase update (same pattern used elsewhere in this layout).
-  const [openGroup, setOpenGroup] = useState<string | null>(findExpandedGroup);
-  const [prevPath, setPrevPath] = useState(currentPath);
-  if (prevPath !== currentPath) {
-    setPrevPath(currentPath);
-    setOpenGroup(findExpandedGroup());
-  }
-
-  return (
-    <div className={cn(isOrganizationMenu ? "pt-[25px]" : "p-4")} data-testid="nav-child-panel">
-      <h2
-        className={cn(
-          isOrganizationMenu
-            ? "mb-2.5 h-10 px-5 text-sm font-normal leading-10 text-black/87"
-            : "mb-3 px-2 text-base font-bold text-foreground"
-        )}
-      >
-        {item.label}
-      </h2>
-      <nav className={cn(isOrganizationMenu ? "px-4" : "space-y-0.5")}>
-        {children.map((child) => {
-          const active = isChildActive(child, currentPath);
-          // Groups with sub-items render as an expandable accordion.
-          if (child.children?.length) {
-            const open = openGroup === child.href;
-            return (
-              <div key={child.href}>
-                <button
-                  type="button"
-                  onClick={() => setOpenGroup(open ? null : child.href)}
-                  className={cn(
-                    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                    active
-                      ? "bg-[#e3f2fd] font-medium text-[#0080ff]"
-                      : "text-foreground hover:bg-muted"
-                  )}
-                >
-                  <child.icon className={cn("shrink-0", isOrganizationMenu ? "size-6" : "size-4")} />
-                  <span className="min-w-0 flex-1 truncate text-left">{child.label}</span>
-                  <ChevronDown
-                    className={cn(
-                      "size-4 shrink-0 text-muted-foreground transition-transform",
-                      open && "rotate-180"
-                    )}
-                  />
-                </button>
-                {open && (
-                  <div className="ml-4 space-y-0.5 border-l border-border pb-1 pl-2 pt-0.5">
-                    {child.children.map((sub) => (
-                      <Link
-                        key={sub.href}
-                        href={sub.href}
-                        onClick={() => {
-                          window.dispatchEvent(new Event("employee-list-close"));
-                          onNavigate?.();
-                        }}
-                        className={cn(
-                          "flex items-center gap-2 rounded-lg px-3 py-1.5 text-sm transition-colors",
-                          isChildActive(sub, currentPath)
-                            ? "font-medium text-[#0080ff]"
-                            : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                        )}
-                      >
-                        <span className="truncate">{sub.label}</span>
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          }
-          return (
-            <Link
-              key={child.href}
-              href={child.href}
-              onClick={onNavigate}
-              className={cn(
-                isOrganizationMenu
-                  ? "flex h-12 items-center gap-3 rounded-lg pl-7 pr-[7px] text-sm transition-colors"
-                  : "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                active
-                  ? "bg-[#e3f2fd] font-medium text-[#0080ff]"
-                  : "text-foreground hover:bg-muted"
-              )}
-            >
-              <child.icon className={cn("shrink-0", isOrganizationMenu ? "size-6" : "size-4")} />
-              <span className="truncate">{child.label}</span>
-            </Link>
-          );
-        })}
-      </nav>
-    </div>
-  );
-}
-
 type FavoriteItem = { href: string; label: string; icon: IconComponent; section: string };
 
 function toFavoriteItem(item: FavoriteItem): FavoriteItem {
   return item.href === "/salary/calculate/normal"
     ? { ...item, label: "คำนวณเงินเดือน" }
     : item;
-}
-
-function SearchFavoritesPanel({
-  items,
-  favorites,
-  isFavorite,
-  onToggle,
-}: {
-  items: FavoriteItem[];
-  favorites: string[];
-  isFavorite: (href: string) => boolean;
-  onToggle: (href: string) => void;
-}) {
-  const [query, setQuery] = useState("");
-  const q = query.trim();
-  // With no search term the reference panel shows the user's saved shortcuts.
-  // Typing switches the list to matching menus so another shortcut can be added.
-  const visibleItems = useMemo(() => {
-    if (!q) {
-      // Preserve shortcut order from the sidebar, matching the welcome page.
-      return favorites
-        .map((href) => items.find((item) => item.href === href))
-        .filter((item): item is FavoriteItem => item !== undefined)
-        .map(toFavoriteItem);
-    }
-    const needle = q.toLowerCase();
-    return items.filter(
-      (item) => item.label.toLowerCase().includes(needle) || item.href.toLowerCase().includes(needle)
-    );
-  }, [favorites, items, q]);
-
-  const selectedCount = favorites.length;
-
-  return (
-    <div className="flex h-full flex-col">
-      {/* Search bar */}
-      <div className="shrink-0 px-5 pt-4">
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-0 top-1/2 size-5 -translate-y-1/2 text-muted-foreground/55" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="ค้นหาเพื่อเพิ่มเมนูโปรด"
-            autoFocus
-            className="h-9 w-full border-b border-border bg-transparent pl-9 pr-2 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground/60 focus:border-primary"
-          />
-        </div>
-      </div>
-
-      <div className="shrink-0 px-5 pb-2 pt-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-medium text-muted-foreground">รายการเมนูโปรด</h2>
-          <span className="text-sm text-muted-foreground">{selectedCount}/{MAX_FAVORITES}</span>
-        </div>
-      </div>
-
-      <nav className="flex-1 space-y-0.5 overflow-y-auto px-4 pb-4">
-        {visibleItems.length === 0 && (
-          <p className="px-3 py-8 text-center text-sm text-muted-foreground">
-            {q ? "ไม่พบเมนูที่ค้นหา" : "ยังไม่มีเมนูโปรด"}
-          </p>
-        )}
-        {visibleItems.map((item) => {
-          const fav = isFavorite(item.href);
-          const cannotAdd = !fav && favorites.length >= MAX_FAVORITES;
-          return (
-            <button
-              key={item.href}
-              type="button"
-              disabled={cannotAdd}
-              onClick={() => onToggle(item.href)}
-              className={cn(
-                "flex w-full items-center gap-4 rounded-md px-3 py-2.5 text-left text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-45",
-                fav && "text-foreground"
-              )}
-            >
-              <span className="min-w-0 flex-1 truncate">{item.label}</span>
-              <Star
-                className={cn(
-                  "size-5 shrink-0 transition-colors",
-                  fav ? "fill-[#ffc400] text-[#ffc400]" : "text-muted-foreground/45"
-                )}
-              />
-            </button>
-          );
-        })}
-      </nav>
-    </div>
-  );
 }
 
 function SidebarContent({
@@ -812,6 +635,10 @@ function SidebarContent({
   favoriteItems: FavoriteItem[];
 }) {
   const router = useRouter();
+  const preloadEmployeeDashboard = () => {
+    void preloadEmployeeSummary().catch(() => undefined);
+    router.prefetch("/organization/organization-employee");
+  };
 
   // Collapsed (narrow) mode: icon with the label underneath.
   if (collapsed) {
@@ -925,11 +752,15 @@ function SidebarContent({
                 <Link
                   key={item.href}
                   href={item.href}
+                  prefetch={item.href === "/organization/organization-employee" ? true : undefined}
+                  onMouseEnter={item.href === "/organization/organization-employee" ? () => { void preloadEmployeeSummary(); } : item.href === "/salary/calculate/normal" ? () => { void preloadPayrollDashboard(); } : undefined}
+                  onFocus={item.href === "/organization/organization-employee" ? () => { void preloadEmployeeSummary(); } : item.href === "/salary/calculate/normal" ? () => { void preloadPayrollDashboard(); } : undefined}
+                  onPointerDown={item.href === "/organization/organization-employee" ? () => { void preloadEmployeeSummary(); } : item.href === "/salary/calculate/normal" ? () => { void preloadPayrollDashboard(); } : undefined}
                   onClick={() => window.dispatchEvent(new Event("employee-list-close"))}
                   className={cn(
                     "ml-8 flex h-10 items-center gap-4 rounded-lg px-6 text-sm leading-[22.001px] transition-colors",
                     active
-                      ? "bg-white text-[#367fbf] shadow-sm"
+                      ? "text-white"
                       : "text-white/90 hover:bg-white/15"
                   )}
                 >
@@ -961,22 +792,28 @@ function SidebarContent({
               key={item.href}
               type="button"
               aria-expanded={isExpanded}
+              onPointerEnter={item.href === "/organization" ? preloadEmployeeDashboard : item.href === "/salary/calculate/normal" ? () => { void preloadPayrollDashboard(); } : undefined}
+              onFocus={item.href === "/organization" ? preloadEmployeeDashboard : item.href === "/salary/calculate/normal" ? () => { void preloadPayrollDashboard(); } : undefined}
               onClick={() => {
                 // The reference treats this row as a drawer trigger. It opens
                 // its child panel without changing the current page.
                 if (item.href === "/organization") {
+                  preloadEmployeeDashboard();
                   onToggle(item.href);
                   return;
                 }
                 onToggle(item.href);
-                if (!isExpanded) router.push(item.href);
+                if (!isExpanded) {
+                  if (item.href === "/salary/calculate/normal") void preloadPayrollDashboard();
+                  router.push(item.href);
+                }
               }}
               className={cn(cls, "w-full text-left")}
             >
               {content}
             </button>
           ) : (
-            <Link key={item.href} href={item.href} className={cls}>
+            <Link key={item.href} href={item.href} onMouseEnter={item.href === "/organization/organization-employee" ? () => { void preloadEmployeeSummary(); } : item.href === "/salary/calculate/normal" ? () => { void preloadPayrollDashboard(); } : undefined} onFocus={item.href === "/organization/organization-employee" ? () => { void preloadEmployeeSummary(); } : item.href === "/salary/calculate/normal" ? () => { void preloadPayrollDashboard(); } : undefined} onPointerDown={item.href === "/organization/organization-employee" ? () => { void preloadEmployeeSummary(); } : item.href === "/salary/calculate/normal" ? () => { void preloadPayrollDashboard(); } : undefined} className={cls}>
               {content}
             </Link>
           );
@@ -1017,6 +854,7 @@ function isReportLeafPage(pathname: string) {
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [searchFavoritesOpen, setSearchFavoritesOpen] = useState(false);
@@ -1026,6 +864,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [activeCompany, setActiveCompany] = useState<ActiveCompany | null>(null);
   const [companies, setCompanies] = useState<CompanyOption[]>([]);
   const [companyMenuOpen, setCompanyMenuOpen] = useState(false);
+  const [companyDirectoryRequested, setCompanyDirectoryRequested] = useState(false);
+  const [companiesLoading, setCompaniesLoading] = useState(false);
+  const [companiesLoaded, setCompaniesLoaded] = useState(false);
   const [switchingCompanyId, setSwitchingCompanyId] = useState<string | null>(null);
   const favorites = useFavorites();
   const allMenuItems = useMemo(() => flattenMenuItems(), []);
@@ -1080,27 +921,70 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
   useEffect(() => {
     let cancelled = false;
-    void Promise.all([
-      fetch("/api/active-company", { cache: "no-store" })
-        .then(async (response) => response.ok ? (await response.json()) as { company: ActiveCompany | null } : { company: null }),
-      fetch("/company-data", { cache: "no-store" })
-        .then(async (response) => response.ok ? (await response.json()) as CompaniesResponse : {}),
-    ])
-      .then(([{ company }, companyData]) => {
+    if (pathname === "/dashboard") {
+      // A successful login has already started this request. It validates the
+      // selected company and returns the compact header identity with the
+      // aggregate, eliminating the former parallel active-company request.
+      void preloadDashboardEmployeeSummary()
+        .then(({ company }) => {
+          if (!cancelled) setActiveCompany(company);
+        })
+        .catch(() => {
+          if (!cancelled) setActiveCompany(null);
+        });
+    } else {
+      // Other portal routes need only the compact header label. Keep their
+      // dashboard aggregate lazy so it cannot consume their initial bandwidth.
+      void fetch("/api/active-company", { cache: "no-store" })
+        .then(async (response) => response.ok ? (await response.json()) as { company: ActiveCompany | null } : { company: null })
+        .then(({ company }) => {
+          if (!cancelled) setActiveCompany(company);
+        })
+        .catch(() => {
+          if (!cancelled) setActiveCompany(null);
+        });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!companyDirectoryRequested || companiesLoaded) return;
+
+    let cancelled = false;
+    void fetch("/company-data")
+      .then(async (response) => response.ok ? (await response.json()) as CompaniesResponse : {})
+      .then((companyData) => {
         if (cancelled) return;
-        setActiveCompany(company);
         setCompanies((companyData.companies ?? []).map(({ id, code, nameEN }) => ({ id, code, name: nameEN })));
       })
       .catch(() => {
+        if (!cancelled) setCompanies([]);
+      })
+      .finally(() => {
         if (!cancelled) {
-          setActiveCompany(null);
-          setCompanies([]);
+          setCompaniesLoading(false);
+          setCompaniesLoaded(true);
         }
       });
     return () => {
       cancelled = true;
     };
-  }, [pathname]);
+  }, [companiesLoaded, companyDirectoryRequested]);
+
+  const toggleCompanyMenu = () => {
+    if (!companyMenuOpen && !companiesLoaded) {
+      setCompaniesLoading(true);
+      setCompanyDirectoryRequested(true);
+    }
+    setCompanyMenuOpen((open) => !open);
+  };
+
+  const prefetchCompanyDirectory = () => {
+    if (companiesLoaded || companyDirectoryRequested) return;
+    setCompanyDirectoryRequested(true);
+  };
 
   const selectCompany = async (company: CompanyOption) => {
     if (company.id === activeCompany?.id) {
@@ -1109,6 +993,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     }
 
     setSwitchingCompanyId(company.id);
+    // Start the selected company's dashboard read before changing the active
+    // company. Once the switch succeeds, this snapshot is promoted to the
+    // active cache so the already-open Dashboard can render it immediately.
+    const selectedSummary = preloadEmployeeSummary(company.id);
+    // A failed warm-up must not cancel an otherwise valid company switch.
+    void selectedSummary.catch(() => undefined);
     try {
       const response = await fetch("/api/active-company", {
         method: "POST",
@@ -1116,6 +1006,21 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         body: JSON.stringify({ companyId: company.id }),
       });
       if (!response.ok) return;
+      resetDashboardEmployeeSummary();
+      // Commit the authorized company immediately. If the summary is still
+      // loading, promote its existing Promise to the active key so Dashboard
+      // can show its shell now and fill it from this same request later.
+      const summary = promotePreloadedEmployeeSummary(company.id);
+
+      // Keep the switch in the client router so the employee page remains
+      // responsive, while leaving its canonical URL unchanged.
+      if (pathname === "/organization/organization-employee") {
+        setActiveCompany(company);
+        setCompanyMenuOpen(false);
+        window.dispatchEvent(new CustomEvent("active-company-changed", { detail: { summary } }));
+        router.replace("/organization/organization-employee", { scroll: false });
+        return;
+      }
 
       // The selected company is stored in a secure cookie. A reload keeps the
       // current page open while ensuring every company-scoped request reloads.
@@ -1171,7 +1076,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         <button
           type="button"
           onClick={() => setSubmenuCollapsed(false)}
-          className="fixed left-80 top-16 z-50 hidden size-7 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-md transition-colors hover:bg-muted lg:flex"
+        className="fixed left-80 top-16 z-50 hidden size-7 -translate-x-1/2 items-center justify-center rounded-full border border-border bg-white text-foreground shadow-md transition-colors hover:bg-muted lg:flex"
           aria-label="กลับไปเมนูรายงาน"
         >
           <ChevronLeft className="size-4" />
@@ -1197,6 +1102,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               favorites={favorites.favorites}
               isFavorite={favorites.isFavorite}
               onToggle={favorites.toggleFavorite}
+              maxFavorites={MAX_FAVORITES}
             />
           ) : expandedItem ? (
             <SubmenuPanel
@@ -1231,6 +1137,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 favorites={favorites.favorites}
                 isFavorite={favorites.isFavorite}
                 onToggle={favorites.toggleFavorite}
+                maxFavorites={MAX_FAVORITES}
               />
             )}
             {expandedItem && !hideSubmenu && (
@@ -1271,7 +1178,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             <div className="relative lg:-ml-6">
               <button
                 type="button"
-                onClick={() => setCompanyMenuOpen((open) => !open)}
+                onClick={toggleCompanyMenu}
+                onPointerEnter={prefetchCompanyDirectory}
+                onFocus={prefetchCompanyDirectory}
                 className="group ml-3 flex h-12 w-[197.6px] items-center justify-between px-4 text-left"
                 aria-haspopup="menu"
                 aria-expanded={companyMenuOpen}
@@ -1291,11 +1200,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   {companies.length > 0 ? companies.map((company) => {
                     const selected = company.id === activeCompany?.id;
                     const switching = company.id === switchingCompanyId;
-                    return <button key={company.id} role="menuitemradio" aria-checked={selected} type="button" disabled={switchingCompanyId !== null} onClick={() => void selectCompany(company)} className={cn("flex h-12 w-full items-center justify-between gap-2 px-6 text-left text-sm font-normal leading-[48px] text-black/[0.87] transition-colors hover:bg-black/[0.04] disabled:cursor-wait", selected && "bg-[rgba(0,140,255,0.2)]")}>
+                    return <button key={company.id} role="menuitemradio" aria-checked={selected} type="button" disabled={switchingCompanyId !== null} onPointerEnter={() => { if (!selected) void preloadEmployeeSummary(company.id); }} onFocus={() => { if (!selected) void preloadEmployeeSummary(company.id); }} onClick={() => void selectCompany(company)} className={cn("flex h-12 w-full items-center justify-between gap-2 px-6 text-left text-sm font-normal leading-[48px] text-black/[0.87] transition-colors hover:bg-black/[0.04] disabled:cursor-wait", selected && "bg-[rgba(0,140,255,0.2)]")}>
                       <span className="max-w-[170px] truncate">{switching ? "กำลังเปิดข้อมูลบริษัท..." : company.code}</span>
                       {selected && <svg aria-hidden="true" className="size-[14px] shrink-0" viewBox="0 0 14 15" fill="none"><path fill="#008CFF" fillRule="evenodd" clipRule="evenodd" d="M7 14.5C7.91925 14.5 8.8295 14.3189 9.67878 13.9672C10.5281 13.6154 11.2997 13.0998 11.9497 12.4497C12.5998 11.7997 13.1154 11.0281 13.4672 10.1788C13.8189 9.3295 14 8.41925 14 7.5C14 6.58075 13.8189 5.6705 13.4672 4.82122C13.1154 3.97194 12.5998 3.20026 11.9497 2.55025C11.2997 1.90024 10.5281 1.38463 9.67878 1.03284C8.8295 0.68106 7.91925 0.5 7 0.5C5.14348 0.5 3.36301 1.2375 2.05025 2.55025C0.737498 3.86301 0 5.64348 0 7.5C0 9.35652 0.737498 11.137 2.05025 12.4497C3.36301 13.7625 5.14348 14.5 7 14.5ZM6.81956 10.3311L10.7084 5.66444L9.51378 4.66889L6.16933 8.68144L4.43878 6.95011L3.339 8.04989L5.67233 10.3832L6.27433 10.9852L6.81956 10.3311Z" /></svg>}
                     </button>;
-                  }) : <p className="h-12 px-6 text-sm leading-[48px] text-black/[0.87]">ไม่พบบริษัทที่คุณมีสิทธิ์ใช้งาน</p>}
+                  }) : <p className="h-12 px-6 text-sm leading-[48px] text-black/[0.87]">{companiesLoading ? "กำลังเตรียมรายชื่อบริษัท..." : "ไม่พบบริษัทที่คุณมีสิทธิ์ใช้งาน"}</p>}
                   <div className="mx-4 h-px bg-black/[0.12]" />
                   <Link href="/organization/companies" role="menuitem" onClick={() => setCompanyMenuOpen(false)} className="block h-12 px-6 text-sm font-normal leading-[48px] text-black/[0.87] hover:bg-black/[0.04]">ระบบจัดการบริษัท</Link>
                 </div>

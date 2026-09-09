@@ -1683,7 +1683,7 @@ export default function OrganizationEmployeeDetailPage({
     (async () => {
       setOrgTreeLoading(true);
       try {
-        const response = await fetch("/api/employee", { cache: "no-store" });
+        const response = await fetch("/api/employee?view=tree&includeEmployees=1", { cache: "no-store" });
         if (!response.ok) return;
         const data = (await response.json()) as { orgTree?: OrgNode[] };
         if (!cancelled) setOrgTree(data.orgTree ?? []);
@@ -1691,9 +1691,7 @@ export default function OrganizationEmployeeDetailPage({
         if (!cancelled) setOrgTreeLoading(false);
       }
     })();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {

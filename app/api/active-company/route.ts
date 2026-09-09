@@ -13,9 +13,17 @@ const cookieOptions = {
   maxAge: 60 * 60 * 12,
 };
 
+// This response contains tenant-scoped data. Keep it out of shared/CDN caches,
+// but permit the browser to reuse it briefly while navigating within the portal.
+// `Vary: Cookie` prevents a cache entry from being reused after a company switch.
+const privateCacheHeaders = {
+  "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
+  Vary: "Cookie",
+};
+
 export async function GET() {
   const company = await getActiveCompany();
-  return NextResponse.json({ company });
+  return NextResponse.json({ company }, { headers: privateCacheHeaders });
 }
 
 export async function POST(request: Request) {

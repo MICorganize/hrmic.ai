@@ -239,6 +239,7 @@ model Company {
   WorkLocation       WorkLocation[]
 
   @@index([status])
+  @@index([status, deletedAt, companyCode, name])
   @@index([tenantId])
 }
 
@@ -496,6 +497,7 @@ model Employee {
   @@index([branchId])
   @@index([citizenId])
   @@index([companyId])
+  @@index([companyId, deletedAt, employeeCode, employeeNumber, id])
   @@index([departmentId])
   @@index([deletedAt, employeeCode, employeeNumber])
   @@index([positionId])
@@ -584,6 +586,7 @@ model EmployeeTimeline {
   Employee    Employee      @relation(fields: [employeeId], references: [id], onDelete: Cascade)
 
   @@index([employeeId])
+  @@index([employeeId, eventDate(sort: Desc)])
   @@index([eventType])
 }
 

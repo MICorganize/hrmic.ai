@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { prisma } from "@/lib/prisma";
+import { getPublicCompanies } from "@/lib/public-companies";
 
 export const dynamic = "force-dynamic";
 
@@ -10,25 +10,18 @@ export const dynamic = "force-dynamic";
  * tenant details to this response.
  */
 export async function GET() {
+  const startedAt = performance.now();
   try {
-    const companies = await prisma.company.findMany({
-      where: { status: "active", deletedAt: null },
-      orderBy: [{ companyCode: "asc" }, { name: "asc" }],
-      select: {
-        id: true,
-        companyCode: true,
-        companyNameTH: true,
-        name: true,
-      },
-    });
-
-    return NextResponse.json({
-      companies: companies.map((company) => ({
-        id: company.id,
-        code: company.companyCode ?? company.name,
-        name: company.companyNameTH ?? company.name,
-      })),
-    });
+    const companies = await getPublicCompanies();
+    return NextResponse.json(
+      { companies },
+      {
+        headers: {
+          "Cache-Control": "public, max-age=600, stale-while-revalidate=86400",
+          "Server-Timing": `public-company-data;dur=${(performance.now() - startedAt).toFixed(1)}`,
+        },
+      }
+    );
   } catch (error) {
     console.error("GET /public-company-data failed:", error);
     return NextResponse.json({ error: "ไม่สามารถโหลดรายชื่อบริษัทได้" }, { status: 500 });
