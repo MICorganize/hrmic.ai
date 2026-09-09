@@ -6,7 +6,7 @@
   "crons": [
     {
       "path": "/api/internal/warm-caches",
-      "schedule": "*/10 * * * *"
+      "schedule": "0 0 * * *"
     }
   ]
 }
