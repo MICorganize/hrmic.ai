@@ -17,7 +17,8 @@ export async function GET(request: Request) {
 
   try {
     const company = await getActiveCompany();
-    return NextResponse.json(await getPayrollDashboard(company?.id, monthKey));
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    return NextResponse.json(await getPayrollDashboard(company.id, monthKey));
   } catch (error) {
     console.error("GET /api/payroll/dashboard failed:", error);
     return NextResponse.json({ error: "ไม่สามารถโหลดข้อมูล Dashboard เงินเดือนได้" }, { status: 500 });

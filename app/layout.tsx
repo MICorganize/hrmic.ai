@@ -6,11 +6,10 @@ import { WebVitals } from "@/components/web-vitals";
 
 const kanit = localFont({
   variable: "--font-kanit",
-  // Kanit is the product typeface. Preload the self-hosted files so the login
-  // UI consistently renders in Kanit, while `swap` keeps the form visible if
-  // a very slow connection delays the font response.
+  // Avoid making both font weights compete with the route's critical scripts.
+  // The self-hosted files still load from generated CSS and `swap` keeps text visible.
   display: "swap",
-  preload: true,
+  preload: false,
   fallback: ["system-ui", "sans-serif"],
   src: [
     {

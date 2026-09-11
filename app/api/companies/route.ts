@@ -2,11 +2,10 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { auth } from "@/auth";
+import { invalidateCompanyAuthorization } from "@/lib/active-company";
 import { MAX_EMPLOYEE_RECORDS } from "@/lib/employee/limit";
 import { invalidatePublicCompanies } from "@/lib/public-companies";
 import { prisma } from "@/lib/prisma";
-
-export const dynamic = "force-dynamic";
 
 // Company access is authenticated and tenant-scoped. Browser-only caching
 // avoids repeated reads during portal navigation without exposing it to a CDN.
@@ -176,7 +175,10 @@ export async function POST(request: Request) {
       return created;
     });
 
-    await invalidatePublicCompanies();
+    await Promise.all([
+      invalidatePublicCompanies(),
+      invalidateCompanyAuthorization(company.id),
+    ]);
 
     return NextResponse.json({ company: { ...companyResponse({ ...company, _count: { Employee: 0 } }), accessRole: "owner" } }, { status: 201 });
   } catch (error) {

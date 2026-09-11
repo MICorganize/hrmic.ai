@@ -8,9 +8,10 @@ import { Check, ChevronDown, Eye, EyeOff, KeyRound, List, Loader2, Mail } from "
 
 import { authenticateWithCredentials } from "@/app/actions/authenticate";
 import { HRMicWordmark } from "@/components/hrmic-wordmark";
+import { resetPortalActiveCompany } from "@/components/layouts/PortalActiveCompanySync";
 import { usePublicCompanies, type PublicCompany } from "@/hooks/use-public-companies";
-import { preloadDashboardEmployeeSummary, resetDashboardEmployeeSummary } from "@/lib/employee/dashboard-summary-client";
 import { resetEmployeeSummaryCache } from "@/lib/employee/summary-client";
+import { resetPayrollDashboardCache } from "@/lib/payroll/dashboard-client";
 import { markLoginFlow } from "@/lib/performance/login-flow-client";
 import { cn } from "@/lib/utils";
 
@@ -95,12 +96,12 @@ export function LoginForm({ initialCompanies, kind }: LoginFormProps) {
       }
       markLoginFlow("login-authenticated");
       resetEmployeeSummaryCache();
-      resetDashboardEmployeeSummary();
+      resetPayrollDashboardCache();
+      resetPortalActiveCompany();
       if (!isCompanyManagement) {
-        // The selected company was authorized in the same Credentials request.
-        // Start the small dashboard request while the route transition begins.
+        // The destination RSC starts authorization and dashboard data together;
+        // a browser preload here would duplicate that work.
         markLoginFlow("company-authorized");
-        void preloadDashboardEmployeeSummary().catch(() => undefined);
       }
       if (remember) {
         // A device may remember a non-sensitive identifier, never a password.

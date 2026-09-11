@@ -30,17 +30,29 @@ function SelectedCompanyIcon() {
   return <svg aria-hidden="true" className="size-4 shrink-0" viewBox="0 0 14 15" fill="none"><path fill="#008CFF" fillRule="evenodd" clipRule="evenodd" d="M7 14.5C7.91925 14.5 8.8295 14.3189 9.67878 13.9672C10.5281 13.6154 11.2997 13.0998 11.9497 12.4497C12.5998 11.7997 13.1154 11.0281 13.4672 10.1788C13.8189 9.3295 14 8.41925 14 7.5C14 6.58075 13.8189 5.6705 13.4672 4.82122C13.1154 3.97194 12.5998 3.20026 11.9497 2.55025C11.2997 1.90024 10.5281 1.38463 9.67878 1.03284C8.8295 0.68106 7.91925 0.5 7 0.5C5.14348 0.5 3.36301 1.2375 2.05025 2.55025C0.737498 3.86301 0 5.64348 0 7.5C0 9.35652 0.737498 11.137 2.05025 12.4497C3.36301 13.7625 5.14348 14.5 7 14.5ZM6.81956 10.3311L10.7084 5.66444L9.51378 4.66889L6.16933 8.68144L4.43878 6.95011L3.339 8.04989L5.67233 10.3832L6.27433 10.9852L6.81956 10.3311Z" /></svg>;
 }
 
-export function UserDropdown() {
+type CompanyOption = { id: string; name: string; code: string | null };
+
+export function UserDropdown({
+  activeCompany,
+  companies,
+  companiesLoading,
+  switchingCompanyId,
+  onRequestCompanies,
+  onSelectCompany,
+}: {
+  activeCompany: CompanyOption | null;
+  companies: CompanyOption[];
+  companiesLoading: boolean;
+  switchingCompanyId: string | null;
+  onRequestCompanies: () => void;
+  onSelectCompany: (company: CompanyOption) => Promise<void>;
+}) {
   const [open, setOpen] = useState(false);
   const [companyMenuOpen, setCompanyMenuOpen] = useState(false);
-  const [selectedCompany, setSelectedCompany] = useState<{ id: string; name: string; code: string } | null>(null);
-  const [companies, setCompanies] = useState<Array<{ id: string; name: string; code: string }>>([]);
-  const [companiesLoading, setCompaniesLoading] = useState(false);
-  const [switchingCompanyId, setSwitchingCompanyId] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   const toggleDropdown = () => {
-    if (!open) setCompaniesLoading(true);
+    if (!open) onRequestCompanies();
     setOpen((value) => !value);
   };
 
@@ -54,71 +66,17 @@ export function UserDropdown() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    if (!open) return;
-
-    let cancelled = false;
-    void Promise.all([
-      fetch("/company-data", { cache: "no-store" })
-        .then(async (response) => response.ok
-          ? (await response.json()) as { companies?: Array<{ id: string; code: string; nameTH: string; nameEN: string }> }
-          : { companies: [] }),
-      fetch("/api/active-company", { cache: "no-store" })
-        .then(async (response) => response.ok
-          ? (await response.json()) as { company: { id: string; code: string | null; name: string } | null }
-          : { company: null }),
-    ])
-      .then(([companyData, activeCompanyData]) => {
-        if (cancelled) return;
-        const nextCompanies = (companyData.companies ?? []).map(({ id, code, nameTH, nameEN }) => ({
-          id,
-          code,
-          name: nameEN || nameTH,
-        }));
-        setCompanies(nextCompanies);
-        const active = activeCompanyData.company;
-        setSelectedCompany(active ? {
-          id: active.id,
-          code: active.code ?? active.name,
-          name: active.name,
-        } : null);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCompanies([]);
-          setSelectedCompany(null);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setCompaniesLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [open]);
-
-  const selectCompany = async (company: { id: string; name: string; code: string }) => {
-    if (company.id === selectedCompany?.id) {
+  const selectCompany = async (company: CompanyOption) => {
+    if (company.id === activeCompany?.id) {
       setCompanyMenuOpen(false);
       return;
     }
-
-    setSwitchingCompanyId(company.id);
-    try {
-      const response = await fetch("/api/active-company", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ companyId: company.id }),
-      });
-      if (!response.ok) return;
-      window.location.reload();
-    } finally {
-      setSwitchingCompanyId(null);
-    }
+    await onSelectCompany(company);
+    setCompanyMenuOpen(false);
+    setOpen(false);
   };
 
-  const currentCompany = selectedCompany ?? companies[0] ?? { id: "", code: "MIC_ORGANIZE", name: "MIC ORGANIZE CO., LTD." };
+  const currentCompany = activeCompany ?? { id: "", code: "MIC_ORGANIZE", name: "MIC ORGANIZE CO., LTD." };
 
   return (
     <div className="relative" ref={ref}>

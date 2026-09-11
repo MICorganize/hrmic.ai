@@ -55,13 +55,7 @@ async function auditPosition(
 
 async function activeCompanyId() {
   const selectedCompany = await getActiveCompany();
-  if (selectedCompany) return selectedCompany.id;
-  const company = await prisma.company.findFirst({
-    where: { deletedAt: null },
-    select: { id: true },
-    orderBy: { name: "asc" },
-  });
-  return company?.id ?? null;
+  return selectedCompany?.id ?? null;
 }
 
 async function positionTree(companyId?: string | null): Promise<PositionNode[]> {
@@ -110,6 +104,7 @@ async function cachedResponse(companyId?: string | null) {
 export async function GET() {
   try {
     const companyId = await activeCompanyId();
+    if (!companyId) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
     return NextResponse.json(await cachedResponse(companyId));
   } catch (error) {
     console.error("GET /api/organization-position failed:", error);
@@ -120,11 +115,11 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => null)) as PositionRequest | null;
-    const companyId = (await activeCompanyId()) || text(body?.companyId);
+    const companyId = await activeCompanyId();
     const parentId = text(body?.parentId) || null;
     const name = text(body?.name);
     const code = text(body?.code);
-    if (!companyId) return invalid("ไม่พบบริษัทสำหรับสร้างตำแหน่ง");
+    if (!companyId) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
     if (!name || !code) return invalid("กรุณากรอกชื่อตำแหน่งและรหัสให้ครบถ้วน");
     if (!validPositionCode(code)) return invalid("รหัสตำแหน่งต้องเป็นภาษาอังกฤษหรือตัวเลขเท่านั้น");
 
@@ -168,7 +163,7 @@ export async function PATCH(request: Request) {
     const position = await prisma.$queryRaw<Pick<PositionRecord, "companyId">[]>(Prisma.sql`SELECT "companyId" FROM "Position" WHERE "id" = ${id}::uuid AND "deletedAt" IS NULL LIMIT 1`);
     if (!position[0]) return NextResponse.json({ error: "ไม่พบข้อมูลที่ต้องการแก้ไข" }, { status: 404 });
     const companyId = await activeCompanyId();
-    if (companyId && position[0].companyId !== companyId) return NextResponse.json({ error: "คุณไม่มีสิทธิ์แก้ไขตำแหน่งนี้" }, { status: 403 });
+    if (!companyId || position[0].companyId !== companyId) return NextResponse.json({ error: "คุณไม่มีสิทธิ์แก้ไขตำแหน่งนี้" }, { status: 403 });
     const existing = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`SELECT "id" FROM "Position" WHERE "companyId" = ${position[0].companyId}::uuid AND "code" = ${code} AND "id" <> ${id}::uuid AND "deletedAt" IS NULL LIMIT 1`);
     if (existing[0]) return NextResponse.json({ error: "รหัสนี้มีอยู่แล้วในระบบ" }, { status: 409 });
     await prisma.$executeRaw(Prisma.sql`UPDATE "Position" SET "name" = ${name}, "code" = ${code}, "updatedAt" = NOW() WHERE "id" = ${id}::uuid`);
@@ -194,7 +189,7 @@ export async function DELETE(request: Request) {
     const position = await prisma.$queryRaw<Pick<PositionRecord, "companyId" | "name" | "code">[]>(Prisma.sql`SELECT "companyId", "name", "code" FROM "Position" WHERE "id" = ${id}::uuid AND "deletedAt" IS NULL LIMIT 1`);
     if (!position[0]) return NextResponse.json({ error: "ไม่พบข้อมูลที่ต้องการลบ" }, { status: 404 });
     const companyId = await activeCompanyId();
-    if (companyId && position[0].companyId !== companyId) return NextResponse.json({ error: "คุณไม่มีสิทธิ์ลบตำแหน่งนี้" }, { status: 403 });
+    if (!companyId || position[0].companyId !== companyId) return NextResponse.json({ error: "คุณไม่มีสิทธิ์ลบตำแหน่งนี้" }, { status: 403 });
     const [children, employees, assignments] = await Promise.all([
       prisma.$queryRaw<{ count: bigint }[]>(Prisma.sql`SELECT COUNT(*)::bigint AS "count" FROM "Position" WHERE "parentId" = ${id}::uuid AND "deletedAt" IS NULL`),
       prisma.employee.count({ where: { positionId: id, deletedAt: null } }),

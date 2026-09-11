@@ -2,10 +2,9 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { auth } from "@/auth";
+import { invalidateCompanyAuthorization } from "@/lib/active-company";
 import { MAX_EMPLOYEE_RECORDS } from "@/lib/employee/limit";
 import { prisma } from "@/lib/prisma";
-
-export const dynamic = "force-dynamic";
 
 type CompanyRouteContext = { params: Promise<{ companyId: string }> };
 
@@ -83,6 +82,8 @@ export async function PATCH(request: Request, context: CompanyRouteContext) {
       });
       return result;
     });
+
+    await invalidateCompanyAuthorization(company.id);
 
     return NextResponse.json({ company: updated });
   } catch (error) {

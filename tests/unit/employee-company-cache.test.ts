@@ -3,9 +3,6 @@ import {
   getPreloadedEmployeeSummary, preloadEmployeeSummary, promotePreloadedEmployeeSummary,
   resetEmployeeSummaryCache, storePreloadedEmployeeSummary, type EmployeeSummaryData,
 } from "@/lib/employee/summary-client";
-import {
-  preloadDashboardEmployeeSummary, resetDashboardEmployeeSummary,
-} from "@/lib/employee/dashboard-summary-client";
 
 const mic: EmployeeSummaryData = {
   company: { id: "mic", code: "MIC", name: "MIC", employeeLimit: 50 }, total: 12,
@@ -18,23 +15,17 @@ const fetchMock = vi.fn<typeof fetch>();
 
 beforeEach(() => {
   resetEmployeeSummaryCache();
-  resetDashboardEmployeeSummary();
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
 });
 afterEach(() => { vi.unstubAllGlobals(); });
 
-describe("MIC login to Dashboard to Employee Dashboard", () => {
-  it("drops PECTH in both caches and fetches MIC after a fresh login", async () => {
+describe("company-scoped Employee Dashboard cache", () => {
+  it("drops PECTH and fetches MIC after a fresh login", async () => {
     storePreloadedEmployeeSummary(pecth);
     storePreloadedEmployeeSummary(pecth, "pecth");
-    fetchMock.mockResolvedValueOnce(response({ company: pecth.company, summary: pecth }));
-    await preloadDashboardEmployeeSummary();
     resetEmployeeSummaryCache();
-    resetDashboardEmployeeSummary();
     expect(getPreloadedEmployeeSummary("pecth")).toBeNull();
-    fetchMock.mockResolvedValueOnce(response({ company: mic.company, summary: mic }));
-    expect((await preloadDashboardEmployeeSummary()).company.code).toBe("MIC");
     fetchMock.mockResolvedValueOnce(response(mic));
     expect((await preloadEmployeeSummary()).company?.code).toBe("MIC");
     expect(getPreloadedEmployeeSummary("mic")?.total).toBe(12);
@@ -69,17 +60,5 @@ describe("MIC login to Dashboard to Employee Dashboard", () => {
     resolve(response(pecth));
     await rejected;
     expect(getPreloadedEmployeeSummary()?.company?.code).toBe("MIC");
-  });
-  it("prevents an old Dashboard response restoring the earlier login's company", async () => {
-    let resolve!: (value: Response) => void;
-    fetchMock.mockReturnValueOnce(new Promise((done) => { resolve = done; }));
-    const old = preloadDashboardEmployeeSummary();
-    const rejected = expect(old).rejects.toThrow("session changed");
-    resetDashboardEmployeeSummary();
-    fetchMock.mockResolvedValueOnce(response({ company: mic.company, summary: mic }));
-    await preloadDashboardEmployeeSummary();
-    resolve(response({ company: pecth.company, summary: pecth }));
-    await rejected;
-    expect((await preloadDashboardEmployeeSummary()).company.code).toBe("MIC");
   });
 });

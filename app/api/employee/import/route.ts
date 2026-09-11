@@ -296,9 +296,10 @@ async function importEmployees(rows: EmployeeImportUploadRow[], filename: string
 
 export async function GET() {
   const company = await getActiveCompany();
+  if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
   const [history, employees] = await Promise.all([
-    prisma.auditLog.findMany({ where: { entityType: "employee_import", ...(company ? { companyId: company.id } : {}) }, orderBy: { createdAt: "desc" }, take: 20 }),
-    prisma.employee.findMany({ where: { deletedAt: null, ...(company ? { companyId: company.id } : {}) }, orderBy: [{ employeeCode: "asc" }, { employeeNumber: "asc" }], take: 100, select: { id: true, employeeCode: true, employeeNumber: true, firstNameTH: true, lastNameTH: true } }),
+    prisma.auditLog.findMany({ where: { entityType: "employee_import", companyId: company.id }, orderBy: { createdAt: "desc" }, take: 20 }),
+    prisma.employee.findMany({ where: { deletedAt: null, companyId: company.id }, orderBy: [{ employeeCode: "asc" }, { employeeNumber: "asc" }], take: 100, select: { id: true, employeeCode: true, employeeNumber: true, firstNameTH: true, lastNameTH: true } }),
   ]);
   return NextResponse.json({
     employees: employees.map((employee) => ({ id: employee.id, code: employee.employeeCode ?? employee.employeeNumber, name: `${employee.firstNameTH} ${employee.lastNameTH}`.trim() })),
@@ -318,8 +319,9 @@ export async function POST(request: Request) {
     if (!file.name.toLowerCase().endsWith(".xlsx")) return NextResponse.json({ error: "รองรับเฉพาะไฟล์ .xlsx" }, { status: 400 });
     const rows = parseEmployeeImportWorkbook(Buffer.from(await file.arrayBuffer()));
     const company = await getActiveCompany();
-    const summary = await importEmployees(rows, file.name, company?.id);
-    if (company && (summary.inserted > 0 || summary.updated > 0 || summary.deleted > 0)) {
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    const summary = await importEmployees(rows, file.name, company.id);
+    if (summary.inserted > 0 || summary.updated > 0 || summary.deleted > 0) {
       await refreshEmployeeSummarySnapshot(company.id);
     }
     return NextResponse.json(summary);
@@ -334,20 +336,21 @@ export async function PATCH(request: Request) {
     const employeeIds = [...new Set(body.employeeIds ?? [])].filter(Boolean);
     if (!body.scope || !body.targetId || employeeIds.length === 0) return NextResponse.json({ error: "กรุณาเลือกรายการและข้อมูลที่ต้องการกำหนด" }, { status: 400 });
     const company = await getActiveCompany();
-    const employeeWhere = { id: { in: employeeIds }, ...(company ? { companyId: company.id } : {}) };
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    const employeeWhere = { id: { in: employeeIds }, companyId: company.id };
     const affectedCompanyIds = new Set((await prisma.employee.findMany({ where: employeeWhere, select: { companyId: true } })).map((employee) => employee.companyId));
     if (body.scope === "position") {
-      const position = await prisma.position.findFirst({ where: { id: body.targetId, deletedAt: null, ...(company ? { companyId: company.id } : {}) } });
+      const position = await prisma.position.findFirst({ where: { id: body.targetId, deletedAt: null, companyId: company.id } });
       if (!position) return NextResponse.json({ error: "ไม่พบตำแหน่งที่เลือก" }, { status: 404 });
       await prisma.employee.updateMany({ where: employeeWhere, data: { positionId: position.id } });
     } else {
-      let department = await prisma.department.findFirst({ where: { id: body.targetId, deletedAt: null, ...(company ? { companyId: company.id } : {}) } });
+      let department = await prisma.department.findFirst({ where: { id: body.targetId, deletedAt: null, companyId: company.id } });
       if (!department) {
-        const branch = await prisma.branch.findFirst({ where: { id: body.targetId, deletedAt: null, ...(company ? { companyId: company.id } : {}) } });
+        const branch = await prisma.branch.findFirst({ where: { id: body.targetId, deletedAt: null, companyId: company.id } });
         if (branch) department = await prisma.department.findFirst({ where: { companyId: branch.companyId, branchId: branch.id, deletedAt: null } });
       }
       if (!department) {
-        const targetCompany = await prisma.company.findFirst({ where: { id: company?.id ?? body.targetId, deletedAt: null } });
+      const targetCompany = await prisma.company.findFirst({ where: { id: company.id, deletedAt: null } });
         if (targetCompany) department = await prisma.department.findFirst({ where: { companyId: targetCompany.id, deletedAt: null } });
       }
       if (!department) return NextResponse.json({ error: "ไม่พบหน่วยงานที่เลือกหรือไม่มีแผนกในหน่วยงานนั้น" }, { status: 400 });

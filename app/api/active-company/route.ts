@@ -17,7 +17,7 @@ const cookieOptions = {
 // but permit the browser to reuse it briefly while navigating within the portal.
 // `Vary: Cookie` prevents a cache entry from being reused after a company switch.
 const privateCacheHeaders = {
-  "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
+  "Cache-Control": "private, no-store",
   Vary: "Cookie",
 };
 

@@ -12,7 +12,8 @@ export async function GET(request: Request) {
 
   try {
     const company = await getActiveCompany();
-    return NextResponse.json(await getPayrollDashboardEmployeeCount(company?.id, monthKey));
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    return NextResponse.json(await getPayrollDashboardEmployeeCount(company.id, monthKey));
   } catch (error) {
     console.error("GET /api/payroll/dashboard/employee-count failed:", error);
     return NextResponse.json({ error: "ไม่สามารถโหลดจำนวนพนักงานได้" }, { status: 500 });

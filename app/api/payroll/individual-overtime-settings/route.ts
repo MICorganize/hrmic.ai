@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 
+import { getActiveCompany } from "@/lib/active-company";
 import { prisma } from "@/lib/prisma";
 import { CLOSED_PAYROLL_PERIOD_MESSAGE, isPayrollPeriodClosed } from "@/lib/payroll/period-lock";
-
-export const dynamic = "force-dynamic";
 
 const RULE_NUMBERS = [1, 2, 3, 4, 5, 6, 7, 8] as const;
 const COUNTING_CHOICES = ["immediate", "after"] as const;
@@ -77,7 +76,9 @@ export async function GET(request: Request) {
   if (!employeeId) return NextResponse.json({ error: "กรุณาระบุพนักงาน" }, { status: 400 });
 
   try {
-    const employee = await prisma.employee.findFirst({ where: { id: employeeId, deletedAt: null }, select: { id: true } });
+    const company = await getActiveCompany();
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    const employee = await prisma.employee.findFirst({ where: { id: employeeId, companyId: company.id, deletedAt: null }, select: { id: true } });
     if (!employee) return NextResponse.json({ error: "ไม่พบข้อมูลพนักงาน" }, { status: 404 });
 
     const records = await prisma.individualOvertimeSetting.findMany({ where: { employeeId } });
@@ -115,10 +116,12 @@ export async function PATCH(request: Request) {
   };
 
   try {
-    if (await isPayrollPeriodClosed(month)) {
+    const company = await getActiveCompany();
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    if (await isPayrollPeriodClosed(month, company.id)) {
       return NextResponse.json({ error: CLOSED_PAYROLL_PERIOD_MESSAGE }, { status: 409 });
     }
-    const employee = await prisma.employee.findFirst({ where: { id: employeeId, deletedAt: null }, select: { id: true } });
+    const employee = await prisma.employee.findFirst({ where: { id: employeeId, companyId: company.id, deletedAt: null }, select: { id: true } });
     if (!employee) return NextResponse.json({ error: "ไม่พบข้อมูลพนักงาน" }, { status: 404 });
 
     await prisma.$transaction([

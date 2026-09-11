@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Gender, MaritalStatus, EmploymentType } from "@/generated/prisma/client";
 
-import { auth } from "@/auth";
-import { getActiveCompany } from "@/lib/active-company";
+import { getAccessibleCompany, getActiveCompany } from "@/lib/active-company";
 import { readThroughCache } from "@/lib/cache/read-through";
 import { versionedReadModelCacheKey } from "@/lib/cache/read-model-version";
 import { getCachedEmployeeSummary, refreshEmployeeSummarySnapshot } from "@/lib/employee/summary";
@@ -45,15 +44,6 @@ type CompanyScope = {
   code: string | null;
   employeeLimit: number | null;
 };
-
-function hasTenantManagementRole(roles: Array<{ code: string; name: string }>) {
-  return roles.some(({ code, name }) => {
-    const normalizedCode = code.toLowerCase();
-    const normalizedName = name.toLowerCase();
-    return ["admin", "administrator", "owner", "super_admin", "superadmin"].includes(normalizedCode)
-      || ["admin", "administrator", "owner", "ผู้ดูแลระบบ"].includes(normalizedName);
-  });
-}
 
 /* --------------------------------- Helpers -------------------------------- */
 
@@ -377,7 +367,7 @@ async function getCachedOrganizationTree(companyId?: string, includeEmployees = 
   );
   return readThroughCache(
     key,
-    60,
+    300,
     () => getOrganizationTree(companyId, includeEmployees)
   );
 }
@@ -501,27 +491,9 @@ export async function GET(request: Request) {
 
     let companyScope: CompanyScope | undefined = !requestedCompanyId || requestedCompanyId === activeCompany?.id ? activeCompany ?? undefined : undefined;
     if (companyId && !companyScope) {
-      const session = await auth();
-      if (!session?.user?.id) return NextResponse.json({ error: "กรุณาเข้าสู่ระบบก่อนใช้งาน" }, { status: 401 });
-
-      const user = await prisma.user.findFirst({
-        where: { id: session.user.id, status: "active", deletedAt: null },
-        select: { id: true, tenantId: true, UserRole: { select: { Role: { select: { code: true, name: true } } } } },
-      });
-      if (!user) return NextResponse.json({ error: "กรุณาเข้าสู่ระบบก่อนใช้งาน" }, { status: 401 });
-
-      const isTenantAdmin = hasTenantManagementRole(user.UserRole.map(({ Role }) => Role));
-      const company = await prisma.company.findFirst({
-        where: {
-          id: companyId,
-          tenantId: user.tenantId,
-          deletedAt: null,
-          ...(isTenantAdmin ? {} : { UserCompanyAccess: { some: { userId: user.id } } }),
-        },
-        select: { id: true, name: true, companyCode: true, employeeLimit: true },
-      });
+      const company = await getAccessibleCompany(companyId);
       if (!company) return NextResponse.json({ error: "คุณไม่มีสิทธิ์เข้าถึงบริษัทนี้" }, { status: 403 });
-      companyScope = { id: company.id, name: company.name, code: company.companyCode, employeeLimit: company.employeeLimit };
+      companyScope = company;
     }
 
     if (view === "summary") return NextResponse.json({ ...(await getCachedEmployeeSummary(companyScope?.id, historyPage, fresh)), company: companyScope ?? null }, { headers: headers() });
@@ -572,7 +544,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "ไม่พบบริษัทในระบบ กรุณาตรวจสอบโครงสร้างองค์กร" }, { status: 400 });
     }
     const activeCompany = await getActiveCompany();
-    if (activeCompany && company.id !== activeCompany.id) {
+    if (!activeCompany) {
+      return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    }
+    if (company.id !== activeCompany.id) {
       return NextResponse.json({ error: "ไม่สามารถเพิ่มพนักงานนอกบริษัทที่กำลังใช้งานได้" }, { status: 403 });
     }
     const branchId = organization.branchId;
@@ -760,6 +735,11 @@ export async function POST(request: Request) {
     });
 
     await refreshEmployeeSummarySnapshot(company.id);
+    // Employee mutations advance the workforce read-model version, which
+    // invalidates the org-tree snapshot. Pre-warm it (with employee leaves)
+    // right away so the next panel open is a cache hit instead of a full
+    // organization+employee query.
+    await getCachedOrganizationTree(company.id, true);
 
     return NextResponse.json(
       {

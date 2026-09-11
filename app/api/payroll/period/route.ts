@@ -58,7 +58,8 @@ export async function GET(request: Request) {
 
   try {
     const company = await getActiveCompany();
-    const period = companyPeriodKey(month, company?.id);
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    const period = companyPeriodKey(month, company.id);
     const run = await prisma.payrollRun.findUnique({
       where: { period },
       select: { periodStart: true, periodEnd: true },
@@ -86,8 +87,9 @@ export async function PUT(request: Request) {
 
   try {
     const company = await getActiveCompany();
-    const period = companyPeriodKey(month, company?.id);
-    if (await isPayrollPeriodClosed(period)) {
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    const period = companyPeriodKey(month, company.id);
+    if (await isPayrollPeriodClosed(month, company.id)) {
       return NextResponse.json({ error: CLOSED_PAYROLL_PERIOD_MESSAGE }, { status: 409 });
     }
     const now = new Date();
@@ -103,7 +105,7 @@ export async function PUT(request: Request) {
       update: { periodStart: startDate, periodEnd: endDate, updatedAt: now },
       select: { periodStart: true, periodEnd: true },
     });
-    await invalidateReadModel("payroll-dashboard", company?.id);
+    await invalidateReadModel("payroll-dashboard", company.id);
     return NextResponse.json(responsePeriod(month, run));
   } catch (error) {
     console.error("PUT /api/payroll/period failed:", error);
@@ -117,15 +119,16 @@ export async function DELETE(request: Request) {
 
   try {
     const company = await getActiveCompany();
-    const period = companyPeriodKey(month, company?.id);
-    if (await isPayrollPeriodClosed(period)) {
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    const period = companyPeriodKey(month, company.id);
+    if (await isPayrollPeriodClosed(month, company.id)) {
       return NextResponse.json({ error: CLOSED_PAYROLL_PERIOD_MESSAGE }, { status: 409 });
     }
     await prisma.payrollRun.updateMany({
       where: { period },
       data: { periodStart: null, periodEnd: null, updatedAt: new Date() },
     });
-    await invalidateReadModel("payroll-dashboard", company?.id);
+    await invalidateReadModel("payroll-dashboard", company.id);
     return NextResponse.json(defaultPeriod(month));
   } catch (error) {
     console.error("DELETE /api/payroll/period failed:", error);

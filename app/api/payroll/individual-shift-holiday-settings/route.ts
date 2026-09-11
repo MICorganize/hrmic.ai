@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 
+import { getActiveCompany } from "@/lib/active-company";
 import { prisma } from "@/lib/prisma";
 import { CLOSED_PAYROLL_PERIOD_MESSAGE, isPayrollPeriodClosed } from "@/lib/payroll/period-lock";
-
-export const dynamic = "force-dynamic";
 
 const SHIFT_CODES = ["WC001", "WC002"] as const;
 const DAY_TYPES = ["วันทำงาน", "วันหยุดพนักงาน"] as const;
@@ -35,7 +34,9 @@ export async function GET(request: Request) {
   if (!employeeId) return NextResponse.json({ error: "กรุณาระบุพนักงาน" }, { status: 400 });
 
   try {
-    const employee = await prisma.employee.findFirst({ where: { id: employeeId, deletedAt: null }, select: { id: true } });
+    const company = await getActiveCompany();
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    const employee = await prisma.employee.findFirst({ where: { id: employeeId, companyId: company.id, deletedAt: null }, select: { id: true } });
     if (!employee) return NextResponse.json({ error: "ไม่พบข้อมูลพนักงาน" }, { status: 404 });
 
     const settings = await prisma.individualShiftHolidaySetting.findUnique({ where: { employeeId } });
@@ -74,10 +75,12 @@ export async function PATCH(request: Request) {
     : null;
 
   try {
-    if (await isPayrollPeriodClosed(month)) {
+    const company = await getActiveCompany();
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    if (await isPayrollPeriodClosed(month, company.id)) {
       return NextResponse.json({ error: CLOSED_PAYROLL_PERIOD_MESSAGE }, { status: 409 });
     }
-    const employee = await prisma.employee.findFirst({ where: { id: employeeId, deletedAt: null }, select: { id: true } });
+    const employee = await prisma.employee.findFirst({ where: { id: employeeId, companyId: company.id, deletedAt: null }, select: { id: true } });
     if (!employee) return NextResponse.json({ error: "ไม่พบข้อมูลพนักงาน" }, { status: 404 });
 
     const settings = await prisma.$transaction(async (tx) => {

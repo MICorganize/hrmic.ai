@@ -42,8 +42,13 @@ Copy `.env.example` to `.env` and fill in credentials for:
 ### Production performance
 
 - Configure both Upstash variables. Without them, the application remains functional but dashboard read caches are local to one server instance and cold requests will be slower.
+- Never deploy the sample `your-instance.upstash.io` / `your-token` values. Invalid or partial Redis configuration is disabled immediately, and live Redis requests are aborted after `REDIS_REQUEST_TIMEOUT_MS` (750 ms by default) so cache outages cannot stall page loads.
 - Set `PERFORMANCE_LOGGING=true` and `NEXT_PUBLIC_PERFORMANCE_LOGGING=true` to record anonymous Web Vitals and login-to-dashboard timings. Keep both unset outside a profiling session if logs are not being collected.
 - Set `CRON_SECRET` in the deployment environment so the scheduled cache warmer configured in `vercel.json` can run.
+- Public company data is cached at the Vercel CDN for 10 minutes. Private company and employee responses remain excluded from shared caches.
+- Portal navigation resolves the active company in the RSC request and streams it into the client shell; do not reintroduce a parallel `/api/active-company` request.
+- Employee and payroll landing data use streamed server snapshots. Payroll month changes use the combined `/api/payroll/snapshot` BFF route so authorization, dashboard aggregates, and close-period state do not fan out into separate browser requests.
+- Authorized company projections are cached for `AUTHORIZATION_CACHE_TTL_SECONDS` (30 seconds by default, clamped to 5-60) and use a company generation for immediate invalidation after company changes.
 
 After a production build, run `npm run analyze:bundles` to list the largest client chunks and catch bundle-size regressions before deployment.
 
@@ -60,6 +65,8 @@ project and re-sync with `npx prisma db pull`.
 
 ```bash
 npm run db:generate # regenerate the Prisma client (also runs on install)
+npm run db:migrate:status # verify migration history before a release
+npm run db:migrate:deploy # production/staging only, after history is reconciled
 npm run db:seed     # upsert admin@hrmic.ai (password: Admin@1234, or ADMIN_PASSWORD env)
 npm run db:studio   # open Prisma Studio
 ```

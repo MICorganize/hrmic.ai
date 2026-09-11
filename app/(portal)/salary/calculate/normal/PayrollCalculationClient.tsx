@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -25,9 +26,8 @@ import {
   X,
 } from "lucide-react";
 
-import { EmployeeSelectPanel, type OrgNode } from "@/components/employee/EmployeeSelectPanel";
+import type { OrgNode } from "@/components/employee/EmployeeSelectPanel";
 import { Button } from "@/components/ui/button";
-import { Calendar as DatePickerCalendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -38,15 +38,31 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { PayrollDashboardContent } from "@/components/payroll/PayrollDashboardContent";
+import { PAYROLL_TABS, PayrollTabsBar } from "@/components/payroll/PayrollTabsBar";
 import { FALLBACK_USER_IMAGE_ORIGIN, SUPPORT_ASSET_ORIGIN, USER_IMAGE_ORIGIN } from "@/lib/external-assets";
 import { formatPhone } from "@/lib/phone";
-import { EMPTY_PAYROLL_DASHBOARD_STATS, getPreloadedPayrollDashboard, preloadPayrollDashboard, type PayrollDashboardStats } from "@/lib/payroll/dashboard-client";
+import {
+  EMPTY_PAYROLL_DASHBOARD_STATS,
+  INITIAL_PAYROLL_MONTH_KEY,
+  preloadPayrollSnapshot,
+  storePreloadedPayrollSnapshot,
+  type PayrollDashboardStats,
+  type PayrollPageSnapshot,
+} from "@/lib/payroll/dashboard-client";
 import { cn } from "@/lib/utils";
 
-/* ---------------------------------- Data ---------------------------------- */
+// These controls are reachable only after opening a picker or the individual
+// payroll tab. Keeping them outside the initial route graph avoids shipping
+// their tree/picker libraries for the default Dashboard view.
+const DatePickerCalendar = dynamic(() =>
+  import("@/components/ui/calendar").then((module) => module.Calendar)
+);
+const EmployeeSelectPanel = dynamic(() =>
+  import("@/components/employee/EmployeeSelectPanel").then((module) => module.EmployeeSelectPanel)
+);
 
-const TABS = ["Dashboard", "คำนวณเงินเดือนรายบุคคล", "คำนวณเงินเดือนทั้งองค์กร", "ปิดงวดบัญชี", "สรุปตั้งค่าทั้งองค์กร"];
-const FIRST_TAB_WIDTH = "w-[116.6125px]";
+/* ---------------------------------- Data ---------------------------------- */
 
 const MONTHS_TH = [
   "มกราคม",
@@ -624,6 +640,7 @@ function PageBanner({
   showAccountingPeriodWarning,
   isAccountingPeriodClosed,
   onOpenClosePeriod,
+  initialPeriodSettingsOpen,
 }: {
   monthLabel: string;
   monthIndex: number;
@@ -633,8 +650,9 @@ function PageBanner({
   showAccountingPeriodWarning: boolean;
   isAccountingPeriodClosed: boolean;
   onOpenClosePeriod: () => void;
+  initialPeriodSettingsOpen: boolean;
 }) {
-  const [periodSettingsOpen, setPeriodSettingsOpen] = useState(false);
+  const [periodSettingsOpen, setPeriodSettingsOpen] = useState(initialPeriodSettingsOpen);
   const [period, setPeriod] = useState<SavedPayrollPeriod>(() => ({ ...monthRange(monthValue), isConfigured: false }));
 
   useEffect(() => {
@@ -737,39 +755,6 @@ function PageBanner({
 
 /* --------------------------------- Tabs bar -------------------------------- */
 
-function TabsBar({ activeTab, onChange }: { activeTab: string; onChange: (tab: string) => void }) {
-  return (
-    <div className="flex h-10 items-stretch bg-[#61a8ff] px-6 text-sm leading-[22px] tracking-[-0.1px] text-white">
-      {TABS.map((tab, i) => {
-        const active = tab === activeTab;
-        return (
-          <div
-            key={tab}
-            className={cn(
-              "h-10 shrink-0 overflow-hidden",
-              i === 0 && FIRST_TAB_WIDTH,
-              active && "bg-[rgba(0,80,180,0.75)]",
-              i === 0 && "rounded-tl-[8px]",
-              i === TABS.length - 1 && "rounded-tr-[8px]"
-            )}
-          >
-            <button
-              type="button"
-              onClick={() => onChange(tab)}
-              className={cn(
-                "ml-0.5 block h-10 w-full whitespace-nowrap bg-[rgba(0,80,180,0.25)] px-4 py-2 text-left text-[16px] font-medium leading-6 tracking-[-0.1px] text-white transition-colors",
-                active && "font-medium tracking-[0.3px]"
-              )}
-            >
-              {tab}
-            </button>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function AccountingPeriodWarning({
   monthLabel,
   onOpenClosePeriod,
@@ -802,150 +787,7 @@ function AccountingPeriodWarning({
   );
 }
 
-/* ------------------------------ Tab: Dashboard ----------------------------- */
-
-function DashboardContent({
-  stats,
-  monthLabel,
-  isAccountingPeriodClosed,
-}: {
-  stats: DashboardStats;
-  monthLabel: string;
-  isAccountingPeriodClosed: boolean;
-}) {
-  const employeeTypeStats = [
-    { label: "พนักงานรายเดือน", count: stats.employeeTypes.monthly },
-    { label: "พนักงานรายวัน", count: stats.employeeTypes.daily },
-    { label: "พนักงานพาร์ตไทม์", count: stats.employeeTypes.partTime },
-    { label: "พนักงานเหมาจ่าย", count: stats.employeeTypes.contract },
-  ];
-  const statusBlocks = [
-    { label: "พนักงานเข้าใหม่", count: stats.newEmployees },
-    { label: "พนักงานลาออก", count: stats.terminatedEmployees },
-    { label: "วันเกิดพนักงาน", count: stats.birthdays },
-  ];
-  const chartTotal = employeeTypeStats.reduce((total, item) => total + item.count, 0);
-  const chartColors = ["#b5d9e9", "#75b9dc", "#8fca8b", "#e8bf77"];
-  let chartOffset = 0;
-  const chartBackground = chartTotal
-    ? `conic-gradient(${employeeTypeStats
-        .filter((item) => item.count > 0)
-        .map((item, index) => {
-          const start = chartOffset;
-          chartOffset += (item.count / chartTotal) * 100;
-          return `${chartColors[index]} ${start}% ${chartOffset}%`;
-        })
-        .join(", ")})`
-    : "#b5d9e9";
-
-  return (
-    <div className="flex flex-col p-8">
-      <div className="flex flex-col xl:flex-row">
-        {/* พนักงานทั้งหมด */}
-        <Card className="m-3 h-[248px] flex-[1_1_100%] rounded-lg border-0 shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)] xl:max-w-[33.34%]">
-          <CardContent className="h-full p-[16px_8px]">
-            <DashboardCardHeader title="พนักงานทั้งหมด" monthLabel={monthLabel} />
-            <DashboardDivider />
-            <div className="flex gap-6">
-              <DashboardNumber count={stats.salaryEmployees} caption="(ฐานข้อมูลเงินเดือน)" />
-              {!isAccountingPeriodClosed && (
-                <>
-                  <span className="self-center [font-size:3vw] font-normal leading-[56px] text-[rgba(0,0,0,0.87)]">=</span>
-                  <DashboardNumber count={stats.totalEmployees} caption="(ฐานข้อมูลพนักงาน)" />
-                </>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* สัดส่วนพนักงาน */}
-        <Card className="m-3 h-[248px] flex-[1_1_100%] rounded-lg border-0 shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)] xl:max-w-[66.66%]">
-          <CardContent className="h-full p-[16px_8px]">
-            <DashboardCardHeader title="สัดส่วนพนักงาน" monthLabel={monthLabel} />
-            <DashboardDivider />
-            <div className="flex h-[160.275px] flex-wrap">
-              <div className="mr-3 flex flex-1 items-center justify-center">
-                <div
-                  role="img"
-                  aria-label={`กราฟสัดส่วนพนักงาน: พนักงานรายเดือน ${stats.employeeTypes.monthly} คน`}
-                  className="relative size-[150px] rounded-full bg-[#b5d9e9]"
-                  style={{ background: chartBackground }}
-                >
-                  <span className="absolute left-1/2 top-[5px] h-[70px] w-[3px] -translate-x-1/2 rounded-full bg-white" />
-                </div>
-              </div>
-
-              <div className="mr-3 flex flex-1 flex-col items-start justify-center text-[17px] leading-[26.7155px] text-[rgba(0,0,0,0.87)]">
-                {employeeTypeStats.map((s, index) => (
-                  <div key={s.label} className={cn("flex w-full items-start gap-3 first:gap-4", index === 0 && "relative -top-[3px]", index < 3 && "mb-[3px]")}>
-                    <span className="flex-1 whitespace-nowrap">{s.label}</span>
-                    <span className="w-[32.125px] shrink-0 whitespace-nowrap text-left">{s.count} คน</span>
-                  </div>
-                ))}
-              </div>
-
-              {statusBlocks.map((b, index) => (
-                <div
-                  key={b.label}
-                  className={cn(
-                    "flex flex-[1_1_15%] flex-col items-center justify-center text-center xl:max-w-[15%]",
-                    index < statusBlocks.length - 1 && "mr-3"
-                  )}
-                >
-                  <span className="text-[15px] leading-[23.5725px] text-[rgba(0,0,0,0.54)]">{b.label}</span>
-                  <span className="[font-size:3vw] font-bold leading-[56px] text-[rgba(0,0,0,0.87)]">{b.count}</span>
-                  <span className="[font-size:1.5vw] leading-[40px] text-[rgba(0,0,0,0.87)]">คน</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* คำแนะนำ */}
-      {!isAccountingPeriodClosed && (
-        <div className="flex">
-          <Card className="m-3 h-[144px] flex-[1_1_0%] rounded-lg border-0 shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)]">
-            <CardContent className="h-full p-[16px_8px]">
-              <DashboardCardHeader title="คำแนะนำ" monthLabel={monthLabel} />
-              <div className="flex h-[34px]"><DashboardDivider /></div>
-              <div className="mb-3 flex h-[44.275px] items-center justify-center rounded-[4px] bg-[#fdff82] p-2 text-[18px] font-normal leading-[28.287px] text-black shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)]">
-                ใช้ได้เฉพาะแพ็คเกจ Professional เท่านั้น
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function DashboardCardHeader({ title, monthLabel }: { title: string; monthLabel: string }) {
-  return (
-    <>
-      <div className="flex items-center justify-between gap-2 text-sm font-normal leading-[22px] text-[rgba(0,0,0,0.87)]">
-        <p className="font-normal">&nbsp;{title}</p>
-        <span className="shrink-0">(ณ {monthLabel})</span>
-      </div>
-    </>
-  );
-}
-
-function DashboardDivider() {
-  return <div className="my-4 h-[2px] w-full bg-[#f0f0f0]" />;
-}
-
-function DashboardNumber({ count, caption }: { count: number; caption: string }) {
-  return (
-    <div className="flex flex-1 flex-col items-center justify-center text-center">
-      <span className="[font-size:3vw] font-bold leading-[56px] text-[rgba(0,0,0,0.87)]">{count}</span>
-      <span className="[font-size:1.5vw] leading-[40px] text-[rgba(0,0,0,0.87)]">คน</span>
-      <span className="text-[15px] leading-[23.5725px] text-[rgba(0,0,0,0.54)]">{caption}</span>
-    </div>
-  );
-}
-
-/* ----------------------------- Tab: รายบุคคล ------------------------------ */
+/* ------------------------------ Tab: รายบุคคล ------------------------------ */
 
 function CellEditIcon({ onClick, hidden = false }: { onClick: (event: React.MouseEvent<HTMLButtonElement>) => void; hidden?: boolean }) {
   if (hidden) return null;
@@ -3593,95 +3435,36 @@ function IndividualSettingsContent({ employeeId, monthKey }: { employeeId: strin
     if (!employeeId) return;
 
     const controller = new AbortController();
-    void fetch(`/api/payroll/individual-work-time?${new URLSearchParams({ employeeId }).toString()}`, {
+    void fetch(`/api/payroll/individual-settings-snapshot?${new URLSearchParams({ employeeId }).toString()}`, {
       cache: "no-store",
       signal: controller.signal,
     })
       .then(async (response) => {
-        if (!response.ok) throw new Error("Individual work-time settings request failed");
-        return response.json() as Promise<{ settings?: IndividualWorkTimeSetting[] }>;
-      })
-      .then((data) => {
-        if (!controller.signal.aborted) setWorkTimeSettings(data.settings ?? DEFAULT_INDIVIDUAL_WORK_TIME_SETTINGS);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) {
-          // The table may be introduced by a pending deployment migration.
-          // Keep the source-compatible defaults visible until it is available.
-          setWorkTimeSettings(DEFAULT_INDIVIDUAL_WORK_TIME_SETTINGS);
-        }
-      });
-
-    return () => controller.abort();
-  }, [employeeId]);
-
-  useEffect(() => {
-    if (!employeeId) return;
-
-    const controller = new AbortController();
-    void fetch(`/api/payroll/individual-shift-holiday-settings?${new URLSearchParams({ employeeId }).toString()}`, {
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Individual shift and holiday settings request failed");
-        return response.json() as Promise<{ settings?: IndividualShiftHolidaySettings }>;
+        if (!response.ok) throw new Error("Individual settings snapshot request failed");
+        return response.json() as Promise<{
+          workTime?: IndividualWorkTimeSetting[];
+          shiftHoliday?: IndividualShiftHolidaySettings;
+          overtime?: IndividualOvertimeSetting[];
+          general?: IndividualGeneralSettings;
+        }>;
       })
       .then((data) => {
         if (!controller.signal.aborted) {
-          setShiftHolidaySettings(data.settings ?? DEFAULT_INDIVIDUAL_SHIFT_HOLIDAY_SETTINGS);
+          setWorkTimeSettings(data.workTime ?? DEFAULT_INDIVIDUAL_WORK_TIME_SETTINGS);
+          setShiftHolidaySettings(data.shiftHoliday ?? DEFAULT_INDIVIDUAL_SHIFT_HOLIDAY_SETTINGS);
+          setOvertimeSettings(data.overtime ?? DEFAULT_INDIVIDUAL_OVERTIME_SETTINGS);
+          setGeneralSettings(data.general ?? DEFAULT_INDIVIDUAL_GENERAL_SETTINGS);
+          setGeneralError(null);
           setShiftHolidayError(null);
         }
       })
       .catch(() => {
-        if (!controller.signal.aborted) setShiftHolidaySettings(DEFAULT_INDIVIDUAL_SHIFT_HOLIDAY_SETTINGS);
-      });
-
-    return () => controller.abort();
-  }, [employeeId]);
-
-  useEffect(() => {
-    if (!employeeId) return;
-
-    const controller = new AbortController();
-    void fetch(`/api/payroll/individual-overtime-settings?${new URLSearchParams({ employeeId }).toString()}`, {
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Individual overtime settings request failed");
-        return response.json() as Promise<{ settings?: IndividualOvertimeSetting[] }>;
-      })
-      .then((data) => {
-        if (!controller.signal.aborted) setOvertimeSettings(data.settings ?? DEFAULT_INDIVIDUAL_OVERTIME_SETTINGS);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setOvertimeSettings(DEFAULT_INDIVIDUAL_OVERTIME_SETTINGS);
-      });
-
-    return () => controller.abort();
-  }, [employeeId]);
-
-  useEffect(() => {
-    if (!employeeId) return;
-
-    const controller = new AbortController();
-    void fetch(`/api/payroll/individual-general-settings?${new URLSearchParams({ employeeId }).toString()}`, {
-      cache: "no-store",
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Individual general settings request failed");
-        return response.json() as Promise<{ settings?: IndividualGeneralSettings }>;
-      })
-      .then((data) => {
         if (!controller.signal.aborted) {
-          setGeneralSettings(data.settings ?? DEFAULT_INDIVIDUAL_GENERAL_SETTINGS);
-          setGeneralError(null);
+          setWorkTimeSettings(DEFAULT_INDIVIDUAL_WORK_TIME_SETTINGS);
+          setShiftHolidaySettings(DEFAULT_INDIVIDUAL_SHIFT_HOLIDAY_SETTINGS);
+          setOvertimeSettings(DEFAULT_INDIVIDUAL_OVERTIME_SETTINGS);
+          setGeneralSettings(DEFAULT_INDIVIDUAL_GENERAL_SETTINGS);
         }
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setGeneralSettings(DEFAULT_INDIVIDUAL_GENERAL_SETTINGS);
       });
 
     return () => controller.abort();
@@ -5487,23 +5270,66 @@ function TabPlaceholder({ tab }: { tab: string }) {
 
 /* ----------------------------------- Page ---------------------------------- */
 
-export default function PayrollCalculationClient() {
-  const [activeTab, setActiveTab] = useState(TABS[0]);
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date(2026, 7, 1)); // สิงหาคม 2026
+export default function PayrollCalculationClient({
+  initialSnapshot,
+  initialTab = PAYROLL_TABS[0],
+  initialMonthKey = INITIAL_PAYROLL_MONTH_KEY,
+  initialPeriodSettingsOpen = false,
+}: {
+  initialSnapshot?: PayrollPageSnapshot | null;
+  initialTab?: string;
+  initialMonthKey?: string;
+  initialPeriodSettingsOpen?: boolean;
+}) {
+  const [activeTab, setActiveTab] = useState(() => PAYROLL_TABS.includes(initialTab) ? initialTab : PAYROLL_TABS[0]);
+  const [selectedMonth, setSelectedMonth] = useState(() => {
+    const [initialYear, initialMonth] = initialMonthKey.split("-").map(Number);
+    return new Date(initialYear || 2026, (initialMonth || 8) - 1, 1);
+  });
   const monthIndex = selectedMonth.getMonth();
   const year = selectedMonth.getFullYear();
   const monthKey = `${year}-${String(monthIndex + 1).padStart(2, "0")}`;
-  const [dashboardStats, setDashboardStats] = useState<DashboardStats>(() => getPreloadedPayrollDashboard(monthKey) ?? EMPTY_DASHBOARD_STATS);
-  const [isAccountingPeriodClosed, setIsAccountingPeriodClosed] = useState(false);
+  const initialSnapshotRef = useRef(initialSnapshot ?? null);
+  const [dashboardStats, setDashboardStats] = useState<DashboardStats>(
+    () => initialSnapshot?.dashboard ?? EMPTY_DASHBOARD_STATS,
+  );
+  const [isAccountingPeriodClosed, setIsAccountingPeriodClosed] = useState(
+    () => initialSnapshot?.closePeriod.isClosed ?? false,
+  );
 
   useEffect(() => {
     let cancelled = false;
-    void preloadPayrollDashboard(monthKey)
-      .then((stats) => {
-        if (!cancelled) setDashboardStats(stats);
+    if (monthKey !== INITIAL_PAYROLL_MONTH_KEY) {
+      initialSnapshotRef.current = null;
+    }
+    const seededSnapshot =
+      monthKey === INITIAL_PAYROLL_MONTH_KEY ? initialSnapshotRef.current : null;
+
+    if (seededSnapshot) {
+      storePreloadedPayrollSnapshot(monthKey, seededSnapshot);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    const loadSnapshot = async () => {
+      const snapshot = await preloadPayrollSnapshot(monthKey);
+      if (!snapshot) throw new Error("No payroll snapshot available");
+      return snapshot;
+    };
+
+    void loadSnapshot()
+      .then((snapshot) => {
+        if (!cancelled) {
+          setDashboardStats(snapshot.dashboard);
+          setIsAccountingPeriodClosed(snapshot.closePeriod.isClosed);
+        }
       })
       .catch(() => {
-        if (!cancelled) setDashboardStats(EMPTY_DASHBOARD_STATS);
+        if (!cancelled) {
+          setDashboardStats(EMPTY_DASHBOARD_STATS);
+          setIsAccountingPeriodClosed(false);
+        }
       });
     return () => { cancelled = true; };
   }, [monthKey]);
@@ -5527,7 +5353,6 @@ export default function PayrollCalculationClient() {
       }
     }
 
-    void loadClosePeriodState();
     const refreshWhenReturningToPage = () => {
       if (!document.hidden) void loadClosePeriodState();
     };
@@ -5563,13 +5388,14 @@ export default function PayrollCalculationClient() {
         showAccountingPeriodWarning={!isAccountingPeriodClosed}
         isAccountingPeriodClosed={isAccountingPeriodClosed}
         onOpenClosePeriod={() => setActiveTab("ปิดงวดบัญชี")}
+        initialPeriodSettingsOpen={initialPeriodSettingsOpen}
         onMonthChange={(month) => {
           const [selectedYear, selectedMonthIndex] = month.split("-").map(Number);
           if (selectedYear && selectedMonthIndex) setSelectedMonth(new Date(selectedYear, selectedMonthIndex - 1, 1));
         }}
       />
 
-      <TabsBar activeTab={activeTab} onChange={setActiveTab} />
+      <PayrollTabsBar activeTab={activeTab} onChange={setActiveTab} />
 
       <div
         className={cn(
@@ -5581,7 +5407,7 @@ export default function PayrollCalculationClient() {
             : "px-4 pt-3 sm:px-6 lg:px-6"
         )}
       >
-        {activeTab === "Dashboard" && <DashboardContent stats={dashboardStats} monthLabel={monthLabel} isAccountingPeriodClosed={isAccountingPeriodClosed} />}
+        {activeTab === "Dashboard" && <PayrollDashboardContent stats={dashboardStats} monthLabel={monthLabel} isAccountingPeriodClosed={isAccountingPeriodClosed} />}
         {activeTab === "คำนวณเงินเดือนรายบุคคล" && <PersonContent monthKey={monthKey} isAccountingPeriodClosed={isAccountingPeriodClosed} />}
         {activeTab === "คำนวณเงินเดือนทั้งองค์กร" && <OrganizationContent isAccountingPeriodClosed={isAccountingPeriodClosed} />}
         {activeTab === "ปิดงวดบัญชี" && (

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { Suspense, type ReactNode } from "react";
 import {
   CalendarDays,
   ChevronDown,
@@ -8,7 +8,7 @@ import { HRMicWordmark } from "@/components/hrmic-wordmark";
 import { SUPPORT_ASSET_ORIGIN } from "@/lib/external-assets";
 import { cn } from "@/lib/utils";
 
-import { DashboardMetricsSection } from "./DashboardMetricsSection";
+import { DashboardMetricsFallback, DashboardMetricsSection } from "./DashboardMetricsSection";
 import { DashboardShellTelemetry } from "./DashboardShellTelemetry";
 
 function DateControl({ children = "ส.ค. 2026", wide = false }: { children?: ReactNode; wide?: boolean }) {
@@ -132,7 +132,9 @@ export default function DashboardClient() {
       <ServiceHeader />
       <div className="grid gap-3 px-[34px] py-[18px] lg:grid-cols-[1fr_1fr]">
         <div className="space-y-3"><SalaryHistory /><SmallChartCard title={<>เงินเดือน<br />ตามสำนักงาน</>} /></div>
-        <DashboardMetricsSection />
+        <Suspense fallback={<DashboardMetricsFallback />}>
+          <DashboardMetricsSection />
+        </Suspense>
         <DocumentsSummary />
         <div className="grid gap-3 sm:grid-cols-2 lg:col-span-2 lg:grid-cols-4">
           <CompactSummaryCard title="ภาษี ภงด.1" rows={[{ label: "ประจำเดือน ส.ค.", value: "0.00", detail: "บาท" }, { label: "ภาษี ภงด.3", value: "0.00", detail: "บาท" }, { label: "ภาษี ภงด.1ก", value: "0.00", detail: "บาท" }]} />

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getActiveCompany } from "@/lib/active-company";
+import { getPayrollClosePeriodState } from "@/lib/payroll/close-period";
 import { companyPeriodKey } from "@/lib/payroll/company-period";
 import { prisma } from "@/lib/prisma";
 import { CLOSED_PAYROLL_PERIOD_MESSAGE, isPayrollPeriodClosed } from "@/lib/payroll/period-lock";
@@ -50,18 +51,8 @@ export async function GET(request: Request) {
 
   try {
     const company = await getActiveCompany();
-    const period = companyPeriodKey(month, company?.id);
-    const run = await prisma.payrollRun.findUnique({
-      where: { period },
-      select: {
-        paymentDate: true,
-        taxPaymentDate: true,
-        status: true,
-        closedAt: true,
-        _count: { select: { PayrollItem: true } },
-      },
-    });
-    return NextResponse.json(responseState(run));
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    return NextResponse.json(await getPayrollClosePeriodState(company.id, month));
   } catch (error) {
     console.error("GET /api/payroll/close-period failed:", error);
     return NextResponse.json({ error: "ไม่สามารถโหลดข้อมูลปิดงวดบัญชีได้" }, { status: 500 });
@@ -80,8 +71,9 @@ export async function PUT(request: Request) {
 
   try {
     const company = await getActiveCompany();
-    const period = companyPeriodKey(month, company?.id);
-    if (await isPayrollPeriodClosed(period)) {
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    const period = companyPeriodKey(month, company.id);
+    if (await isPayrollPeriodClosed(month, company.id)) {
       return NextResponse.json({ error: CLOSED_PAYROLL_PERIOD_MESSAGE }, { status: 409 });
     }
     const run = await prisma.payrollRun.upsert({
@@ -116,7 +108,8 @@ export async function POST(request: Request) {
 
   try {
     const company = await getActiveCompany();
-    const period = companyPeriodKey(month, company?.id);
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    const period = companyPeriodKey(month, company.id);
     const existing = await prisma.payrollRun.findUnique({
       where: { period },
       select: { id: true, paymentDate: true, taxPaymentDate: true, status: true, _count: { select: { PayrollItem: true } } },
@@ -153,7 +146,8 @@ export async function DELETE(request: Request) {
 
   try {
     const company = await getActiveCompany();
-    const period = companyPeriodKey(month, company?.id);
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    const period = companyPeriodKey(month, company.id);
     const existing = await prisma.payrollRun.findUnique({
       where: { period },
       select: { id: true, status: true },

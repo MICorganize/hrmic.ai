@@ -3,26 +3,26 @@ import { NextResponse } from "next/server";
 import { getActiveCompany } from "@/lib/active-company";
 import { getCachedDashboardEmployeeSummary } from "@/lib/employee/summary";
 
-/**
- * The dashboard shell is rendered before this request finishes. Keep this
- * endpoint limited to the aggregates shown in dashboard cards.
- */
+/** Compatibility endpoint for non-RSC consumers; the portal no longer calls it. */
 export async function GET() {
   const startedAt = performance.now();
   try {
+    const companyStartedAt = performance.now();
     const company = await getActiveCompany();
-    if (!company) {
-      return NextResponse.json({ error: "ไม่พบบริษัทที่เลือก" }, { status: 403 });
-    }
+    const companyDuration = performance.now() - companyStartedAt;
+    if (!company) return NextResponse.json({ error: "ไม่พบบริษัทที่เลือก" }, { status: 403 });
 
+    const summaryStartedAt = performance.now();
     const summary = await getCachedDashboardEmployeeSummary(company.id);
-    // The portal header needs this same already-authorized company identity.
-    // Returning it with the dashboard snapshot avoids a second authenticated
-    // `/api/active-company` request during the post-login critical path.
+    const summaryDuration = performance.now() - summaryStartedAt;
     return NextResponse.json({ company, summary }, {
       headers: {
         "Cache-Control": "private, no-store",
-        "Server-Timing": `dashboard-summary;dur=${(performance.now() - startedAt).toFixed(1)}`,
+        "Server-Timing": [
+          `active-company;dur=${companyDuration.toFixed(1)}`,
+          `dashboard-data;dur=${summaryDuration.toFixed(1)}`,
+          `dashboard-summary;dur=${(performance.now() - startedAt).toFixed(1)}`,
+        ].join(", "),
         Vary: "Cookie",
       },
     });

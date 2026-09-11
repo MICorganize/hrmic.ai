@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { getActiveCompany } from "@/lib/active-company";
+import { getActiveCompany, invalidateCompanyAuthorization } from "@/lib/active-company";
 import { invalidateReadCache, readCacheKey, readThroughCache } from "@/lib/cache/read-through";
 import { invalidateReadModel } from "@/lib/cache/read-model-version";
 import { invalidatePublicCompanies } from "@/lib/public-companies";
@@ -153,7 +153,8 @@ async function cachedOrganizationTree(companyId?: string) {
 export async function GET() {
   try {
     const company = await getActiveCompany();
-    return NextResponse.json({ companies: await cachedOrganizationTree(company?.id) });
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    return NextResponse.json({ companies: await cachedOrganizationTree(company.id) });
   } catch (error) {
     console.error("GET /api/organization failed:", error);
     return NextResponse.json({ error: "ไม่สามารถโหลดโครงสร้างองค์กรได้" }, { status: 500 });
@@ -163,6 +164,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const activeCompany = await getActiveCompany();
+    if (!activeCompany) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
     const body = (await request.json().catch(() => null)) as OrganizationRequest | null;
     const kind = bodyKind(body?.kind);
     const name = text(body?.name);
@@ -171,22 +173,18 @@ export async function POST(request: Request) {
     const englishName = text(body?.englishName);
 
     if (!kind || !name || !code) return invalid("กรุณากรอกชื่อและรหัสให้ครบถ้วน");
-    if (activeCompany && kind !== "company" && companyId !== activeCompany.id) {
+    if (kind !== "company" && companyId !== activeCompany.id) {
       return NextResponse.json({ error: "ไม่สามารถบันทึกโครงสร้างนอกบริษัทที่กำลังใช้งานได้" }, { status: 403 });
     }
     const now = new Date();
 
     if (kind === "company") {
-      const existingCompany = await prisma.company.findFirst({
-        where: { deletedAt: null },
-        select: { tenantId: true },
-      });
-      const tenant = existingCompany ?? (await prisma.tenant.findFirst({ select: { id: true } }));
+      const tenant = await prisma.company.findUnique({ where: { id: activeCompany.id }, select: { tenantId: true } });
       if (!tenant) return invalid("ไม่พบข้อมูลองค์กรสำหรับสร้างบริษัท");
       const company = await prisma.company.create({
         data: {
           id: crypto.randomUUID(),
-          tenantId: "tenantId" in tenant ? tenant.tenantId : tenant.id,
+          tenantId: tenant.tenantId,
           name: englishName || name,
           companyCode: code,
           companyNameTH: name,
@@ -225,11 +223,11 @@ export async function POST(request: Request) {
     // response in the current company context, just like GET, so saving a
     // PECTH detail never makes MIC nodes appear in the result.
     await Promise.all([
-      invalidateReadCache(organizationCacheKey(activeCompany?.id)),
+      invalidateReadCache(organizationCacheKey(activeCompany.id)),
       invalidateReadModel("workforce", kind === "company" ? undefined : companyId),
     ]);
     if (kind === "company") await invalidatePublicCompanies();
-    return NextResponse.json({ companies: await organizationTree(activeCompany?.id) }, { status: 201 });
+    return NextResponse.json({ companies: await organizationTree(activeCompany.id) }, { status: 201 });
   } catch (error) {
     const prismaCode = (error as { code?: string }).code;
     if (prismaCode === "P2002") return NextResponse.json({ error: "รหัสนี้มีอยู่แล้วในระบบ" }, { status: 409 });
@@ -241,6 +239,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const activeCompany = await getActiveCompany();
+    if (!activeCompany) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
     const body = (await request.json().catch(() => null)) as OrganizationRequest | null;
     const kind = bodyKind(body?.kind);
     const id = text(body?.id);
@@ -249,7 +248,7 @@ export async function PATCH(request: Request) {
     const englishName = text(body?.englishName);
     if (!kind || !id || !name || !code) return invalid("กรุณากรอกชื่อและรหัสให้ครบถ้วน");
 
-    if (activeCompany) {
+    {
       const belongsToActiveCompany = kind === "company"
         ? id === activeCompany.id
         : kind === "branch"
@@ -279,11 +278,16 @@ export async function PATCH(request: Request) {
       await auditOrganization("update", kind, id, department.companyId, { name, code });
     }
     await Promise.all([
-      invalidateReadCache(organizationCacheKey(activeCompany?.id)),
+      invalidateReadCache(organizationCacheKey(activeCompany.id)),
       invalidateReadModel("workforce", affectedCompanyId),
     ]);
-    if (kind === "company") await invalidatePublicCompanies();
-    return NextResponse.json({ companies: await organizationTree(activeCompany?.id) });
+    if (kind === "company") {
+      await Promise.all([
+        invalidatePublicCompanies(),
+        invalidateCompanyAuthorization(affectedCompanyId!),
+      ]);
+    }
+    return NextResponse.json({ companies: await organizationTree(activeCompany.id) });
   } catch (error) {
     const prismaCode = (error as { code?: string }).code;
     if (prismaCode === "P2002") return NextResponse.json({ error: "รหัสนี้มีอยู่แล้วในระบบ" }, { status: 409 });
@@ -296,6 +300,7 @@ export async function PATCH(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const activeCompany = await getActiveCompany();
+    if (!activeCompany) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
     const body = (await request.json().catch(() => null)) as OrganizationRequest | null;
     const kind = bodyKind(body?.kind);
     const id = text(body?.id);
@@ -303,7 +308,7 @@ export async function DELETE(request: Request) {
       return invalid("สามารถลบได้เฉพาะสำนักงานสาขาหรือแผนกเท่านั้น");
     }
 
-    if (activeCompany) {
+    {
       const belongsToActiveCompany = kind === "branch"
         ? Boolean(await prisma.branch.findFirst({ where: { id, companyId: activeCompany.id, deletedAt: null }, select: { id: true } }))
         : Boolean(await prisma.department.findFirst({ where: { id, companyId: activeCompany.id, deletedAt: null }, select: { id: true } }));
@@ -338,10 +343,10 @@ export async function DELETE(request: Request) {
       await auditOrganization("delete", kind, id, department.companyId, { name: department.name, code: department.code });
     }
     await Promise.all([
-      invalidateReadCache(organizationCacheKey(activeCompany?.id)),
+      invalidateReadCache(organizationCacheKey(activeCompany.id)),
       invalidateReadModel("workforce", affectedCompanyId),
     ]);
-    return NextResponse.json({ companies: await organizationTree(activeCompany?.id) });
+    return NextResponse.json({ companies: await organizationTree(activeCompany.id) });
   } catch (error) {
     const prismaCode = (error as { code?: string }).code;
     if (prismaCode === "P2025") return NextResponse.json({ error: "ไม่พบข้อมูลที่ต้องการลบ" }, { status: 404 });

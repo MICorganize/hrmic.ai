@@ -48,18 +48,19 @@ export async function POST(request: Request) {
     }
 
     const company = await getActiveCompany();
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
     // Build the where clause
     let where: Record<string, unknown>;
 
     if (purgeAll) {
       // Purge ALL soft-deleted employees (no retention check)
-      where = { deletedAt: { not: null }, ...(company ? { companyId: company.id } : {}) };
+      where = { deletedAt: { not: null }, companyId: company.id };
     } else if (Array.isArray(employeeIds) && employeeIds.length > 0) {
       // Purge specific employees — must be soft-deleted
       where = {
         id: { in: employeeIds },
         deletedAt: { not: null },
-        ...(company ? { companyId: company.id } : {}),
+        companyId: company.id,
       };
     } else {
       return NextResponse.json(
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
 
     // Hard delete — cascade will handle related records
     const result = await prisma.employee.deleteMany({
-      where: { id: { in: employeeIdsToPurge }, ...(company ? { companyId: company.id } : {}) },
+        where: { id: { in: employeeIdsToPurge }, companyId: company.id },
     });
     if (company) await refreshEmployeeSummarySnapshot(company.id);
 

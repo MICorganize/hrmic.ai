@@ -1,5 +1,6 @@
 import "server-only";
 
+import { Prisma } from "@/generated/prisma/client";
 import { readThroughCache } from "@/lib/cache/read-through";
 import { versionedReadModelCacheKey } from "@/lib/cache/read-model-version";
 import { companyPeriodKey } from "@/lib/payroll/company-period";
@@ -39,52 +40,7 @@ export function parsePayrollMonth(value: string) {
  * and other dashboard aggregates on a cold cache.
  */
 export async function getPayrollDashboardEmployeeCount(companyId: string | null | undefined, monthKey: string) {
-  const requestedMonth = parsePayrollMonth(monthKey);
-  if (!requestedMonth) throw new Error("Invalid payroll month");
-
-  const { year, month } = requestedMonth;
-  const defaultPeriodStart = new Date(Date.UTC(year, month - 1, 1));
-  const defaultPeriodEnd = new Date(Date.UTC(year, month, 0));
-
-  const cacheKey = await versionedReadModelCacheKey(
-    "payroll-dashboard",
-    "payroll-dashboard-employee-count",
-    companyId,
-    monthKey
-  );
-  return readThroughCache(
-    cacheKey,
-    30,
-    async () => {
-      const savedPeriod = await prisma.payrollRun.findUnique({
-        where: { period: companyPeriodKey(monthKey, companyId ?? undefined) },
-        select: { periodStart: true, periodEnd: true },
-      });
-      const periodStart = savedPeriod?.periodStart ?? defaultPeriodStart;
-      const periodEnd = savedPeriod?.periodEnd ?? defaultPeriodEnd;
-      const totalEmployees = await prisma.employee.count({
-        where: {
-          deletedAt: null,
-          ...(companyId ? { companyId } : {}),
-          hireDate: { lte: periodEnd },
-          OR: [{ terminationDate: null }, { terminationDate: { gte: periodStart } }],
-        },
-      });
-
-      return { totalEmployees };
-    }
-  );
-}
-
-function groupForEmployee(
-  calculationGroup: DashboardEmployeeGroup | null | undefined,
-  employmentType: "permanent" | "temporary" | "contract" | "dailyWage" | "partTime" | null | undefined
-): DashboardEmployeeGroup {
-  if (calculationGroup) return calculationGroup;
-  if (employmentType === "dailyWage") return "daily";
-  if (employmentType === "partTime") return "partTime";
-  if (employmentType === "contract") return "contract";
-  return "monthly";
+  return { totalEmployees: (await getPayrollDashboard(companyId, monthKey)).totalEmployees };
 }
 
 /**
@@ -99,7 +55,6 @@ export async function getPayrollDashboard(companyId: string | null | undefined, 
   const { year, month } = requestedMonth;
   const defaultPeriodStart = new Date(Date.UTC(year, month - 1, 1));
   const defaultPeriodEnd = new Date(Date.UTC(year, month, 0));
-  const calendarStart = new Date(Date.UTC(year, month - 1, 1));
 
   const cacheKey = await versionedReadModelCacheKey(
     "payroll-dashboard",
@@ -111,99 +66,86 @@ export async function getPayrollDashboard(companyId: string | null | undefined, 
     cacheKey,
     30,
     async () => {
-      const savedPeriod = await prisma.payrollRun.findUnique({
-        where: { period: companyPeriodKey(monthKey, companyId ?? undefined) },
-        select: { periodStart: true, periodEnd: true },
-      });
-      const periodStart = savedPeriod?.periodStart ?? defaultPeriodStart;
-      const periodEnd = savedPeriod?.periodEnd ?? defaultPeriodEnd;
-
-      // An employee stays in the selected payroll period through their final
-      // day, so the termination date is evaluated instead of current status.
-      const payrollEmployeeWhere = {
-        deletedAt: null,
-        ...(companyId ? { companyId } : {}),
-        hireDate: { lte: periodEnd },
-        OR: [{ terminationDate: null }, { terminationDate: { gte: periodStart } }],
+      type DashboardRow = {
+        periodStart: Date;
+        periodEnd: Date;
+        totalEmployees: number;
+        salaryEmployees: number;
+        newEmployees: number;
+        terminatedEmployees: number;
+        birthdays: number;
+        groupKey: DashboardEmployeeGroup | null;
+        groupCount: number | null;
       };
-
-      const [
-        totalEmployees,
-        employmentGroups,
-        employeeTypeDefinitions,
-        salaryEmployees,
-        newEmployees,
-        terminatedEmployees,
-        birthdayEmployees,
-      ] = await Promise.all([
-        prisma.employee.count({ where: payrollEmployeeWhere }),
-        // One row per distinct type/definition pair instead of one row per
-        // employee. This keeps the dashboard payload small for large companies.
-        prisma.employment.groupBy({
-          by: ["employmentType", "employeeTypeDefinitionId"],
-          where: { Employee: payrollEmployeeWhere },
-          _count: { _all: true },
-        }),
-        prisma.employeeTypeDefinition.findMany({
-          where: companyId ? { companyId } : undefined,
-          select: { id: true, calculationGroup: true },
-        }),
-        prisma.employee.count({ where: { ...payrollEmployeeWhere, baseSalary: { gt: 0 } } }),
-        prisma.employee.count({
-          where: {
-            deletedAt: null,
-            ...(companyId ? { companyId } : {}),
-            hireDate: { gte: periodStart, lte: periodEnd },
-          },
-        }),
-        prisma.employee.count({
-          where: {
-            deletedAt: null,
-            ...(companyId ? { companyId } : {}),
-            terminationDate: { gte: periodStart, lte: periodEnd },
-          },
-        }),
-        prisma.employee.findMany({
-          where: { ...payrollEmployeeWhere, birthDate: { not: null } },
-          select: { birthDate: true },
-        }),
-      ]);
-
+      const companyFilter = companyId ? Prisma.sql`AND employee."companyId" = ${companyId}::uuid` : Prisma.empty;
+      const rows = await prisma.$queryRaw<DashboardRow[]>(Prisma.sql`
+        WITH selected_period AS (
+          SELECT COALESCE(run."periodStart", ${defaultPeriodStart}::date) AS "periodStart",
+                 COALESCE(run."periodEnd", ${defaultPeriodEnd}::date) AS "periodEnd"
+          FROM (SELECT 1) seed
+          LEFT JOIN "PayrollRun" run ON run."period" = ${companyPeriodKey(monthKey, companyId ?? undefined)}
+        ),
+        active_employees AS (
+          SELECT employee.* FROM "Employee" employee
+          WHERE employee."deletedAt" IS NULL ${companyFilter}
+        ),
+        payroll_employees AS (
+          SELECT employee.* FROM active_employees employee CROSS JOIN selected_period period
+          WHERE employee."hireDate" <= period."periodEnd"
+            AND (employee."terminationDate" IS NULL OR employee."terminationDate" >= period."periodStart")
+        ),
+        stats AS (
+          SELECT period."periodStart", period."periodEnd",
+            (SELECT COUNT(*)::int FROM payroll_employees) AS "totalEmployees",
+            (SELECT COUNT(*)::int FROM payroll_employees WHERE "baseSalary" > 0) AS "salaryEmployees",
+            (SELECT COUNT(*)::int FROM active_employees WHERE "hireDate" BETWEEN period."periodStart" AND period."periodEnd") AS "newEmployees",
+            (SELECT COUNT(*)::int FROM active_employees WHERE "terminationDate" BETWEEN period."periodStart" AND period."periodEnd") AS "terminatedEmployees",
+            (SELECT COUNT(*)::int FROM payroll_employees WHERE "birthDate" IS NOT NULL AND EXTRACT(MONTH FROM "birthDate") = ${month}) AS birthdays
+          FROM selected_period period
+        ),
+        employee_groups AS (
+          SELECT COALESCE(definition."calculationGroup"::text,
+            CASE employment."employmentType"::text
+              WHEN 'dailyWage' THEN 'daily'
+              WHEN 'partTime' THEN 'partTime'
+              WHEN 'contract' THEN 'contract'
+              ELSE 'monthly'
+            END,
+            'monthly') AS "groupKey", COUNT(*)::int AS "groupCount"
+          FROM payroll_employees employee
+          LEFT JOIN "Employment" employment ON employment."employeeId" = employee."id"
+          LEFT JOIN "EmployeeTypeDefinition" definition ON definition."id" = employment."employeeTypeDefinitionId"
+          GROUP BY 1
+        )
+        SELECT stats.*, groups."groupKey", groups."groupCount"
+        FROM stats LEFT JOIN employee_groups groups ON TRUE
+      `);
+      const first = rows[0] ?? {
+        periodStart: defaultPeriodStart,
+        periodEnd: defaultPeriodEnd,
+        totalEmployees: 0,
+        salaryEmployees: 0,
+        newEmployees: 0,
+        terminatedEmployees: 0,
+        birthdays: 0,
+        groupKey: null,
+        groupCount: null,
+      };
       const employeeTypes = { ...EMPTY_GROUPS };
-      const calculationGroupsByDefinitionId = new Map(
-        employeeTypeDefinitions.map((definition) => [definition.id, definition.calculationGroup])
-      );
-      let employeesWithEmployment = 0;
-      for (const group of employmentGroups) {
-        employeesWithEmployment += group._count._all;
-        employeeTypes[
-          groupForEmployee(
-            group.employeeTypeDefinitionId
-              ? calculationGroupsByDefinitionId.get(group.employeeTypeDefinitionId)
-              : undefined,
-            group.employmentType
-          )
-        ] += group._count._all;
+      for (const row of rows) {
+        if (row.groupKey && row.groupKey in employeeTypes) employeeTypes[row.groupKey] = row.groupCount ?? 0;
       }
-      // Employees without an Employment row retain the previous default:
-      // monthly payroll calculation.
-      employeeTypes.monthly += totalEmployees - employeesWithEmployment;
-
-      const birthdays = birthdayEmployees.filter((employee) => {
-        const birthday = employee.birthDate;
-        return birthday && birthday.getUTCMonth() === calendarStart.getUTCMonth();
-      }).length;
 
       return {
-        salaryEmployees,
-        totalEmployees,
+        salaryEmployees: first.salaryEmployees,
+        totalEmployees: first.totalEmployees,
         employeeTypes,
-        newEmployees,
-        terminatedEmployees,
-        birthdays,
+        newEmployees: first.newEmployees,
+        terminatedEmployees: first.terminatedEmployees,
+        birthdays: first.birthdays,
         period: {
-          start: periodStart.toISOString().slice(0, 10),
-          end: periodEnd.toISOString().slice(0, 10),
+          start: first.periodStart.toISOString().slice(0, 10),
+          end: first.periodEnd.toISOString().slice(0, 10),
         },
       };
     }

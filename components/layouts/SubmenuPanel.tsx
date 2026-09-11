@@ -7,6 +7,7 @@ import { ChevronDown } from "lucide-react";
 import { preloadEmployeeSummary } from "@/lib/employee/summary-client";
 import { preloadPayrollDashboard } from "@/lib/payroll/dashboard-client";
 import { cn } from "@/lib/utils";
+import { notifyEmployeeDashboardReset } from "@/components/layouts/portalEvents";
 
 type IconComponent = ComponentType<{ className?: string }>;
 type NavChild = { href: string; label: string; icon: IconComponent; children?: NavChild[] };
@@ -96,7 +97,12 @@ export function SubmenuPanel({
               onMouseEnter={child.href === "/organization/organization-employee" ? () => { void preloadEmployeeSummary().catch(() => undefined); } : undefined}
               onFocus={child.href === "/organization/organization-employee" ? () => { void preloadEmployeeSummary().catch(() => undefined); } : undefined}
               onPointerDown={child.href === "/organization/organization-employee" ? () => { void preloadEmployeeSummary().catch(() => undefined); } : undefined}
-              onClick={onNavigate}
+              onClick={() => {
+                // The employee page keeps its submenu in client state. Signal
+                // it to open on Dashboard even when the URL stays the same.
+                if (child.href === "/organization/organization-employee") notifyEmployeeDashboardReset();
+                onNavigate?.();
+              }}
               className={cn(isOrganizationMenu ? "flex h-12 items-center gap-3 rounded-lg pl-7 pr-[7px] text-sm transition-colors" : "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors", active ? "bg-[#e3f2fd] font-medium text-[#0080ff]" : "text-foreground hover:bg-muted")}
             >
               <child.icon className={cn("shrink-0", isOrganizationMenu ? "size-6" : "size-4")} />

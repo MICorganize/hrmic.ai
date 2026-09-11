@@ -56,11 +56,12 @@ export async function POST(request: Request) {
 
     // Check that all employee IDs exist and are not already deleted
     const company = await getActiveCompany();
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
     const existingEmployees = await prisma.employee.findMany({
       where: {
         id: { in: employeeIds },
         deletedAt: null,
-        ...(company ? { companyId: company.id } : {}),
+        companyId: company.id,
       },
       select: { id: true },
     });
@@ -80,7 +81,7 @@ export async function POST(request: Request) {
     const result = await prisma.employee.updateMany({
       where: {
         id: { in: [...existingIds] },
-        ...(company ? { companyId: company.id } : {}),
+        companyId: company.id,
       },
       data: {
         deletedAt: now,

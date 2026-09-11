@@ -56,11 +56,12 @@ export async function POST(request: Request) {
 
     // Find soft-deleted employees that match the IDs
     const company = await getActiveCompany();
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
     const existingEmployees = await prisma.employee.findMany({
       where: {
         id: { in: employeeIds },
         deletedAt: { not: null },
-        ...(company ? { companyId: company.id } : {}),
+        companyId: company.id,
       },
       select: { id: true, companyId: true, firstNameTH: true, lastNameTH: true, employeeNumber: true },
     });
@@ -101,7 +102,7 @@ export async function POST(request: Request) {
     // Restore — clear deletedAt and deletedBy
     const now = new Date();
     const result = await prisma.employee.updateMany({
-      where: { id: { in: existingIds }, ...(company ? { companyId: company.id } : {}) },
+      where: { id: { in: existingIds }, companyId: company.id },
       data: {
         deletedAt: null,
         deletedBy: null,

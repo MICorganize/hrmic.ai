@@ -166,7 +166,7 @@ function EmployeeNode({
         // Child groups start 30.6px from the parent edge, while the expand
         // button is 40px wide. Position the rail at 20px (its centre) so it
         // runs directly from the centre of the down-arrow.
-        level > 1 && "before:absolute before:left-[-10.6px] before:top-[-31px] before:bottom-0 before:border-l-[0.8px] before:border-dotted before:border-[#808080]"
+        level > 1 && "before:absolute before:left-[-10.6px] before:top-[-13.2px] before:bottom-0 before:border-l-[0.8px] before:border-dotted before:border-[#808080] after:absolute after:left-[-10.6px] after:top-[23.6px] after:w-[26.6px] after:border-t after:border-dotted after:border-[#808080]"
       )}
     >
       {onEmployeeSelect ? (
@@ -227,7 +227,7 @@ function OrganizationNode({
       aria-level={level}
       aria-selected={false}
       aria-expanded={hasChildren ? expanded : undefined}
-      className="relative list-none before:absolute before:left-[-10.6px] before:top-[-31px] before:bottom-0 before:border-l-[0.8px] before:border-dotted before:border-[#808080]"
+      className="relative list-none before:absolute before:left-[-10.6px] before:top-[-13.2px] before:bottom-0 before:border-l-[0.8px] before:border-dotted before:border-[#808080]"
     >
       <div className="mb-[2.8px] flex h-10 items-center text-sm leading-[22.001px] text-[rgba(0,0,0,0.87)]">
         {hasChildren ? (

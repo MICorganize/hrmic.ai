@@ -9,6 +9,7 @@ import type { OrgNode } from "@/components/employee/EmployeeSelectPanel";
 import {
   preloadEmployeeSummary,
   invalidatePreloadedEmployeeSummary,
+  storePreloadedEmployeeSummary,
   type EmployeeSummaryData,
 } from "@/lib/employee/summary-client";
 
@@ -17,12 +18,17 @@ import { EmployeeDashboardSkeleton } from "./employee-dashboard-skeleton";
 
 const FullOrganizationEmployeePage = dynamic(() => import("./page-client"), {
   ssr: false,
-  loading: () => <OrganizationEmployeePageShell stats={null} historyPage={1} onHistoryPageChange={() => {}} onOpenFullPage={() => {}} />,
+  loading: () => <OrganizationEmployeePageShell stats={null} historyPage={1} onHistoryPageChange={() => {}} onOpenFullPage={() => {}} onAddEmployee={() => {}} />,
 });
 
 const EmployeeDetailPage = dynamic(() => import("./[id]/page"), {
   ssr: false,
   loading: () => <div role="status" className="p-6 text-sm text-muted-foreground">กำลังโหลดข้อมูลพนักงาน...</div>,
+});
+
+const EmployeeCreatePage = dynamic(() => import("./create/page"), {
+  ssr: false,
+  loading: () => <div role="status" className="p-6 text-sm text-muted-foreground">กำลังเปิดหน้าเพิ่มข้อมูลพนักงาน...</div>,
 });
 
 const SUBMENU_ITEMS = [
@@ -46,6 +52,7 @@ function OrganizationEmployeePageShell({
   historyPage,
   onHistoryPageChange,
   onOpenFullPage,
+  onAddEmployee,
   loadError = false,
   onRetry,
   onEmployeeSelect,
@@ -54,6 +61,7 @@ function OrganizationEmployeePageShell({
   historyPage: number;
   onHistoryPageChange: (page: number) => void;
   onOpenFullPage: () => void;
+  onAddEmployee: () => void;
   loadError?: boolean;
   onRetry?: () => void;
   onEmployeeSelect?: (employee: OrgNode) => void;
@@ -80,7 +88,7 @@ function OrganizationEmployeePageShell({
           <div className="hidden md:block"><button type="button" onClick={() => setSelectOpen((open) => !open)} aria-expanded={selectOpen} data-employee-select-trigger className="inline-flex h-[36.65px] w-[170.8px] items-center justify-center rounded-[4px] bg-white px-4 text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0px_3px_1px_-2px_rgba(0,0,0,0.14),0px_1px_5px_0px_rgba(0,0,0,0.12)]"><svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" className="size-6 shrink-0" fill="currentColor"><path d="M3 18h18v-2H3v2Zm0-5h18v-2H3v2Zm0-7v2h18V6H3Z" /></svg>เลือกพนักงาน</button></div>
         </div>
         <div className="mx-16 hidden flex-1 flex-col items-center justify-center md:flex"><div className="h-2 w-full overflow-hidden rounded-[4px] bg-[#c5c6cb]"><div className="h-full origin-left bg-[#ffa000] transition-[transform]" style={{ transform: `scale3d(${progressPct / 100}, 1, 1)` }} /></div><span className="w-full text-right text-sm font-normal leading-[22.001px] text-white">{stats ? `${loaded}/${maxDisplay} คน` : "กำลังโหลดจำนวนพนักงาน…"}</span></div>
-        <button type="button" onClick={onOpenFullPage} className="mt-4 hidden h-[36.65px] shrink-0 items-center justify-center rounded-[4px] bg-white px-4 text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0px_3px_1px_-2px_rgba(0,0,0,0.14),0px_1px_5px_0px_rgba(0,0,0,0.12)] md:flex">เพิ่มพนักงาน</button>
+        <button type="button" onClick={onAddEmployee} className="mt-4 hidden h-[36.65px] shrink-0 items-center justify-center rounded-[4px] bg-white px-4 text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0px_3px_1px_-2px_rgba(0,0,0,0.14),0px_1px_5px_0px_rgba(0,0,0,0.12)] md:flex">เพิ่มพนักงาน</button>
       </section>
 
       <div className="relative min-h-[calc(100vh-10rem)] bg-[#f1f7fc] px-3 pb-8 pt-10 sm:px-4 lg:px-0 lg:pt-0"><div className="grid items-start gap-3 lg:grid-cols-[226.3375px_minmax(0,1fr)] lg:gap-0"><aside className="z-10 flex flex-col overflow-x-hidden overflow-y-auto border-none bg-[#fafafa] text-sm font-normal leading-[22.001px] tracking-[-0.1px] text-[rgba(0,0,0,0.87)] lg:mt-10 lg:w-fit" style={{ boxShadow: "0px 2px 8px 0px rgba(0, 0, 0, 0.35)" }}><div className="border-none px-4 py-2"><h2 className="m-0 border-none text-xl font-normal leading-[31.425px] tracking-[-0.1px] text-[rgba(0,0,0,0.85)]">เมนูย่อย</h2></div><div className="border-none p-2 px-4 text-sm font-normal leading-[22.001px] tracking-[-0.1px]">{SUBMENU_ITEMS.map((item) => <button key={item} type="button" onClick={item === "Dashboard" ? undefined : onOpenFullPage} className={`mb-3 block h-[41.2px] w-full rounded-[8px] border-[1.6px] px-2 py-2 text-center text-sm font-normal leading-[22.001px] tracking-[-0.1px] ${item === "Dashboard" ? "border-[#2299ff] bg-[#2299ff] text-white" : "border-[#2299ff] bg-transparent text-[rgba(0,0,0,0.87)]"}`}>{item}</button>)}</div></aside><div className="min-w-0 lg:-mt-[15px]">{loadError && !stats && onRetry ? <EmployeeDashboardErrorContent onRetry={onRetry} /> : stats ? <EmployeeDashboardContent stats={stats} historyPage={historyPage} onHistoryPageChange={onHistoryPageChange} /> : <EmployeeDashboardSkeleton />}</div></div></div>
@@ -88,27 +96,44 @@ function OrganizationEmployeePageShell({
   );
 }
 
-export default function EmployeeDashboardClient() {
+export default function EmployeeDashboardClient({
+  initialStats,
+}: {
+  initialStats?: Promise<EmployeeSummaryData | null>;
+}) {
   // Match the server shell during hydration. The effect below reuses cached
   // or in-flight data without holding up rendering or reading browser storage
   // during the first render.
   const [stats, setStats] = useState<EmployeeSummaryData | null>(null);
   const [historyPage, setHistoryPage] = useState(1);
   const [openFullPage, setOpenFullPage] = useState(false);
+  const [openCreatePage, setOpenCreatePage] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<OrgNode | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [requestVersion, setRequestVersion] = useState(0);
 
-  const loadStats = useCallback(async (page: number) => {
+  const loadStats = useCallback(async (page: number, version: number) => {
+    if (page === 1 && version === 0 && initialStats) {
+      const streamed = await initialStats;
+      if (!streamed) throw new Error("No active company");
+      storePreloadedEmployeeSummary(streamed);
+      if (streamed.company?.id) storePreloadedEmployeeSummary(streamed, streamed.company.id);
+      return streamed;
+    }
     if (page === 1) return preloadEmployeeSummary();
     const response = await fetch(`/api/employee?view=summary&historyPage=${page}`, { cache: "no-store" });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return (await response.json()) as EmployeeSummaryData;
-  }, []);
+  }, [initialStats]);
 
   useEffect(() => {
     let cancelled = false;
-    void loadStats(historyPage).then((value) => { if (!cancelled) setStats(value); }).catch(() => { if (!cancelled) setLoadError(true); });
+    void loadStats(historyPage, requestVersion).then((value) => {
+      if (!cancelled) {
+        setStats(value);
+        setLoadError(false);
+      }
+    }).catch(() => { if (!cancelled) setLoadError(true); });
     return () => { cancelled = true; };
   }, [historyPage, loadStats, requestVersion]);
 
@@ -125,11 +150,21 @@ export default function EmployeeDashboardClient() {
     return () => window.removeEventListener("active-company-changed", onActiveCompanyChanged);
   }, []);
 
+  if (openCreatePage) return <EmployeeCreatePage
+    onCancel={() => setOpenCreatePage(false)}
+    onComplete={() => {
+      setOpenCreatePage(false);
+      invalidatePreloadedEmployeeSummary();
+      setRequestVersion((version) => version + 1);
+    }}
+    employeeCount={stats?.total ?? null}
+    employeeLimit={stats?.company?.employeeLimit ?? null}
+  />;
   if (openFullPage) return <FullOrganizationEmployeePage />;
   if (selectedEmployee) return <EmployeeDetailPage key={selectedEmployee.id} employeeId={selectedEmployee.id} selectedEmployee={selectedEmployee} onEmployeeChange={setSelectedEmployee} onBack={() => {
     setSelectedEmployee(null);
     invalidatePreloadedEmployeeSummary();
     setRequestVersion((version) => version + 1);
   }} />;
-  return <OrganizationEmployeePageShell stats={stats} historyPage={historyPage} onHistoryPageChange={setHistoryPage} onOpenFullPage={() => setOpenFullPage(true)} onEmployeeSelect={setSelectedEmployee} loadError={loadError} onRetry={() => { setLoadError(false); setRequestVersion((version) => version + 1); }} />;
+  return <OrganizationEmployeePageShell stats={stats} historyPage={historyPage} onHistoryPageChange={setHistoryPage} onOpenFullPage={() => setOpenFullPage(true)} onAddEmployee={() => setOpenCreatePage(true)} onEmployeeSelect={setSelectedEmployee} loadError={loadError} onRetry={() => { setLoadError(false); setRequestVersion((version) => version + 1); }} />;
 }

@@ -3,8 +3,6 @@ import { NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 
-export const dynamic = "force-dynamic";
-
 function hasTenantManagementRole(roles: Array<{ code: string; name: string }>) {
   return roles.some(({ code, name }) => {
     const normalizedCode = code.toLowerCase();

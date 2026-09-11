@@ -3,11 +3,20 @@ import { renderToString } from "react-dom/server";
 import { hydrateRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import OrganizationEmployeePage from "@/app/(portal)/organization/organization-employee/page";
+import OrganizationEmployeePage from "@/app/(portal)/organization/organization-employee/employee-dashboard-client";
 import { preloadEmployeeSummary, type EmployeeSummaryData } from "@/lib/employee/summary-client";
 
-vi.mock("next/dynamic", () => ({ default: () => () => <div>Employee editor</div> }));
-vi.mock("@/lib/employee/summary-client", () => ({ preloadEmployeeSummary: vi.fn(), invalidatePreloadedEmployeeSummary: vi.fn() }));
+vi.mock("next/dynamic", () => ({
+  default: (loader: () => Promise<unknown>) => {
+    const label = loader.toString().includes("create/page") ? "Employee create" : "Employee editor";
+    return () => <div>{label}</div>;
+  },
+}));
+vi.mock("@/lib/employee/summary-client", () => ({
+  preloadEmployeeSummary: vi.fn(),
+  invalidatePreloadedEmployeeSummary: vi.fn(),
+  storePreloadedEmployeeSummary: vi.fn(),
+}));
 
 const summary: EmployeeSummaryData = {
   company: { id: "company-pecth", code: "PECTH", name: "PECTH", employeeLimit: 50 },
@@ -20,6 +29,22 @@ beforeEach(() => { vi.mocked(preloadEmployeeSummary).mockReset(); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("Employee Dashboard shell-first rendering", () => {
+  it("hydrates a streamed server snapshot without an employee API request", async () => {
+    render(<OrganizationEmployeePage initialStats={Promise.resolve(summary)} />);
+    expect(await screen.findByText("38/50 คน")).toBeVisible();
+    expect(preloadEmployeeSummary).not.toHaveBeenCalled();
+  });
+
+  it("opens the add-employee form directly on the first click", async () => {
+    render(<OrganizationEmployeePage initialStats={Promise.resolve(summary)} />);
+    await screen.findByText("38/50 คน");
+
+    fireEvent.click(screen.getByRole("button", { name: "เพิ่มพนักงาน" }));
+
+    expect(screen.getByText("Employee create")).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Dashboard" })).not.toBeInTheDocument();
+  });
+
   it("opens the employee panel on the first click while summary and tree reads are pending", async () => {
     vi.mocked(preloadEmployeeSummary).mockReturnValue(new Promise(() => {}));
     let resolveTree!: (response: Response) => void;

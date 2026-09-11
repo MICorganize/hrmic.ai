@@ -1,0 +1,1 @@
+export const INITIAL_PAYROLL_MONTH_KEY = "2026-08";

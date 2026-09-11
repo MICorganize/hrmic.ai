@@ -1,8 +1,6 @@
-import { NextResponse } from "next/server";
+import { connection, NextResponse } from "next/server";
 
 import { getPublicCompanies } from "@/lib/public-companies";
-
-export const dynamic = "force-dynamic";
 
 function isAuthorized(request: Request) {
   const secret = process.env.CRON_SECRET;
@@ -14,6 +12,7 @@ function isAuthorized(request: Request) {
  * periods. Vercel sends CRON_SECRET as a bearer token for configured crons.
  */
 export async function GET(request: Request) {
+  await connection();
   if (!isAuthorized(request)) return new NextResponse(null, { status: 404 });
 
   try {

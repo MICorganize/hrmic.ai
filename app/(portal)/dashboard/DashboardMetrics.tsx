@@ -1,21 +1,7 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import { CalendarDays } from "lucide-react";
 
-import {
-  getPreloadedDashboardEmployeeSummary,
-  preloadDashboardEmployeeSummary,
-  type DashboardEmployeeSummary,
-} from "@/lib/employee/dashboard-summary-client";
+import type { DashboardEmployeeSummary } from "@/lib/employee/summary";
 import { cn } from "@/lib/utils";
-
-const EMPTY_SUMMARY: DashboardEmployeeSummary = {
-  total: 0,
-  byGender: { male: 0, female: 0, other: 0 },
-  byEmploymentType: {},
-  byNationality: [],
-};
 
 function DateControl({ children = "ส.ค. 2026" }: { children?: React.ReactNode }) {
   return <button type="button" className="inline-flex h-8 w-[80px] items-center justify-between gap-2 rounded border border-[#dfe4e8] bg-white px-2 text-sm font-medium leading-[22.001px] text-[#66717c]"><span className="truncate">{children}</span><CalendarDays className="size-3.5 shrink-0" strokeWidth={1.5} /></button>;
@@ -52,17 +38,6 @@ function SalarySummary({ summary }: { summary: DashboardEmployeeSummary }) {
   return <Card className="h-[388px] p-[15.2px]"><div className="flex items-start justify-between"><h2 className="text-base font-bold leading-[25.144px] text-[#414852]">เงินเดือน</h2><DateControl>ปี 2026</DateControl></div><div className="mt-9 grid grid-cols-2 gap-8 border-b border-[#e8edf1] pb-7"><div><p className="text-sm text-[#69737e]">เงินเดือน</p><p className="mt-2 text-[29px] font-medium leading-none text-[#1a9dec]">— <span className="text-base">บาท</span></p></div><div><p className="text-sm text-[#69737e]">เดือน ส.ค.</p><p className="mt-2 text-[29px] font-medium leading-none text-[#69737e]">0 <span className="text-base">บาท</span></p></div></div><div className="mt-4"><SummaryLine label="พนักงานรายเดือน" value={`${summary.byEmploymentType.permanent ?? 0} คน`} /><SummaryLine label="พนักงานรายวัน" value={`${summary.byEmploymentType.dailyWage ?? 0} คน`} /><SummaryLine label="พนักงานพาร์ตไทม์" value={`${summary.byEmploymentType.partTime ?? 0} คน`} /></div></Card>;
 }
 
-export default function DashboardMetrics() {
-  const [summary, setSummary] = useState<DashboardEmployeeSummary>(() => getPreloadedDashboardEmployeeSummary() ?? EMPTY_SUMMARY);
-  const [summaryPending, setSummaryPending] = useState(() => !getPreloadedDashboardEmployeeSummary());
-  useEffect(() => {
-    // The lazy-state initializers above already consume a snapshot that was
-    // available during render. Avoid a synchronous effect update, which would
-    // add a needless render to the dashboard's first paint.
-    if (getPreloadedDashboardEmployeeSummary()) return;
-    let cancelled = false;
-    void preloadDashboardEmployeeSummary().then((value) => { if (!cancelled) setSummary(value.summary); }).catch(() => undefined).finally(() => { if (!cancelled) setSummaryPending(false); });
-    return () => { cancelled = true; };
-  }, []);
-  return <><div aria-busy={summaryPending} className={cn("space-y-3", summaryPending && "animate-pulse")}><EmployeeAge summary={summary} /><div className="grid gap-3 sm:grid-cols-2"><SummaryCard title="ประเภทพนักงาน" type="employee" summary={summary} /><SummaryCard title="สัญชาติ" type="nationality" summary={summary} /></div><SmallChartCard /></div><div aria-busy={summaryPending} className={cn(summaryPending && "animate-pulse")}><SalarySummary summary={summary} /></div></>;
+export default function DashboardMetrics({ summary }: { summary: DashboardEmployeeSummary }) {
+  return <><div className="space-y-3"><EmployeeAge summary={summary} /><div className="grid gap-3 sm:grid-cols-2"><SummaryCard title="ประเภทพนักงาน" type="employee" summary={summary} /><SummaryCard title="สัญชาติ" type="nationality" summary={summary} /></div><SmallChartCard /></div><SalarySummary summary={summary} /></>;
 }

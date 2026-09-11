@@ -132,10 +132,11 @@ export async function GET(request: Request) {
 
   try {
     const company = await getActiveCompany();
-    const data = await getEmployeeCalculation(employeeId, month, company?.id);
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    const data = await getEmployeeCalculation(employeeId, month, company.id);
     if (!data) return NextResponse.json({ error: "ไม่พบพนักงาน" }, { status: 404 });
     const payrollRun = await prisma.payrollRun.findUnique({
-      where: { period: companyPeriodKey(month, company?.id) },
+      where: { period: companyPeriodKey(month, company.id) },
       include: { PayrollItem: { where: { employeeId } } },
     });
     const item = payrollRun?.PayrollItem[0];
@@ -175,11 +176,12 @@ export async function POST(request: Request) {
 
   try {
     const company = await getActiveCompany();
-    const period = companyPeriodKey(month, company?.id);
-    if (await isPayrollPeriodClosed(month)) {
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    const period = companyPeriodKey(month, company.id);
+    if (await isPayrollPeriodClosed(month, company.id)) {
       return NextResponse.json({ error: CLOSED_PAYROLL_PERIOD_MESSAGE }, { status: 409 });
     }
-    const data = await getEmployeeCalculation(employeeId, month, company?.id);
+    const data = await getEmployeeCalculation(employeeId, month, company.id);
     if (!data) return NextResponse.json({ error: "ไม่พบพนักงาน" }, { status: 404 });
 
     if (body.action === "reset") {

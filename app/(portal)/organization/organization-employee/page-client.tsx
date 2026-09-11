@@ -13,6 +13,7 @@ import {
 
 import { EmployeeCursorPagination } from "@/components/employee/EmployeeCursorPagination";
 import { EmployeeSelectPanel, type OrgNode } from "@/components/employee/EmployeeSelectPanel";
+import { EMPLOYEE_DASHBOARD_RESET_EVENT } from "@/components/layouts/portalEvents";
 import type { EmployeeDetail } from "./[id]/page";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -648,6 +649,20 @@ type BasicEmployeeRow = {
   bankAccountNumber: string;
 };
 
+async function saveEmployeeBatch(rows: BasicEmployeeRow[], fields: readonly (keyof BasicEmployeeRow)[]) {
+  const response = await fetch("/api/employee/bulk", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      updates: rows.map((row) => ({
+        id: row.id,
+        changes: Object.fromEntries(fields.map((field) => [field, row[field]])),
+      })),
+    }),
+  });
+  if (!response.ok) throw new Error("save failed");
+}
+
 function CardInputHeader({ title }: { title: string }) {
   return (
     <div className="card-input-header tooltip-header-hover group box-border flex flex-row items-center justify-start border-b-[0.8px] border-black/[0.12] px-3 py-3 text-[22px] font-normal leading-[34.573px] tracking-[-0.1px] text-[rgba(0,0,0,0.87)]">
@@ -780,10 +795,10 @@ function EmployeeBasicContent({ orgTree, companyId }: { orgTree: OrgNode[]; comp
   const save = async () => {
     setSaveState("saving");
     try {
-      const responses = await Promise.all(rows.filter(({ id }) => dirtyIds.has(id)).map(({ id, name: _name, department: _department, division: _division, unit: _unit, position: _position, ...changes }) =>
-        fetch(`/api/employee/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes) })
-      ));
-      if (responses.some((response) => !response.ok)) throw new Error("save failed");
+      await saveEmployeeBatch(rows.filter(({ id }) => dirtyIds.has(id)), [
+        "title", "employeeCode", "fingerprintCode", "gender", "maritalStatus", "citizenId", "alienIdNumber",
+        "passportNo", "workPermitNo", "socialSecurityNumber", "birthDate", "phone", "email",
+      ]);
       setDirtyIds(new Set());
       setSaveState("saved");
       window.setTimeout(() => setSaveState("idle"), 1600);
@@ -995,6 +1010,7 @@ function SalaryInformationContent({ orgTree, companyId }: { orgTree: OrgNode[]; 
   const [hashtag, setHashtag] = useState("");
   const [filters, setFilters] = useState({ organizationId: "", hashtag: "" });
   const { rows, setRows, loading, page, hasNextPage, hasPreviousPage, next, previous } = useBasicEmployeePage<BasicEmployeeRow>(companyId);
+  const [dirtyIds, setDirtyIds] = useState<Set<string>>(() => new Set());
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   const organizationOptions = useMemo(() => {
@@ -1025,29 +1041,18 @@ function SalaryInformationContent({ orgTree, companyId }: { orgTree: OrgNode[]; 
 
   const updateRow = (id: string, field: keyof BasicEmployeeRow, value: string) => {
     setRows((current) => current.map((row) => row.id === id ? { ...row, [field]: value } : row));
+    setDirtyIds((current) => new Set(current).add(id));
     setSaveState("idle");
   };
 
   const save = async () => {
     setSaveState("saving");
     try {
-      const responses = await Promise.all(rows.map((row) => fetch(`/api/employee/${row.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          baseSalary: row.baseSalary,
-          advanceType: row.advanceType,
-          advanceLimit: row.advanceLimit,
-          hireDate: row.hireDate,
-          confirmationDate: row.confirmationDate,
-          probationDays: row.probationDays,
-          socialSecurityCalc: row.socialSecurityCalc,
-          socialSecurityFixed: row.socialSecurityFixed,
-          taxCalc: row.taxCalc,
-          taxFixed: row.taxFixed,
-        }),
-      })));
-      if (responses.some((response) => !response.ok)) throw new Error("save failed");
+      await saveEmployeeBatch(rows.filter(({ id }) => dirtyIds.has(id)), [
+        "baseSalary", "advanceType", "advanceLimit", "hireDate", "confirmationDate", "probationDays",
+        "socialSecurityCalc", "socialSecurityFixed", "taxCalc", "taxFixed",
+      ]);
+      setDirtyIds(new Set());
       setSaveState("saved");
       window.setTimeout(() => setSaveState("idle"), 1600);
     } catch {
@@ -1109,10 +1114,24 @@ function SalaryInformationContent({ orgTree, companyId }: { orgTree: OrgNode[]; 
                 </TableRow>)}
               </TableBody>
             </Table>
-            {!loading && <EmployeeCursorPagination page={page} hasNextPage={hasNextPage} hasPreviousPage={hasPreviousPage} onNext={() => void next()} onPrevious={() => void previous()} />}
+            {!loading && <EmployeeCursorPagination
+              page={page}
+              hasNextPage={hasNextPage}
+              hasPreviousPage={hasPreviousPage}
+              onNext={() => {
+                setDirtyIds(new Set());
+                setSaveState("idle");
+                void next();
+              }}
+              onPrevious={() => {
+                setDirtyIds(new Set());
+                setSaveState("idle");
+                void previous();
+              }}
+            />}
           </div>
           <p className="text-sm leading-[22.001px] text-[#ff0000]">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p>
-          <div className="mt-3 flex justify-end"><button type="button" onClick={() => void save()} disabled={saveState === "saving"} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] disabled:opacity-60">{saveState === "saving" ? "กำลังบันทึก..." : saveState === "saved" ? "บันทึกแล้ว" : saveState === "error" ? "บันทึกไม่สำเร็จ" : "บันทึก"}</button></div>
+          <div className="mt-3 flex justify-end"><button type="button" onClick={() => void save()} disabled={saveState === "saving" || dirtyIds.size === 0} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] disabled:opacity-60">{saveState === "saving" ? "กำลังบันทึก..." : saveState === "saved" ? "บันทึกแล้ว" : saveState === "error" ? "บันทึกไม่สำเร็จ" : "บันทึก"}</button></div>
         </div>
       </CardContent>
     </Card>
@@ -1383,6 +1402,8 @@ function IndividualApproverContent({ orgTree, companyId }: { orgTree: OrgNode[];
       if (!response.ok) throw new Error("load failed");
       const data = (await response.json()) as { employees: BasicEmployeeRow[] };
       setRows(data.employees);
+      setDirtyIds(new Set());
+      setSaveState("idle");
     } finally {
       setLoading(false);
     }
@@ -1469,6 +1490,7 @@ function PaymentMethodContent({ orgTree, companyId }: { orgTree: OrgNode[]; comp
   const [hashtag, setHashtag] = useState("");
   const [filters, setFilters] = useState({ organizationId: "", hashtag: "" });
   const [rows, setRows] = useState<BasicEmployeeRow[]>([]);
+  const [dirtyIds, setDirtyIds] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(true);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
@@ -1501,6 +1523,8 @@ function PaymentMethodContent({ orgTree, companyId }: { orgTree: OrgNode[]; comp
       if (!response.ok) throw new Error("load failed");
       const data = (await response.json()) as { employees: BasicEmployeeRow[] };
       setRows(data.employees);
+      setDirtyIds(new Set());
+      setSaveState("idle");
     } finally {
       setLoading(false);
     }
@@ -1519,24 +1543,17 @@ function PaymentMethodContent({ orgTree, companyId }: { orgTree: OrgNode[]; comp
 
   const updateRow = (id: string, field: "paymentChannel" | "companyPayoutAccount" | "bankName" | "bankBranchCode" | "bankAccountNumber", value: string) => {
     setRows((current) => current.map((row) => row.id === id ? { ...row, [field]: value } : row));
+    setDirtyIds((current) => new Set(current).add(id));
     setSaveState("idle");
   };
 
   const save = async () => {
     setSaveState("saving");
     try {
-      const responses = await Promise.all(rows.map((row) => fetch(`/api/employee/${row.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          paymentChannel: row.paymentChannel,
-          companyPayoutAccount: row.companyPayoutAccount,
-          bankName: row.bankName,
-          bankBranchCode: row.bankBranchCode,
-          bankAccountNumber: row.bankAccountNumber,
-        }),
-      })));
-      if (responses.some((response) => !response.ok)) throw new Error("save failed");
+      await saveEmployeeBatch(rows.filter(({ id }) => dirtyIds.has(id)), [
+        "paymentChannel", "companyPayoutAccount", "bankName", "bankBranchCode", "bankAccountNumber",
+      ]);
+      setDirtyIds(new Set());
       setSaveState("saved");
       window.setTimeout(() => setSaveState("idle"), 1600);
     } catch {
@@ -1591,7 +1608,7 @@ function PaymentMethodContent({ orgTree, companyId }: { orgTree: OrgNode[]; comp
             {!loading && visibleRows.length > 0 && <nav className="flex h-16 items-center justify-end px-4" aria-label="แบ่งหน้าช่องทางการรับเงิน"><span className="flex size-8 items-center justify-center rounded-[2px] border border-[#1890ff] bg-white text-sm text-[#1890ff]">1</span></nav>}
           </div>
           <p className="text-sm leading-[22.001px] text-[#ff0000]">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p>
-          <div className="mt-3 flex justify-end"><button type="button" onClick={() => void save()} disabled={saveState === "saving"} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] disabled:opacity-60">{saveState === "saving" ? "กำลังบันทึก..." : saveState === "saved" ? "บันทึกแล้ว" : saveState === "error" ? "บันทึกไม่สำเร็จ" : "บันทึก"}</button></div>
+          <div className="mt-3 flex justify-end"><button type="button" onClick={() => void save()} disabled={saveState === "saving" || dirtyIds.size === 0} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] disabled:opacity-60">{saveState === "saving" ? "กำลังบันทึก..." : saveState === "saved" ? "บันทึกแล้ว" : saveState === "error" ? "บันทึกไม่สำเร็จ" : "บันทึก"}</button></div>
         </div>
       </CardContent>
     </Card>
@@ -2563,12 +2580,7 @@ function HashtagSettingsContent({ orgTree, companyId }: { orgTree: OrgNode[]; co
     if (changedRows.length === 0) return;
     setSaveState("saving");
     try {
-      const responses = await Promise.all(changedRows.map((row) => fetch(`/api/employee/${row.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hashtag: row.hashtag }),
-      })));
-      if (responses.some((response) => !response.ok)) throw new Error("save failed");
+      await saveEmployeeBatch(changedRows, ["hashtag"]);
       setDirtyIds(new Set());
       setSaveState("saved");
       window.setTimeout(() => setSaveState("idle"), 1600);
@@ -2612,7 +2624,7 @@ function HashtagSettingsContent({ orgTree, companyId }: { orgTree: OrgNode[]; co
             {!loading && visibleRows.length > 0 && <nav className="flex h-16 items-center justify-end px-4" aria-label="แบ่งหน้าตั้งค่า Hashtag"><span className="flex size-8 items-center justify-center rounded-[2px] border border-[#1890ff] bg-white text-sm text-[#1890ff]">1</span></nav>}
           </div>
           <p className="text-sm leading-[22.001px] text-[#ff0000]">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p>
-          <div className="mt-3 flex justify-end"><button type="button" onClick={() => void save()} disabled={saveState === "saving"} className="h-9 min-w-[64px] rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] disabled:opacity-60">{saveState === "saving" ? "กำลังบันทึก..." : saveState === "saved" ? "บันทึกแล้ว" : saveState === "error" ? "บันทึกไม่สำเร็จ" : "บันทึก"}</button></div>
+          <div className="mt-3 flex justify-end"><button type="button" onClick={() => void save()} disabled={saveState === "saving" || dirtyIds.size === 0} className="h-9 min-w-[64px] rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] disabled:opacity-60">{saveState === "saving" ? "กำลังบันทึก..." : saveState === "saved" ? "บันทึกแล้ว" : saveState === "error" ? "บันทึกไม่สำเร็จ" : "บันทึก"}</button></div>
         </div>
       </CardContent>
     </Card>
@@ -3531,7 +3543,7 @@ function WorkShiftSettingsContent({ orgTree, companyId }: { orgTree: OrgNode[]; 
   const [weeklyShifts, setWeeklyShifts] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [dirty, setDirty] = useState(false);
+  const [dirtyIds, setDirtyIds] = useState<Set<string>>(() => new Set());
 
   const organizationOptions = useMemo(() => {
     const options: { id: string; label: string }[] = [];
@@ -3562,17 +3574,13 @@ function WorkShiftSettingsContent({ orgTree, companyId }: { orgTree: OrgNode[]; 
       if (!response.ok) throw new Error("load failed");
       const data = (await response.json()) as { employees: BasicEmployeeRow[] };
       setRows(data.employees);
-      const settings = await Promise.all(data.employees.map(async (employee) => {
-        try {
-          const settingResponse = await fetch(`/api/payroll/individual-shift-holiday-settings?${new URLSearchParams({ employeeId: employee.id }).toString()}`, { cache: "no-store" });
-          if (!settingResponse.ok) return [employee.id, Array(7).fill("WC001")] as const;
-          const payload = (await settingResponse.json()) as { settings?: { weeklyShifts?: string[] } };
-          return [employee.id, payload.settings?.weeklyShifts?.length === 7 ? payload.settings.weeklyShifts : Array(7).fill("WC001")] as const;
-        } catch {
-          return [employee.id, Array(7).fill("WC001")] as const;
-        }
-      }));
-      setWeeklyShifts(Object.fromEntries(settings));
+      const settingResponse = await fetch("/api/payroll/organization-shift-settings", { cache: "no-store" });
+      const payload = settingResponse.ok
+        ? await settingResponse.json() as { settings?: Array<{ employeeId: string; weeklyShifts: string[] }> }
+        : { settings: [] };
+      const saved = new Map((payload.settings ?? []).map((setting) => [setting.employeeId, setting.weeklyShifts]));
+      setWeeklyShifts(Object.fromEntries(data.employees.map((employee) => [employee.id, saved.get(employee.id)?.length === 7 ? saved.get(employee.id)! : Array(7).fill("WC001")])));
+      setDirtyIds(new Set());
     } finally {
       setLoading(false);
     }
@@ -3591,19 +3599,19 @@ function WorkShiftSettingsContent({ orgTree, companyId }: { orgTree: OrgNode[]; 
 
   const updateShift = (employeeId: string, dayIndex: number, value: string) => {
     setWeeklyShifts((current) => ({ ...current, [employeeId]: (current[employeeId] ?? Array(7).fill("WC001")).map((shift, index) => index === dayIndex ? value : shift) }));
-    setDirty(true);
+    setDirtyIds((current) => new Set(current).add(employeeId));
   };
 
   const save = async () => {
     setSaving(true);
     try {
-      const responses = await Promise.all(rows.map((row) => fetch("/api/payroll/individual-shift-holiday-settings", {
-        method: "PATCH",
+      const response = await fetch("/api/payroll/organization-shift-settings", {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ employeeId: row.id, section: "shift", selectedShift: weeklyShifts[row.id]?.[0] ?? selectedShift, weeklyShifts: weeklyShifts[row.id] ?? Array(7).fill(selectedShift) }),
-      })));
-      if (responses.some((response) => !response.ok)) throw new Error("save failed");
-      setDirty(false);
+        body: JSON.stringify({ updates: rows.filter((row) => dirtyIds.has(row.id)).map((row) => ({ employeeId: row.id, selectedShift: weeklyShifts[row.id]?.[0] ?? selectedShift, weeklyShifts: weeklyShifts[row.id] ?? Array(7).fill(selectedShift) })) }),
+      });
+      if (!response.ok) throw new Error("save failed");
+      setDirtyIds(new Set());
     } finally {
       setSaving(false);
     }
@@ -3638,7 +3646,7 @@ function WorkShiftSettingsContent({ orgTree, companyId }: { orgTree: OrgNode[]; 
           <label className="mt-2 flex flex-col text-sm leading-[22px] text-black/87">กะการทำงาน <span className="text-red-600">***เพิ่มกะการทำงานได้ที่นี่ <a href="/organization/organization-workcycle" className="text-[#2299ff] underline">Link</a></span><select value={selectedShift} onChange={(event) => setSelectedShift(event.target.value)} className={controlClass}><option>WC001</option><option>WC002</option></select></label>
 
           <div className="fix-column-table mt-2 max-h-[650px] overflow-auto rounded-[8px] bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]"><Table className="min-w-[2200px] table-fixed font-[Kanit,sans-serif] text-sm leading-[22.001px]"><colgroup>{[80, 280, 200, 200, 200, 200, 200, ...Array(7).fill(120)].map((width, index) => <col key={index} style={{ width }} />)}</colgroup><TableHeader className="sticky top-0 z-10 bg-[#61a8ff]"><TableRow className="h-[54.8px] bg-[#61a8ff] hover:bg-[#61a8ff]">{["ลำดับ", "ชื่อพนักงาน", "สำนักงาน/สาขา", "แผนก", "ฝ่ายงาน", "หน่วยงาน", "ตำแหน่ง", ...days].map((column) => <TableHead key={column} className={cn("border-b-[0.8px] border-r-[0.8px] border-[#f0f0f0] bg-[#61a8ff] p-4 text-center text-sm font-medium leading-[22.001px] text-white", column === "ชื่อพนักงาน" && "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}>{column}{column === "ชื่อพนักงาน" && <svg aria-hidden="true" viewBox="64 64 896 896" className="ml-1 inline size-3 align-[-1px] fill-[rgba(0,0,0,0.54)]"><path d="M909.6 854.5 649.9 594.8C690.2 542.7 712 479 712 412c0-80.2-31.3-155.4-87.9-212.1-56.6-56.7-132-87.9-212.1-87.9s-155.5 31.3-212.1 87.9C143.2 256.5 112 331.8 112 412c0 80.1 31.3 155.5 87.9 212.1C256.5 680.8 331.8 712 412 712c67 0 130.6-21.8 182.7-62l259.7 259.6a8.2 8.2 0 0 0 11.6 0l43.6-43.5a8.2 8.2 0 0 0 0-11.6ZM570.4 570.4C528 612.7 471.8 636 412 636s-116-23.3-158.4-65.6C211.3 528 188 471.8 188 412s23.3-116.1 65.6-158.4C296 211.3 352.2 188 412 188s116.1 23.2 158.4 65.6S636 352.2 636 412s-23.3 116.1-65.6 158.4Z" /></svg>}</TableHead>)}</TableRow></TableHeader><TableBody>{loading ? <TableRow><TableCell colSpan={14} className="h-24 text-center text-black/45">กำลังโหลดข้อมูล...</TableCell></TableRow> : visibleRows.length === 0 ? <TableRow><TableCell colSpan={14} className="h-24 text-center text-black/45">ไม่มีข้อมูล</TableCell></TableRow> : visibleRows.map((row, index) => <TableRow key={row.id} className={cn("!h-[40.8px] border-b-0 hover:bg-transparent", index % 2 === 0 ? "[&>td]:bg-[#f2fafe]" : "[&>td]:bg-white")}><TableCell className={`${cellClass} text-center`}>{index + 1}</TableCell><TableCell className={cn(cellClass, "shadow-[4px_0_20px_-8px_rgba(0,0,0,0.15)]")}><img src={`${USER_IMAGE_ORIGIN}/images/userPlaceHolder.png`} alt="" className="mr-2 inline-block size-6 min-w-6 rounded-full border-[1.6px] border-[#61a8ff] p-px align-middle" />{row.employeeCode}: {row.name}</TableCell><TableCell className={cellClass}>{row.branch}</TableCell><TableCell className={cellClass}>{row.department}</TableCell><TableCell className={cellClass}>{row.division}</TableCell><TableCell className={cellClass}>{row.unit}</TableCell><TableCell className={cellClass}>{row.position}</TableCell>{days.map((day, dayIndex) => <TableCell key={day} className={`${cellClass} text-center`}><button type="button" title={`เปลี่ยนกะ ${day}`} onClick={() => updateShift(row.id, dayIndex, weeklyShifts[row.id]?.[dayIndex] === "WC002" ? "WC001" : "WC002")} className="h-[22.001px] border-0 bg-transparent p-0 text-center text-sm font-normal leading-[22.001px] text-black/65">{weeklyShifts[row.id]?.[dayIndex] ?? "WC001"}</button></TableCell>)}</TableRow>)}</TableBody></Table>{!loading && visibleRows.length > 0 && <nav className="flex h-16 items-center justify-end px-4" aria-label="แบ่งหน้าตั้งค่ากะการทำงาน"><span className="flex size-8 items-center justify-center rounded-[2px] border border-[#1890ff] bg-white text-sm text-[#1890ff]">1</span></nav>}</div>
-          <p className="mt-0 text-sm leading-[22.001px] text-[#ff0000]">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p><p className="mt-2 text-sm leading-[22.001px] text-[#ff0000]">*** หากมีการเปลี่ยนแปลงกะการทำงานในหน้านี้ จะเป็นการเปลี่ยนข้อมูลพื้นฐาน ซึ่งจะไม่ส่งผลกระทบข้อมูลในแต่ละเดือน หากต้องการอัพเดทข้อมูลในแต่ละเดือน กรุณา “รีเซ็ตค่าตั้งต้น” ในเดือนที่ต้องการอีกครั้ง</p><div className="flex justify-end pt-3"><button type="button" disabled={!dirty || saving} onClick={() => void save()} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] disabled:bg-[#bfbfbf]">{saving ? "กำลังบันทึก..." : "บันทึก"}</button></div>
+          <p className="mt-0 text-sm leading-[22.001px] text-[#ff0000]">*** กรณีที่มีการแก้ไขแล้วไม่กดบันทึก ถ้ากดเปลี่ยนหน้าถัดไปข้อมูลก่อนหน้าที่มีการแก้ไขจะไม่ถูกบันทึก</p><p className="mt-2 text-sm leading-[22.001px] text-[#ff0000]">*** หากมีการเปลี่ยนแปลงกะการทำงานในหน้านี้ จะเป็นการเปลี่ยนข้อมูลพื้นฐาน ซึ่งจะไม่ส่งผลกระทบข้อมูลในแต่ละเดือน หากต้องการอัพเดทข้อมูลในแต่ละเดือน กรุณา “รีเซ็ตค่าตั้งต้น” ในเดือนที่ต้องการอีกครั้ง</p><div className="flex justify-end pt-3"><button type="button" disabled={dirtyIds.size === 0 || saving} onClick={() => void save()} className="h-9 rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] disabled:bg-[#bfbfbf]">{saving ? "กำลังบันทึก..." : "บันทึก"}</button></div>
         </div>
       </CardContent>
     </Card>
@@ -3661,7 +3669,9 @@ function OrganizationEmployeePageContent({ companyId = "", companySwitch = false
   const [historyPage, setHistoryPage] = useState(1);
   const [orgTree, setOrgTree] = useState<OrgNode[] | null>(null);
   const [treeLoading, setTreeLoading] = useState(false);
-  const orgTreeRequest = useRef<Promise<OrgNode[]> | null>(null);
+  const orgTreeRequests = useRef<Map<boolean, Promise<OrgNode[]>>>(new Map());
+  const orgTreeHasEmployees = useRef(false);
+  const pendingTreeLoads = useRef(0);
   const [loadError, setLoadError] = useState(false);
 
   const loadStats = useCallback(async () => {
@@ -3681,29 +3691,37 @@ function OrganizationEmployeePageContent({ companyId = "", companySwitch = false
     return data;
   }, [companyId, historyPage]);
 
-  const loadOrgTree = useCallback(async (fresh = false) => {
-    if (!fresh && orgTree !== null) return orgTree;
-    // The picker and its background prefetch can request the same data at
-    // nearly the same time.  Reuse that request so opening the panel never
-    // starts a second, competing organization-tree query.
-    if (!fresh && orgTreeRequest.current) return orgTreeRequest.current;
+  const loadOrgTree = useCallback(async (includeEmployees = false, fresh = false) => {
+    // A tree that already carries employees also answers a structure-only
+    // request. Only missing leaves force the heavier employee query again.
+    if (!fresh) {
+      if (orgTree !== null && (!includeEmployees || orgTreeHasEmployees.current)) return orgTree;
+      const active = orgTreeRequests.current.get(includeEmployees);
+      if (active) return active;
+    }
+    pendingTreeLoads.current += 1;
     setTreeLoading(true);
     const request = (async () => {
-      const params = new URLSearchParams({ view: "tree", includeEmployees: "1" });
+      const params = new URLSearchParams({ view: "tree" });
+      if (includeEmployees) params.set("includeEmployees", "1");
       if (companyId) params.set("companyId", companyId);
       if (fresh) params.set("refresh", String(Date.now()));
       const res = await fetch(`/api/employee?${params.toString()}`, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { orgTree: OrgNode[] };
-      setOrgTree(data.orgTree);
+      if (includeEmployees || !orgTreeHasEmployees.current) {
+        setOrgTree(data.orgTree);
+        orgTreeHasEmployees.current = includeEmployees;
+      }
       return data.orgTree;
     })();
-    orgTreeRequest.current = request;
+    orgTreeRequests.current.set(includeEmployees, request);
     try {
       return await request;
     } finally {
-      if (orgTreeRequest.current === request) orgTreeRequest.current = null;
-      setTreeLoading(false);
+      if (orgTreeRequests.current.get(includeEmployees) === request) orgTreeRequests.current.delete(includeEmployees);
+      pendingTreeLoads.current -= 1;
+      if (pendingTreeLoads.current <= 0) setTreeLoading(false);
     }
   }, [companyId, orgTree]);
 
@@ -3718,6 +3736,7 @@ function OrganizationEmployeePageContent({ companyId = "", companySwitch = false
       // A mutation may have changed the employee list. Re-fetch the heavier
       // tree only if the user opens the picker or import tab afterwards.
       setOrgTree(null);
+      orgTreeHasEmployees.current = false;
     } catch {
       if (!stats) setLoadError(true);
     }
@@ -3739,9 +3758,33 @@ function OrganizationEmployeePageContent({ companyId = "", companySwitch = false
   }, [loadStats]);
 
   useEffect(() => {
+    if (orgTree !== null) return;
+    const timer = window.setTimeout(() => {
+      void loadOrgTree(false);
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [loadOrgTree, orgTree]);
+
+  useEffect(() => {
     const closeEmployeeList = () => setSelectOpen(false);
     window.addEventListener("employee-list-close", closeEmployeeList);
     return () => window.removeEventListener("employee-list-close", closeEmployeeList);
+  }, []);
+
+  useEffect(() => {
+    // A sidebar "ข้อมูลพนักงาน" click always opens the Dashboard submenu, even
+    // when the page is already mounted at the same URL and keeps its own tab.
+    const resetToEmployeeDashboard = () => {
+      setActiveTab(SUBMENU_ITEMS[0]);
+      setIsAddingEmployee(false);
+      setSelectedEmployeeId(null);
+      setSelectedEmployee(null);
+      setSelectedEmployeeData(null);
+      setSelectOpen(false);
+      setHistoryPage(1);
+    };
+    window.addEventListener(EMPLOYEE_DASHBOARD_RESET_EVENT, resetToEmployeeDashboard);
+    return () => window.removeEventListener(EMPLOYEE_DASHBOARD_RESET_EVENT, resetToEmployeeDashboard);
   }, []);
 
   useEffect(() => {
@@ -3760,6 +3803,7 @@ function OrganizationEmployeePageContent({ companyId = "", companySwitch = false
       setStats(summary);
       setHistoryPage(1);
       setOrgTree(null);
+      orgTreeHasEmployees.current = false;
       setSelectOpen(false);
       setLoadError(false);
       if (summary) return;
@@ -3848,7 +3892,7 @@ function OrganizationEmployeePageContent({ companyId = "", companySwitch = false
       <PageBanner
         selectOpen={selectOpen}
         onToggleSelect={() => {
-          if (!selectOpen) void loadOrgTree();
+          if (!selectOpen) void loadOrgTree(true);
           setSelectOpen((current) => !current);
         }}
         onAddEmployee={() => setIsAddingEmployee(true)}
@@ -3862,7 +3906,7 @@ function OrganizationEmployeePageContent({ companyId = "", companySwitch = false
           <EmployeeSelectPanel
             onClose={() => setSelectOpen(false)}
             orgTree={orgTree ?? []}
-            loading={treeLoading}
+            loading={treeLoading && orgTree === null}
             onEmployeeSelect={(employee) => {
               void selectEmployee(employee);
             }}
@@ -3902,7 +3946,7 @@ function OrganizationEmployeePageContent({ companyId = "", companySwitch = false
                     type="button"
                     onClick={() => {
                       setActiveTab(item);
-                      if (item === "นำเข้าข้อมูลพนักงาน" || item === "รูปพนักงาน" || item === "ข้อมูลพื้นฐาน" || item === "ข้อมูลเงินเดือน" || item === "กำหนดผู้อนุมัติรายบุคคล" || item === "ตั้งค่า Hashtag" || item === "ตั้งค่า Cost Distribution" || item === "ตั้งค่าคำนวณโควตาการลา") void loadOrgTree();
+                      if (item === "นำเข้าข้อมูลพนักงาน" || item === "รูปพนักงาน" || item === "ข้อมูลพื้นฐาน" || item === "ข้อมูลเงินเดือน" || item === "กำหนดผู้อนุมัติรายบุคคล" || item === "ตั้งค่า Hashtag" || item === "ตั้งค่า Cost Distribution" || item === "ตั้งค่าคำนวณโควตาการลา") void loadOrgTree(true);
                     }}
                     className={cn(
                       "mb-3 block h-[41.2px] w-full rounded-[8px] border-[1.6px] px-2 py-2 text-center text-sm font-normal leading-[22.001px] tracking-[-0.1px] transition-colors",

@@ -108,8 +108,9 @@ export async function GET(
   try {
     const { id } = await params;
     const company = await getActiveCompany();
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
     const emp = await prisma.employee.findFirst({
-      where: { id, ...(company ? { companyId: company.id } : {}) },
+      where: { id, companyId: company.id },
       include: {
         Company: { select: { name: true } },
         Branch: { select: { name: true } },
@@ -219,8 +220,9 @@ export async function PATCH(
   try {
     const { id } = await params;
     const company = await getActiveCompany();
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
     const currentEmployee = await prisma.employee.findFirst({
-      where: { id, ...(company ? { companyId: company.id } : {}) },
+      where: { id, companyId: company.id },
       select: { id: true, companyId: true },
     });
     if (!currentEmployee) return NextResponse.json({ error: "ไม่พบข้อมูลพนักงาน" }, { status: 404 });

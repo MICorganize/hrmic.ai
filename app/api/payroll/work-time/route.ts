@@ -6,8 +6,6 @@ import { getActiveCompany } from "@/lib/active-company";
 import { companyPeriodKey } from "@/lib/payroll/company-period";
 import { CLOSED_PAYROLL_PERIOD_MESSAGE, isPayrollPeriodClosed } from "@/lib/payroll/period-lock";
 
-export const dynamic = "force-dynamic";
-
 const THAI_DAYS = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัส", "ศุกร์", "เสาร์"];
 const LEAVE_LABELS: Record<string, string> = {
   annual: "ลาพักร้อน",
@@ -112,9 +110,10 @@ export async function GET(request: Request) {
 
   try {
     const company = await getActiveCompany();
-    const { periodStart, periodEnd } = await payrollPeriod(selectedMonth, company?.id);
+    if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+    const { periodStart, periodEnd } = await payrollPeriod(selectedMonth, company.id);
     const employee = await prisma.employee.findFirst({
-      where: { id: employeeId, deletedAt: null, ...(company ? { companyId: company.id } : {}) },
+      where: { id: employeeId, companyId: company.id, deletedAt: null },
       select: {
         id: true,
         employeeCode: true,
@@ -226,9 +225,10 @@ export async function PATCH(request: Request) {
   const reason = typeof body?.reason === "string" && body.reason.trim() ? body.reason.trim() : null;
   const dayType = typeof body?.dayType === "string" ? body.dayType : null;
   const activeCompany = await getActiveCompany();
-  const employeeWhere = { id: employeeId, deletedAt: null, ...(activeCompany ? { companyId: activeCompany.id } : {}) };
+  if (!activeCompany) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
+  const employeeWhere = { id: employeeId, companyId: activeCompany.id, deletedAt: null };
 
-  if (date && await isPayrollPeriodClosed(dateKey(date).slice(0, 7))) {
+  if (date && await isPayrollPeriodClosed(dateKey(date).slice(0, 7), activeCompany.id)) {
     return NextResponse.json({ error: CLOSED_PAYROLL_PERIOD_MESSAGE }, { status: 409 });
   }
 
