@@ -1364,6 +1364,7 @@ function IndividualApproverContent({ orgTree, companyId }: { orgTree: OrgNode[];
   const [newApprover, setNewApprover] = useState("");
   const [assignments, setAssignments] = useState<Record<string, string[]>>({});
   const [saveState, setSaveState] = useState<"idle" | "saved">("idle");
+  const [dirtyIds, setDirtyIds] = useState<Set<string>>(() => new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const organizationOptions = useMemo(() => {
