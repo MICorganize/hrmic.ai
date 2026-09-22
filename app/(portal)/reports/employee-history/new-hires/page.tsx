@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, ChevronDown, ChevronRight, FileText, Grid3x3 } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Grid3x3 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ThaiDateRangePicker } from "@/components/ui/thai-date-picker";
 
 const ORG_STRUCTURES = ["ทั้งหมด", "สำนักงานใหญ่", "สาขา 1"];
 const POSITIONS = ["ทั้งหมด", "พนักงานปฏิบัติการ", "หัวหน้างาน", "ผู้จัดการ"];
@@ -46,6 +47,7 @@ export default function ReportEmployeeNewHiresPage() {
   const [organization, setOrganization] = useState("ทั้งหมด");
   const [position, setPosition] = useState("ทั้งหมด");
   const [employeeType, setEmployeeType] = useState("ทั้งหมด");
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
 
   return (
     <div>
@@ -67,7 +69,7 @@ export default function ReportEmployeeNewHiresPage() {
             </div>
             <div className="mt-0 grid grid-cols-1 gap-x-2 md:grid-cols-3">
               <Field label="วันที่เริ่มต้น - วันที่สิ้นสุด">
-                <button type="button" className="flex h-8 w-full items-center rounded-[3px] border border-[#d9d9d9] bg-white px-2.5 text-sm text-[#bfbfbf] shadow-sm"><span>วันเริ่มต้น</span><span className="mx-auto text-[#999]">→</span><span>วันสิ้นสุด</span><CalendarDays className="ml-auto size-4 text-[#8c8c8c]" /></button>
+                <ThaiDateRangePicker value={dateRange} onChange={setDateRange} placeholder="วันเริ่มต้น → วันสิ้นสุด" />
               </Field>
               <div /><div />
             </div>

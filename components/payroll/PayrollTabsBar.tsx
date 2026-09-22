@@ -11,8 +11,6 @@ export const PAYROLL_TABS = [
   "สรุปตั้งค่าทั้งองค์กร",
 ];
 
-const FIRST_TAB_WIDTH = "w-[116.6125px]";
-
 export function PayrollTabsBar({
   activeTab,
   onChange,
@@ -21,26 +19,20 @@ export function PayrollTabsBar({
   onChange: (tab: string) => void;
 }) {
   return (
-    <div className="flex h-10 items-stretch bg-[#61a8ff] px-6 text-sm leading-[22px] tracking-[-0.1px] text-white">
-      {PAYROLL_TABS.map((tab, i) => {
+    <div className="flex min-h-11 items-stretch overflow-x-auto border-t border-[#edf0f4] bg-white px-4 text-sm leading-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      {PAYROLL_TABS.map((tab) => {
         const active = tab === activeTab;
         return (
           <div
             key={tab}
-            className={cn(
-              "h-10 shrink-0 overflow-hidden",
-              i === 0 && FIRST_TAB_WIDTH,
-              active && "bg-[rgba(0,80,180,0.75)]",
-              i === 0 && "rounded-tl-[8px]",
-              i === PAYROLL_TABS.length - 1 && "rounded-tr-[8px]"
-            )}
+            className="mr-7 shrink-0 last:mr-0"
           >
             <button
               type="button"
               onClick={() => onChange(tab)}
               className={cn(
-                "ml-0.5 block h-10 w-full whitespace-nowrap bg-[rgba(0,80,180,0.25)] px-4 py-2 text-left text-[16px] font-medium leading-6 tracking-[-0.1px] text-white transition-colors",
-                active && "font-medium tracking-[0.3px]"
+                "relative block h-11 w-full whitespace-nowrap py-3 text-left text-sm font-normal leading-5 transition-colors",
+                active ? "font-medium text-[#1474ee] after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[#1474ee]" : "text-[#6f7b90] hover:text-[#34425c]"
               )}
             >
               {tab}

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ChevronDown, Filter, FolderOpen, Search } from "lucide-react";
+import { createPortal } from "react-dom";
+import { ChevronDown, Filter, FolderOpen, Search, UsersRound, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -10,6 +11,7 @@ export type OrgNode = {
   id: string;
   code: string;
   name: string;
+  kind?: "company" | "branch" | "department" | "employee";
   firstNameTH?: string;
   lastNameTH?: string;
   nickname?: string | null;
@@ -46,11 +48,29 @@ function isEmployeeNode(node: OrgNode) {
   return node.count === undefined && (node.children?.length ?? 0) === 0;
 }
 
+function employeeDisplayName(node: OrgNode) {
+  const nameFromParts = [node.firstNameTH, node.lastNameTH].filter(Boolean).join(" ").trim();
+  const name = nameFromParts || node.name;
+  return name.replace(/\s*\([^()]*\)\s*$/, "").trim();
+}
+
 function countEmployees(nodes: OrgNode[]): number {
   return nodes.reduce(
     (total, node) => total + (isEmployeeNode(node) ? 1 : countEmployees(node.children ?? [])),
     0
   );
+}
+
+function hideCompanyAndBranchNodes(nodes: OrgNode[]): OrgNode[] {
+  return nodes.flatMap((node) => {
+    const children = hideCompanyAndBranchNodes(node.children ?? []);
+    if (node.kind === "company" || node.kind === "branch") return children;
+    return [{ ...node, ...(node.children ? { children } : {}) }];
+  });
+}
+
+function organizationLabel(node: OrgNode) {
+  return node.kind === "department" ? node.name : `${node.code}: ${node.name}`;
 }
 
 function filterTree(nodes: OrgNode[], filters: EmployeeFilters): OrgNode[] {
@@ -87,7 +107,7 @@ function collectOptions(nodes: OrgNode[]) {
       if (node.type) employeeTypes.add(node.type);
       return;
     }
-    organizations.push({ id: node.id, label: `${node.code}: ${node.name}` });
+    organizations.push({ id: node.id, label: organizationLabel(node) });
     node.children?.forEach(visit);
   };
 
@@ -100,11 +120,13 @@ function FilterSelect({
   onChange,
   children,
   ariaLabel,
+  className,
 }: {
   value: string;
   onChange: (value: string) => void;
   children: React.ReactNode;
   ariaLabel: string;
+  className?: string;
 }) {
   return (
     <span className="relative block">
@@ -112,11 +134,11 @@ function FilterSelect({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         aria-label={ariaLabel}
-        className="h-[31.6px] w-full appearance-none rounded-[4px] border border-[#d9d9d9] bg-white py-px pl-[9.6px] pr-6 font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-black/65 outline-none focus:border-[#2299ff]"
+        className={cn("h-[30px] w-full appearance-none rounded-[4px] border border-[#dfe4e8] bg-white px-2.5 pr-8 text-xs font-normal leading-[18px] text-[#34425c] outline-none ring-[#5eaafa] transition-colors focus:ring-2", className)}
       >
         {children}
       </select>
-      <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-[9.6px] top-1/2 size-3 -translate-y-1/2 text-black/[0.54]" />
+      <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[#738199]" />
     </span>
   );
 }
@@ -132,22 +154,25 @@ function EmployeeNode({
   onSelect: () => void;
   onEmployeeSelect?: (employee: OrgNode) => void;
 }) {
-  const className = "ml-[16px] mt-0 flex h-[43.2px] w-max max-w-full appearance-none items-center rounded-[5px_8px_8px_5px] border-[0.8px] border-[#d9d9d9] bg-white py-1 pl-2.5 pr-2.5 text-left font-[Kanit,sans-serif] text-[14px] leading-[22.001px] text-black/65 shadow-[0_2px_0_rgba(0,0,0,0.016)] transition-colors hover:border-[#91caff] hover:bg-[#f0f8ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2299ff]";
+  const className = cn(
+    "-ml-[5.6px] mt-0 flex min-h-[46px] w-[calc(100%+5.6px)] max-w-full appearance-none items-center rounded-lg border border-[#e3e8f0] bg-white py-[5px] pl-3 pr-2.5 text-left text-sm leading-5 text-[#4d5a6d] shadow-[0_2px_8px_rgba(29,52,93,.05)] transition-colors hover:border-[#9dc9ff] hover:bg-[#f7faff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5eaafa]",
+    node.type && "min-h-[50px]"
+  );
   const content = (
     <>
       <span
         className={cn(
-          "-my-1 -ml-2.5 mr-2.5 self-stretch w-1 shrink-0 rounded-[5px_0_0_5px]",
-          node.status === "inactive" ? "bg-[rgba(244,67,54,0.7)]" : "bg-[rgba(3,174,3,0.7)]"
+          "-my-[5px] -ml-3 mr-3 self-stretch w-1 shrink-0 rounded-l-lg",
+          node.status === "inactive" ? "bg-[#ef5350]" : "bg-[#20b889]"
         )}
         aria-label={node.status === "inactive" ? "พนักงานไม่ปฏิบัติงาน" : "พนักงานปฏิบัติงาน"}
       />
-      <span className="min-w-0">
-        <span className="block whitespace-nowrap text-xs font-medium leading-[18.4px] text-black/65">
-          {node.code}: <span>{node.name}</span>
+      <span className="flex min-w-0 flex-col justify-center">
+        <span className="block truncate text-xs font-medium leading-[18px] text-[#34425c]">
+          <span className="font-semibold text-[#1474ee]">{node.code}</span>: <span>{employeeDisplayName(node)}</span>
         </span>
         {node.type && (
-          <span className="block h-[15.2px] w-fit rounded-[8px] bg-[#e6f3fe] px-1 text-[10px] leading-[15.2px] text-[#57a3db]">{node.type}</span>
+          <span className="mt-0.5 block w-fit rounded-full bg-[#eaf4ff] px-1.5 text-[10px] leading-[14px] text-[#1474ee]">{node.type}</span>
         )}
       </span>
     </>
@@ -163,14 +188,14 @@ function EmployeeNode({
         // The original tree carries a continuous dotted rail at every depth.
         // Each rail begins one row above its card, matching the Material-tree
         // layout used by the source screen.
-        // Child groups start 30.6px from the parent edge, while the expand
-        // button is 40px wide. Position the rail at 20px (its centre) so it
-        // runs directly from the centre of the down-arrow.
-        level > 1 && "before:absolute before:left-[-10.6px] before:top-[-13.2px] before:bottom-0 before:border-l-[0.8px] before:border-dotted before:border-[#808080] after:absolute after:left-[-10.6px] after:top-[23.6px] after:w-[26.6px] after:border-t after:border-dotted after:border-[#808080]"
+        // Keep the rail toward the panel edge so the hierarchy stays balanced
+        // inside the compact 270px employee panel. The horizontal connector
+        // still ends at the employee card's -5.6px inset.
+        level > 1 && "before:absolute before:left-[-21.4px] before:top-[-13.2px] before:bottom-0 before:border-l before:border-dotted before:border-[#c9d5e5] after:absolute after:left-[-21.4px] after:top-6 after:w-[15.8px] after:border-t after:border-dotted after:border-[#c9d5e5]"
       )}
     >
       {onEmployeeSelect ? (
-        <button
+              <button
           type="button"
           onClick={() => {
             onEmployeeSelect(node);
@@ -227,34 +252,37 @@ function OrganizationNode({
       aria-level={level}
       aria-selected={false}
       aria-expanded={hasChildren ? expanded : undefined}
-      className="relative list-none before:absolute before:left-[-10.6px] before:top-[-13.2px] before:bottom-0 before:border-l-[0.8px] before:border-dotted before:border-[#808080]"
+      className={cn(
+        "relative list-none",
+        level > 1 && "before:absolute before:left-[-21.4px] before:top-[-13.2px] before:bottom-0 before:border-l before:border-dotted before:border-[#c9d5e5]"
+      )}
     >
-      <div className="mb-[2.8px] flex h-10 items-center text-sm leading-[22.001px] text-[rgba(0,0,0,0.87)]">
+      <div className="mb-1 flex min-h-10 items-center text-sm leading-5 text-[#34425c]">
         {hasChildren ? (
           <button
             type="button"
             onClick={() => setExpanded((current) => !current)}
-          className="mr-0 flex size-10 shrink-0 items-center justify-center text-[rgba(0,0,0,0.87)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#2299ff]"
+            className="mr-0 flex size-10 shrink-0 items-center justify-center rounded-lg text-[#738199] transition-colors hover:bg-[#eaf4ff] hover:text-[#1474ee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5eaafa]"
             aria-label={expanded ? `ย่อ ${node.code}` : `ขยาย ${node.code}`}
           >
-            <ChevronDown
-              className={cn("size-[19.2px] transition-transform", !expanded && "-rotate-90")}
+              <ChevronDown
+                className={cn("relative left-[-10.8px] size-3.5 transition-transform", !expanded && "-rotate-90")}
               aria-hidden="true"
             />
           </button>
         ) : (
           <span className="mr-2 size-10 shrink-0" aria-hidden="true" />
         )}
-        <span className="min-w-0 break-words rounded-[6px] border-[0.8px] border-black/50 px-3 py-1 font-[Kanit,sans-serif] text-[14px] font-normal leading-[22.001px] tracking-[-0.1px]">
-          {node.code}: {node.name}
-          {node.count !== undefined && ` (${node.count})`}
+        <span className="relative left-[-20.8px] min-w-0 flex-1 break-words rounded-lg border border-[#e3e8f0] bg-white px-3 py-2 text-sm font-medium leading-5 text-[#34425c] shadow-[0_2px_8px_rgba(29,52,93,.04)]">
+          {organizationLabel(node)}
+          {node.count !== undefined && <span className="ml-1 text-xs font-medium text-[#7b8798]">({node.count})</span>}
         </span>
       </div>
 
       {expanded && (
         <ul
           role="group"
-          className="relative mb-3 ml-[30.6px] list-none p-0"
+          className="relative mb-2 ml-[30.6px] list-none p-0"
         >
           {children.map((child) => (
             <OrganizationNode key={child.id} node={child} level={level + 1} onSelect={onSelect} onEmployeeSelect={onEmployeeSelect} forceExpanded={forceExpanded} />
@@ -286,8 +314,9 @@ export function EmployeeSelectPanel({
   const [filterOpen, setFilterOpen] = useState(false);
   const [draftFilters, setDraftFilters] = useState<EmployeeFilters>(EMPTY_FILTERS);
   const [appliedFilters, setAppliedFilters] = useState<EmployeeFilters>(EMPTY_FILTERS);
-  const visibleTree = useMemo(() => filterTree(orgTree, appliedFilters), [orgTree, appliedFilters]);
-  const options = useMemo(() => collectOptions(orgTree), [orgTree]);
+  const filteredTree = useMemo(() => filterTree(orgTree, appliedFilters), [orgTree, appliedFilters]);
+  const visibleTree = useMemo(() => hideCompanyAndBranchNodes(filteredTree), [filteredTree]);
+  const options = useMemo(() => collectOptions(hideCompanyAndBranchNodes(orgTree)), [orgTree]);
   const hasAppliedFilters = Object.values(appliedFilters).some((value) => value !== "" && value !== "active");
 
   const updateDraft = <K extends keyof EmployeeFilters>(key: K, value: EmployeeFilters[K]) => {
@@ -299,122 +328,131 @@ export function EmployeeSelectPanel({
     setAppliedFilters(EMPTY_FILTERS);
   };
 
-  return (
+  const panel = (
     <>
       <button
         type="button"
         onClick={onClose}
-        className="fixed inset-0 z-30 bg-black/30 lg:hidden"
+        className="fixed inset-0 z-30 bg-black/30 lg:z-[999]"
         aria-label="ปิดรายชื่อพนักงาน"
       />
 
       <aside
         data-employee-select-panel
+        data-placement={placement}
         className={cn(
-          "fixed inset-y-0 left-0 z-40 flex w-full max-w-[386.4375px] flex-col bg-white shadow-[0_2px_8px_rgba(0,0,0,0.35)] lg:bottom-0 lg:z-[1000] lg:w-[386.4375px] lg:max-w-none",
-          placement === "detail" ? "lg:left-0 lg:top-0" : "lg:left-80 lg:top-16"
+        "fixed inset-y-0 left-0 z-40 flex w-[280px] max-w-[85vw] flex-col border-r border-[#dfe5ee] bg-[#f7f9fc] font-sans shadow-[8px_0_24px_rgba(29,52,93,.14)] lg:bottom-0 lg:z-[1000] lg:w-[280px] lg:max-w-none",
+          "lg:left-[230px] lg:top-[70px]"
         )}
         aria-label="รายชื่อพนักงาน"
       >
-        <div className="shrink-0 bg-[#61a8ff] px-3 py-3 text-white">
-          <div className="relative flex h-10 items-center">
-            <h2 className="font-[Kanit,sans-serif] text-xl font-semibold leading-[30.4px] tracking-[-0.1px]">รายชื่อพนักงาน</h2>
+        <div className="shrink-0 border-b border-[#e5eaf2] bg-white px-4 py-3">
+          <div className="relative flex min-h-10 items-center gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[#eaf4ff] text-[#1474ee]">
+              <UsersRound className="size-[18px]" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="whitespace-nowrap text-base font-semibold leading-5 text-[#172348]">รายชื่อพนักงาน</h2>
+            </div>
             <button
               type="button"
               onClick={() => setFilterOpen((current) => !current)}
-              className="ml-auto flex size-10 items-center justify-center rounded-full transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+              className={cn("relative left-[20px] ml-auto flex size-9 shrink-0 items-center justify-center rounded-lg text-[#718096] transition-colors hover:bg-[#eaf4ff] hover:text-[#1474ee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5eaafa]", filterOpen && "bg-[#eaf4ff] text-[#1474ee]")}
               aria-label="กรองรายชื่อพนักงาน"
               aria-expanded={filterOpen}
             >
-              <Filter className="size-3" />
+              <Filter className="size-4" />
+            </button>
+            <button type="button" onClick={onClose} className="relative left-[5px] flex size-9 items-center justify-center rounded-lg text-[#718096] transition-colors hover:bg-[#eaf4ff] hover:text-[#1474ee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5eaafa]" aria-label="ปิดรายชื่อพนักงาน">
+              <X className="size-4" />
             </button>
           </div>
 
           {filterOpen && (
-            <div className="mt-2.5 flex flex-col font-[Kanit,sans-serif] text-sm text-white">
-              <label className="mb-2.5 flex h-[34.5px] items-center gap-3 rounded-[4px] border border-[#d9d9d9] bg-white px-[11px] py-1 text-[#bfbfbf]">
+            <div className="relative -left-2 mt-3 flex flex-col gap-[6px] rounded-none border border-[#e5eaf2] bg-[#f8faff] p-1.5 text-xs leading-[18px] text-[#34425c] shadow-inner w-[calc(100%+16px)]">
+              <label className="flex h-[30px] items-center gap-2 rounded-[4px] border border-[#dfe4e8] bg-white px-2.5 text-[#738199] ring-[#5eaafa] focus-within:ring-2">
                 <span className="sr-only">คำค้นหา</span>
-                <Search aria-hidden="true" className="size-4 shrink-0" />
-                <input value={draftFilters.query} onChange={(event) => updateDraft("query", event.target.value)} placeholder="คำค้นหา" className="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm font-normal leading-[22.001px] text-black/65 outline-none placeholder:text-[#bfbfbf]" />
+                <Search aria-hidden="true" className="size-3.5 shrink-0" />
+                <input value={draftFilters.query} onChange={(event) => updateDraft("query", event.target.value)} placeholder="ค้นหารหัสหรือชื่อพนักงาน" className="min-w-0 flex-1 border-0 bg-transparent p-0 text-xs font-normal leading-[18px] text-[#34425c] outline-none placeholder:text-[#9aa5b4]" />
               </label>
 
-              <label className="mb-2.5 block">
-                <span className="block font-medium leading-[20.8px]">โครงสร้างองค์กร</span>
-                <FilterSelect value={draftFilters.organizationId} onChange={(value) => updateDraft("organizationId", value)} ariaLabel="โครงสร้างองค์กร">
+              <label className="block">
+                <span className="mb-1 block text-xs font-medium leading-[18px] text-[#5e6b7c]">โครงสร้างองค์กร</span>
+                <FilterSelect value={draftFilters.organizationId} onChange={(value) => updateDraft("organizationId", value)} ariaLabel="โครงสร้างองค์กร" className="h-[30px]">
                   <option value="">โครงสร้างองค์กร</option>
                   {options.organizations.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
                 </FilterSelect>
               </label>
 
-              <div className="mb-2.5 grid grid-cols-2 gap-[5px]">
+              <div className="grid grid-cols-2 gap-1.5">
                 <label className="block">
-                  <span className="block font-medium leading-[20.8px]">ตำแหน่ง</span>
+                  <span className="mb-1 block text-xs font-medium leading-[18px] text-[#5e6b7c]">ตำแหน่ง</span>
                   <FilterSelect value={draftFilters.positionId} onChange={(value) => updateDraft("positionId", value)} ariaLabel="ตำแหน่ง">
                     <option value="">ตำแหน่ง</option>
                     {options.positions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
                   </FilterSelect>
                 </label>
                 <label className="block">
-                  <span className="block font-medium leading-[20.8px]">กลุ่มประเภทพนักงาน</span>
-                  <FilterSelect value={draftFilters.employeeType} onChange={(value) => updateDraft("employeeType", value)} ariaLabel="กลุ่มประเภทพนักงาน">
-                    <option value="">กลุ่มประเภทพนักงาน</option>
+                  <span className="mb-1 block text-xs font-medium leading-[18px] text-[#5e6b7c]">ประเภทพนักงาน</span>
+                  <FilterSelect value={draftFilters.employeeType} onChange={(value) => updateDraft("employeeType", value)} ariaLabel="ประเภทพนักงาน">
+                    <option value="">ประเภทพนักงาน</option>
                     {options.employeeTypes.map((type) => <option key={type} value={type}>{type}</option>)}
                   </FilterSelect>
                 </label>
               </div>
 
-              <div className="grid grid-cols-2 gap-[5px]">
-                <label className="mb-2.5 block">
-                  <span className="block font-medium leading-[20.8px]">สถานะพนักงาน</span>
+              <div className="grid grid-cols-2 gap-1.5">
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium leading-[18px] text-[#5e6b7c]">สถานะพนักงาน</span>
                   <FilterSelect value={draftFilters.status} onChange={(value) => updateDraft("status", value as EmployeeFilters["status"])} ariaLabel="สถานะพนักงาน">
                     <option value="active">เฉพาะที่ Active</option>
                     <option value="inactive">เฉพาะที่ Inactive</option>
                     <option value="all">ทั้งหมด</option>
                   </FilterSelect>
                 </label>
-                <label className="mb-2.5 block">
-                  <span className="block font-medium leading-[20.8px]">#Hashtag</span>
-                  <span className="flex h-[34.5px] items-center gap-3 rounded-[4px] border border-[#d9d9d9] bg-white px-[11px] py-1 text-[#bfbfbf]">
-                    <Search aria-hidden="true" className="size-4 shrink-0" />
-                    <input value={draftFilters.hashtag} onChange={(event) => updateDraft("hashtag", event.target.value)} placeholder="#Hashtag" className="h-[23.6px] min-w-0 flex-1 border-0 bg-transparent p-0 text-sm font-normal leading-[22.001px] text-black/65 outline-none placeholder:text-[#bfbfbf]" />
+                <label className="block">
+                  <span className="mb-1 block text-xs font-medium leading-[18px] text-[#5e6b7c]">#Hashtag</span>
+                  <span className="flex h-[30px] items-center gap-2 rounded-[4px] border border-[#dfe4e8] bg-white px-2.5 text-[#738199] ring-[#5eaafa] focus-within:ring-2">
+                    <Search aria-hidden="true" className="size-3.5 shrink-0" />
+                    <input value={draftFilters.hashtag} onChange={(event) => updateDraft("hashtag", event.target.value)} placeholder="#Hashtag" className="min-w-0 flex-1 border-0 bg-transparent p-0 text-xs font-medium leading-[18px] text-[#34425c] outline-none placeholder:text-[#9aa5b4]" />
                   </span>
                 </label>
               </div>
 
-              <div className="mb-2.5 flex gap-[5px]">
-                <button type="button" onClick={clearFilters} className="h-9 flex-1 rounded-[4px] bg-[#e0e0e0] px-2.5 py-[3px] text-sm font-semibold leading-9 text-black/[0.87] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ล้างค่า</button>
-                <button type="button" onClick={() => { setAppliedFilters(draftFilters); setFilterOpen(false); }} className="h-9 flex-1 rounded-[4px] bg-[#04509d] px-2.5 py-[3px] text-sm font-semibold leading-7 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)]">ค้นหา</button>
+              <div className="flex gap-[6px]">
+                <button type="button" onClick={clearFilters} className="h-[30px] flex-1 rounded-lg border border-[#dfe4e8] bg-white px-3 text-xs font-medium leading-[18px] text-[#5f6d80] transition-colors hover:bg-[#f2f5f9]">ล้างค่า</button>
+                <button type="button" onClick={() => { setAppliedFilters(draftFilters); setFilterOpen(false); }} className="h-[30px] flex-1 rounded-lg bg-[#1474ee] px-3 text-xs font-medium leading-[18px] text-white shadow-[0_4px_12px_rgba(20,116,238,.24)] transition-colors hover:bg-[#0d65d8]">ค้นหา</button>
               </div>
             </div>
           )}
         </div>
 
         <div
-          className="-ml-[12.2px] min-h-0 flex-1 overflow-y-auto px-3 pb-6 pt-[21px] font-[Kanit,sans-serif] text-[14px] leading-[22.001px] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="min-h-0 flex-1 overflow-y-auto bg-[#f7f9fc] px-[7px] py-3 text-sm leading-5 [scrollbar-color:#cbd5e1_transparent] [scrollbar-width:thin]"
           data-testid="org-emp-select-tree"
           aria-busy={loading}
         >
-          <ul role="tree" className="m-0 list-none p-0" aria-label="โครงสร้างองค์กรและรายชื่อพนักงาน">
+          <ul role="tree" className="m-0 -ml-2.5 list-none p-0" aria-label="โครงสร้างองค์กรและรายชื่อพนักงาน">
             {loading ? (
-              <li role="none" className="px-4">
+              <li role="none" className="px-1 py-1">
                 <p role="status" className="sr-only">กำลังโหลดรายชื่อพนักงาน...</p>
                 <div aria-hidden="true" className="space-y-3 motion-safe:animate-pulse">
-                  <div className="h-10 w-60 rounded-md bg-slate-200" />
-                  <div className="ml-5 h-10 w-52 rounded-md bg-slate-100" />
-                  <div className="ml-10 space-y-3 border-l border-dotted border-slate-300 pl-4">
-                    {[0, 1, 2, 3, 4].map((row) => <div key={row} className="h-[43.2px] rounded-md border border-slate-200 bg-slate-50 p-2"><div className="h-3 w-36 rounded bg-slate-200" /><div className="mt-2 h-2 w-20 rounded bg-blue-100" /></div>)}
+                  <div className="h-10 w-60 rounded-lg bg-[#e6ebf2]" />
+                  <div className="ml-5 h-10 w-52 rounded-lg bg-[#edf1f6]" />
+                  <div className="ml-10 space-y-2 border-l border-dotted border-[#c9d5e5] pl-4">
+                    {[0, 1, 2, 3, 4].map((row) => <div key={row} className="h-[50px] rounded-lg border border-[#e3e8f0] bg-white p-2 shadow-[0_2px_8px_rgba(29,52,93,.04)]"><div className="h-3 w-36 rounded bg-[#e6ebf2]" /><div className="mt-2 h-2 w-20 rounded bg-[#dcecff]" /></div>)}
                   </div>
                 </div>
               </li>
             ) : error ? (
-              <li role="none" className="py-10 text-center text-sm text-muted-foreground">
+              <li role="none" className="rounded-xl border border-[#e5eaf2] bg-white px-4 py-10 text-center text-sm text-[#738199]">
                 <p role="alert">ไม่สามารถโหลดรายชื่อพนักงานได้</p>
-                <button type="button" onClick={onRetry} className="mt-3 text-[#2299ff]">ลองใหม่</button>
+                <button type="button" onClick={onRetry} className="mt-3 font-medium text-[#1474ee] hover:text-[#0d65d8]">ลองใหม่</button>
               </li>
             ) : visibleTree.length === 0 ? (
-              <li role="none" className="flex min-h-[160px] flex-col items-center justify-center gap-2 text-center text-muted-foreground">
-                <FolderOpen className="size-8" />
-                <span className="text-sm">ไม่มีข้อมูลพนักงาน</span>
+              <li role="none" className="flex min-h-[180px] flex-col items-center justify-center gap-2 rounded-xl border border-[#e5eaf2] bg-white text-center text-[#8894a6]">
+                <span className="flex size-11 items-center justify-center rounded-full bg-[#eef5ff] text-[#1474ee]"><FolderOpen className="size-5" /></span>
+                <span className="text-sm font-medium">ไม่มีข้อมูลพนักงาน</span>
               </li>
             ) : (
               visibleTree.map((node) => (
@@ -426,4 +464,7 @@ export function EmployeeSelectPanel({
       </aside>
     </>
   );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(panel, document.body);
 }

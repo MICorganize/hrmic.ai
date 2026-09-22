@@ -45,11 +45,13 @@ import {
   Search,
   Settings,
   ShieldUser,
+  Sparkles,
   Star,
   Timer,
   User,
   UserCog,
   UserSearch,
+  Maximize,
   X,
 } from "lucide-react";
 
@@ -60,6 +62,13 @@ import {
   selectPortalActiveCompany,
 } from "@/components/layouts/PortalActiveCompanySync";
 import { notifyEmployeeDashboardReset } from "@/components/layouts/portalEvents";
+import {
+  AssignmentNavIcon,
+  EmptySettingsNavIcon,
+  LoginAsNavIcon,
+  OtherSettingsNavIcon,
+  RuleSettingsNavIcon,
+} from "@/components/layouts/SettingsNavIcons";
 import { preloadEmployeeSummary, promotePreloadedEmployeeSummary } from "@/lib/employee/summary-client";
 
 const UserDropdown = dynamic(
@@ -103,6 +112,10 @@ type NavChild = {
   href: string;
   label: string;
   icon: IconComponent;
+  /** Stable selector used by the reference navigation and UI tests. */
+  testId?: string;
+  /** Stable selector for an accordion's nested item container. */
+  childrenTestId?: string;
   /** Nested sub-items, e.g. the report list under a report group. */
   children?: NavChild[];
 };
@@ -189,6 +202,8 @@ function FileChatIcon({ className }: { className?: string }) {
 
 const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: BarChart3 },
+  { href: "/organization/organization-employee", label: "ข้อมูลพนักงาน", icon: IdCard },
+  { href: "/salary/calculate/normal", label: "คำนวณเงินเดือน", icon: CurrencyExchangeIcon },
   {
     href: "/organization",
     label: "ข้อมูลองค์กร",
@@ -199,7 +214,6 @@ const NAV_ITEMS: NavItem[] = [
       { href: "/organization/organization-position", label: "โครงสร้างตำแหน่ง", icon: GitFork },
   { href: "/organization/organization-employee-type-group", label: "ข้อมูลกลุ่มประเภทพนักงาน", icon: UserCog },
       { href: "/attendance", label: "ข้อมูลกะการทำงาน", icon: ClockCheckIcon },
-      { href: "/organization/organization-employee", label: "ข้อมูลพนักงาน", icon: IdCard },
       { href: "/organization/contacts", label: "ค้นหาผู้ติดต่อ", icon: UserSearch },
       { href: "/communication", label: "ประกาศข่าวสาร", icon: Megaphone },
       { href: "/organization/policy", label: "นโยบายบริษัท", icon: FileWarning },
@@ -207,7 +221,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/payroll",
-    label: "การประมวลผลเงินเดือน",
+    label: "ประมวลผลเงินเดือน",
     shortLabel: "เงินเดือน",
     icon: CurrencyExchangeIcon,
     children: [
@@ -329,7 +343,7 @@ const NAV_ITEMS: NavItem[] = [
         label: "กลุ่มการคำนวณเงินเดือน",
         icon: FileBanknoteIcon,
         children: [
-          { href: "/reports/calculation/net-regular", label: "รายงานผลการคำนวณเงินเดือนสุทธิ งวดปกติ", icon: FileText },
+          { href: "/reports/report-nettotal", label: "รายงานผลการคำนวณเงินเดือนสุทธิ งวดปกติ", icon: FileText },
           { href: "/reports/calculation/net-regular-yearly", label: "รายงานผลการคำนวณเงินเดือนสุทธิ งวดปกติประจำปี", icon: FileText },
           { href: "/reports/calculation/net-by-payment", label: "รายงานผลการคำนวณเงินเดือนสุทธิ แบ่งงวดจ่าย", icon: FileText },
           { href: "/reports/calculation/net-special", label: "รายงานผลการคำนวณเงินเดือนสุทธิ งวดพิเศษ", icon: FileText },
@@ -404,52 +418,63 @@ const NAV_ITEMS: NavItem[] = [
     label: "ตั้งค่า",
     icon: Settings,
     children: [
-      { href: "/settings/tutorial", label: "ตั้งค่าเริ่มต้น", icon: ClipboardList },
+      {
+        href: "/settings/tutorial",
+        label: "ตั้งค่าเริ่มต้น",
+        icon: AssignmentNavIcon,
+        testId: "nav-child-setting-tutorial",
+      },
       {
         href: "/settings/setting-user",
         label: "ตั้งค่าผู้ใช้",
-        icon: UserCog,
+        icon: EmptySettingsNavIcon,
+        testId: "nav-child-setting-users",
+        childrenTestId: "nav-child-children-setting-users",
         children: [
-          { href: "/settings/setting-user/user-group", label: "ข้อมูลกลุ่มผู้ใช้", icon: UserCog },
-          { href: "/settings/setting-user/user-admin", label: "ข้อมูลผู้ดูแล", icon: ShieldUser },
-          { href: "/settings/setting-user/user-permission", label: "สิทธิการเข้าถึงข้อมูล", icon: ShieldUser },
+          { href: "/settings/setting-user/user-group", label: "ข้อมูลกลุ่มผู้ใช้", icon: UserCog, testId: "nav-child-setting-setting-user-user_group" },
+          { href: "/settings/setting-user/user-admin", label: "ข้อมูลผู้ดูแล", icon: ShieldUser, testId: "nav-child-setting-setting-user-user_admin" },
+          { href: "/settings/setting-user/user-permission", label: "สิทธิการเข้าถึงข้อมูล", icon: ShieldUser, testId: "nav-child-setting-null-null" },
         ],
       },
-      { href: "/settings/setting-general", label: "ตั้งค่าทั่วไป", icon: ClipboardList },
+      { href: "/settings/setting-general", label: "ตั้งค่าทั่วไป", icon: AssignmentNavIcon, testId: "nav-child-setting-setting_general" },
       {
         href: "/settings/setting-payroll",
         label: "ตั้งค่าการคำนวณ",
-        icon: Settings,
+        icon: RuleSettingsNavIcon,
+        testId: "nav-child-setting-payroll",
+        childrenTestId: "nav-child-children-setting-payroll",
         children: [
-          { href: "/settings/setting-worktime", label: "ตั้งค่าเวลาการทำงาน", icon: Clock },
-          { href: "/settings/setting-timeleave", label: "ตั้งค่าประเภทการลา", icon: FileText },
-          { href: "/settings/setting-salarytype", label: "ตั้งค่าประเภทรายรับรายจ่าย", icon: Coins },
-          { href: "/settings/setting-salarygroup", label: "ตั้งค่ากลุ่มประเภทรายรับรายจ่าย", icon: Coins },
-          { href: "/settings/setting-commission", label: "ตั้งค่าประเภทค่าคอมมิชชัน", icon: Coins },
-          { href: "/settings/setting-chart-of-accounts/account-group", label: "ตั้งค่ากลุ่มบัญชีตามผังบัญชี", icon: Banknote },
-          { href: "/settings/setting-chart-of-accounts/salary-group", label: "ตั้งค่ากลุ่มรายรับรายจ่ายตามผังบัญชี", icon: Banknote },
-          { href: "/settings/setting-holiday", label: "ตั้งค่าวันหยุดนักขัตฤกษ์", icon: CalendarClock },
-          { href: "/settings/setting-bonusday", label: "ตั้งค่าวันทำงานพิเศษ", icon: CalendarClock },
+          { href: "/settings/setting-worktime", label: "ตั้งค่าเวลาการทำงาน", icon: Clock, testId: "nav-child-setting-payroll-worktime" },
+          { href: "/settings/setting-timeleave", label: "ตั้งค่าประเภทการลา", icon: FileText, testId: "nav-child-setting-payroll-leave_flag" },
+          { href: "/settings/setting-salarytype", label: "ตั้งค่าประเภทรายรับรายจ่าย", icon: Coins, testId: "nav-child-setting-payroll-salary_type" },
+          { href: "/settings/setting-salarygroup", label: "ตั้งค่ากลุ่มประเภทรายรับรายจ่าย", icon: Coins, testId: "nav-child-setting-payroll-salary_group" },
+          { href: "/settings/setting-commission", label: "ตั้งค่าประเภทค่าคอมมิชชัน", icon: Coins, testId: "nav-child-setting-setting-setting_commission" },
+          { href: "/settings/setting-chart-of-accounts/account-group", label: "ตั้งค่ากลุ่มบัญชีตามผังบัญชี", icon: Banknote, testId: "nav-child-setting-setting-chart-of-accounts-account_group" },
+          { href: "/settings/setting-chart-of-accounts/salary-group", label: "ตั้งค่ากลุ่มรายรับรายจ่ายตามผังบัญชี", icon: Banknote, testId: "nav-child-setting-setting-chart-of-accounts-salary_group" },
+          { href: "/settings/setting-holiday", label: "ตั้งค่าวันหยุดนักขัตฤกษ์", icon: CalendarClock, testId: "nav-child-setting-setting-setting_holiday" },
+          { href: "/settings/setting-bonusday", label: "ตั้งค่าวันทำงานพิเศษ", icon: CalendarClock, testId: "nav-child-setting-setting-setting_bonusday" },
         ],
       },
       {
         href: "/settings/setting-other",
         label: "ตั้งค่าอื่นๆ",
-        icon: Settings,
+        icon: OtherSettingsNavIcon,
+        testId: "nav-child-setting-other",
+        childrenTestId: "nav-child-children-setting-other",
         children: [
-          { href: "/settings/setting-location", label: "ตั้งค่าพื้นที่การทำงาน", icon: Landmark },
-          { href: "/settings/setting-scheduler", label: "ตั้งค่าเวลารันคำสั่ง", icon: Timer },
-          { href: "/settings/setting-condition", label: "ตั้งค่าเงื่อนไขตัวช่วยอัจฉริยะ", icon: Settings },
-          { href: "/settings/setting-fingerscan", label: "ตั้งค่าอุปกรณ์การลงเวลา", icon: Clock },
-          { href: "/settings/setting-signature", label: "ตั้งค่าลายเซ็น", icon: Pencil },
-          { href: "/settings/setting-option-type", label: "ตั้งค่าชื่อตัวเลือก", icon: ClipboardList },
-          { href: "/settings/setting-partner", label: "การเชื่อมต่อภายนอก", icon: Contact },
-          { href: "/settings/setting-notify", label: "ตั้งค่า HumanSoft Notify", icon: Bell },
-          { href: "/settings/setting-time-frame", label: "ตั้งค่าป้ายกำกับช่วงเวลา", icon: Clock },
-          { href: "/settings/setting-role-duty", label: "ตั้งค่าป้ายกำกับหน้าที่ปฏิบัติงาน", icon: ClipboardCheck },
+          { href: "/settings/setting-location", label: "ตั้งค่าพื้นที่การทำงาน", icon: Landmark, testId: "nav-child-setting-other-location" },
+          { href: "/settings/setting-schduler", label: "ตั้งค่าเวลารันคำสั่ง", icon: Timer, testId: "nav-child-setting-other-schduler" },
+          { href: "/settings/setting-condition", label: "ตั้งค่าเงื่อนไขตัวช่วยอัฉริยะ", icon: Settings, testId: "nav-child-setting-other-condition" },
+          { href: "/settings/setting-fingerscan", label: "ตั้งค่าอุปกรณ์การลงเวลา", icon: Clock, testId: "nav-child-setting-other-device" },
+          { href: "/settings/setting-signature", label: "ตั้งค่าลายเซ็น", icon: Pencil, testId: "nav-child-setting-setting-setting_signature" },
+          { href: "/settings/setting-option-type", label: "ตั้งค่าชื่อตัวเลือก", icon: ClipboardList, testId: "nav-child-setting-setting-setting_option_type" },
+          { href: "/settings/setting-partner", label: "การเชื่อมต่อภายนอก", icon: Contact, testId: "nav-child-setting-setting-setting_partner" },
+          { href: "/settings/setting-notify", label: "ตั้งค่า HumanSoft Notify", icon: Bell, testId: "nav-child-setting-setting-setting_notify" },
+          { href: "/settings/setting-time-frame", label: "ตั้งค่าป้ายกำกับช่วงเวลา", icon: Clock, testId: "nav-child-setting-setting-setting_time_frame" },
+          { href: "/settings/setting-role-duty", label: "ตั้งค่าป้ายกำกับหน้าที่ปฏิบัติงาน", icon: ClipboardCheck, testId: "nav-child-setting-setting-setting_role_duty" },
         ],
       },
-      { href: "/settings/setting-login-as", label: "เข้าสู่ระบบในนาม", icon: UserCog },
+      { href: "/settings/setting-login-as", label: "เข้าสู่ระบบในนาม", icon: LoginAsNavIcon, testId: "nav-child-setting-login-as" },
     ],
   },
   { href: "/documents", label: "อื่นๆ", icon: ClipboardCheck },
@@ -598,8 +623,17 @@ function isChildActive(child: NavChild, pathname: string): boolean {
 }
 
 function isItemActive(item: NavItem, pathname: string) {
-  if (pathname === item.href || pathname.startsWith(item.href + "/")) return true;
-  return item.children?.some((child) => isChildActive(child, pathname)) ?? false;
+  const directItem = NAV_ITEMS.find(
+    (candidate) =>
+      !candidate.children?.length &&
+      (pathname === candidate.href || pathname.startsWith(candidate.href + "/"))
+  );
+  if (directItem && directItem.href !== item.href) return false;
+  if (pathname === item.href) return true;
+  if (item.children?.length) {
+    return item.children.some((child) => isChildActive(child, pathname));
+  }
+  return pathname.startsWith(item.href + "/");
 }
 
 function findExpandedParent(pathname: string): string | null {
@@ -630,6 +664,7 @@ function SidebarContent({
   onAddFavorite,
   favoritesActive,
   favoriteItems,
+  dashboardVariant = false,
 }: {
   currentPath: string;
   expanded: string | null;
@@ -642,11 +677,80 @@ function SidebarContent({
   favoritesActive: boolean;
   /** Resolved favorite menu items, shown inline under เมนูโปรด. */
   favoriteItems: FavoriteItem[];
+  /** Compact navy navigation used by the redesigned dashboard only. */
+  dashboardVariant?: boolean;
 }) {
   const router = useRouter();
   const preloadEmployeeDashboard = () => {
     router.prefetch("/organization/organization-employee");
   };
+  const handleLeafClick = (href: string) => {
+    if (href === "/organization/organization-employee") notifyEmployeeDashboardReset();
+    onClose?.();
+  };
+
+  if (dashboardVariant) {
+    return (
+      <div className="flex h-full flex-col text-white">
+        <div className={cn("flex h-[70px] shrink-0 items-center justify-between border-b border-white/10 px-4", collapsed && "justify-center px-1")}>
+          <div className="flex min-w-0 items-center gap-2.5 font-sans">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#16a5ff] to-[#7554f3] shadow-lg shadow-blue-950/40">
+              <Sparkles className="size-5" />
+            </div>
+            <div className={cn("min-w-0", collapsed && "hidden")}>
+              <p className="truncate text-xl font-bold leading-none tracking-tight text-white">HRMic<span className="text-[#ff7a21]">.ai</span></p>
+              <p className="mt-1 truncate text-[10px] font-medium tracking-wide text-[#67c4ff]">SMART HR SOLUTIONS</p>
+            </div>
+          </div>
+          {onClose && (
+            <button type="button" onClick={onClose} className="rounded-md p-1 text-white/80 hover:bg-white/10 lg:hidden" aria-label="ปิดเมนู">
+              <X className="size-5" />
+            </button>
+          )}
+        </div>
+
+        <nav className={cn("flex-1 space-y-1 overflow-y-auto px-2 pt-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden", collapsed && "px-1")}>
+          {NAV_ITEMS.map((item) => {
+            const active = isItemActive(item, currentPath);
+            const hasChildren = !!item.children?.length;
+            const rowClass = cn(
+              "flex h-10 w-full items-center gap-3 rounded-lg px-3 text-left text-sm transition-colors",
+              collapsed && "justify-center gap-0 px-0",
+              active
+                ? "bg-gradient-to-r from-[#0c73f1] to-[#178df5] font-medium text-white shadow-[0_5px_16px_rgba(10,115,241,.35)]"
+                : "text-[#d7e3f5] hover:bg-white/[0.07] hover:text-white"
+            );
+            const content = <><item.icon className={cn("size-[18px] shrink-0", active ? "text-white" : "text-[#82a9d9]")} /><span className={cn("min-w-0 flex-1 truncate", collapsed && "hidden")}>{item.label}</span>{hasChildren && !collapsed && <ChevronRight className="size-3.5 opacity-70" />}</>;
+
+            return hasChildren ? (
+              <button
+                key={item.href}
+                type="button"
+                aria-label={item.label}
+                aria-expanded={expanded === item.href}
+                onPointerEnter={item.href === "/organization" ? preloadEmployeeDashboard : undefined}
+                onFocus={item.href === "/organization" ? preloadEmployeeDashboard : undefined}
+                onClick={() => {
+                  if (item.href === "/organization") preloadEmployeeDashboard();
+                  onToggle(item.href);
+                  if (item.href !== "/organization" && item.href !== "/settings" && expanded !== item.href) router.push(item.href);
+                }}
+                className={rowClass}
+              >
+                {content}
+              </button>
+            ) : <Link key={item.href} href={item.href} aria-label={item.label} onClick={() => handleLeafClick(item.href)} className={rowClass}>{content}</Link>;
+          })}
+        </nav>
+
+        <div className={cn("m-3 rounded-xl border border-[#1b4b82] bg-[#08275a] p-3", collapsed && "hidden")}>
+          <div className="flex items-center gap-2 text-xs font-semibold text-[#ffd44d]"><ShieldUser className="size-4" />สถานะระบบ</div>
+          <div className="mt-3 flex items-center justify-between text-xs text-[#bfcee2]"><span>การเชื่อมต่อ</span><span className="font-medium text-[#42df83]">● ปกติ</span></div>
+          <div className="mt-2 flex items-center justify-between text-xs text-[#bfcee2]"><span>เวอร์ชัน</span><span>2.6.27</span></div>
+        </div>
+      </div>
+    );
+  }
 
   // Collapsed (narrow) mode: icon with the label underneath.
   if (collapsed) {
@@ -687,7 +791,7 @@ function SidebarContent({
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={hasChildren ? onExpand : undefined}
+                onClick={hasChildren ? onExpand : () => handleLeafClick(item.href)}
                 className={cls}
               >
                 <item.icon className="size-5 shrink-0" />
@@ -810,6 +914,10 @@ function SidebarContent({
                   onToggle(item.href);
                   return;
                 }
+                if (item.href === "/settings") {
+                  onToggle(item.href);
+                  return;
+                }
                 onToggle(item.href);
                 if (!isExpanded) {
                   router.push(item.href);
@@ -820,7 +928,7 @@ function SidebarContent({
               {content}
             </button>
           ) : (
-            <Link key={item.href} href={item.href} className={cls}>
+            <Link key={item.href} href={item.href} onClick={() => handleLeafClick(item.href)} className={cls}>
               {content}
             </Link>
           );
@@ -837,7 +945,7 @@ function SidebarContent({
 
 // Pages that render their own in-page submenu — hide the layout's submenu panel there
 // so the page can use the full width. The employee detail routes inherit the same.
-// /salary/calculate/normal collapses the การประมวลผลเงินเดือน submenu because the
+// /salary/calculate/normal collapses the ประมวลผลเงินเดือน submenu because the
 // page ships its own ภาพรวม/รายบุคคล/รายองค์กร/ปิดงวด/สรุปงวด navigation.
 const FULL_WIDTH_PAGES = ["/payroll/documents", "/payroll/time", "/salary/calculate/normal", "/salary/calculate/special", "/salary/calculate/ot", "/salary/calculate/work-time", "/salary/calculate/commission", "/settings/setting-general", "/training"];
 
@@ -861,6 +969,9 @@ function isReportLeafPage(pathname: string) {
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const usesUnifiedSidebar = true;
+  const usesModernPortalChrome = pathname === "/dashboard" || pathname === "/organization/organization-employee" || pathname === "/reports/employee-history/registry" || pathname === "/reports/report-nettotal" || pathname === "/salary/calculate/normal";
+  const usesEmployeeTemplateChrome = pathname === "/organization/organization-employee";
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -1036,18 +1147,19 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       {/* Desktop sidebar */}
       <aside
         className={cn(
-            "fixed inset-y-0 left-0 z-40 hidden bg-[#0259e6] lg:block",
-          collapsed ? "w-24" : "w-80"
+          "fixed inset-y-0 left-0 z-40 hidden transition-[width] duration-200 ease-in-out lg:block",
+              usesUnifiedSidebar ? (collapsed ? "w-[64px] bg-[#071f49] font-sans" : "w-[230px] bg-[#071f49] font-sans") : "bg-[#0259e6]",
+          !usesUnifiedSidebar && (collapsed ? (pathname === "/settings/setting-salarytype" ? "w-[105px]" : "w-24") : "w-80")
         )}
       >
         {/* Collapse/expand toggle */}
         <button
           type="button"
           onClick={() => setCollapsed((v) => !v)}
-          className="absolute -right-[10px] top-[71.5px] z-50 flex size-[21px] items-center justify-center rounded-[50px] border border-black/40 bg-white text-black shadow-[0_2px_2px_rgba(0,0,0,0.25)] transition-colors hover:bg-slate-100"
+          className="absolute -right-[10px] top-[59.5px] z-50 flex size-[21px] items-center justify-center rounded-[50px] border border-black/40 bg-white text-black shadow-[0_2px_2px_rgba(0,0,0,0.25)] transition-colors hover:bg-slate-100"
           aria-label={collapsed ? "ขยายเมนู" : "ย่อเมนู"}
         >
-          {collapsed ? <ChevronRight className="size-[18px] translate-y-[1.1875px]" /> : <ChevronLeft className="size-[18px] translate-y-[1.1875px]" />}
+          {collapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}
         </button>
         <SidebarContent
           currentPath={pathname}
@@ -1058,6 +1170,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           onAddFavorite={openAddFavorites}
           favoritesActive={searchFavoritesOpen}
           favoriteItems={favoriteItems}
+          dashboardVariant={usesUnifiedSidebar}
         />
       </aside>
 
@@ -1081,14 +1194,20 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         <>
           <button
             type="button"
-            className="fixed inset-y-0 left-80 z-30 hidden w-[calc(100%-20rem)] cursor-default bg-black/55 lg:block"
+            className={cn("fixed inset-y-0 z-30 hidden cursor-default bg-black/55 lg:block", usesUnifiedSidebar ? (collapsed ? "left-[64px] w-[calc(100%-64px)]" : "left-[230px] w-[calc(100%-230px)]") : "left-80 w-[calc(100%-20rem)]")}
             onClick={() => {
               setSearchFavoritesOpen(false);
               setExpanded(null);
             }}
             aria-label={searchFavoritesOpen ? "ปิดแผงเมนูโปรด" : "ปิดแผงข้อมูลองค์กร"}
           />
-          <aside className="fixed inset-y-0 left-80 z-40 hidden w-80 overflow-y-auto border-r border-border bg-[#fafafa] lg:block">
+          <aside
+            className={cn(
+              "fixed inset-y-0 z-40 hidden w-80 overflow-y-auto border-r border-border bg-[#fafafa] lg:block",
+              usesUnifiedSidebar ? (collapsed ? "left-[64px]" : "left-[230px]") : "left-80",
+              expandedItem?.href === "/settings" && "settings-nav-scrollbar overflow-y-scroll border-r-0"
+            )}
+          >
           {searchFavoritesOpen ? (
             <SearchFavoritesPanel
               items={allMenuItems}
@@ -1112,17 +1231,18 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
-          <div className="absolute inset-y-0 left-0 w-80 max-w-[85vw] overflow-y-auto bg-white shadow-xl">
-            <div className="bg-[#0259e6]">
+          <div className={cn("absolute inset-y-0 left-0 w-[230px] max-w-[85vw] overflow-y-auto shadow-xl", usesUnifiedSidebar ? "bg-[#071f49]" : "bg-white")}>
+            <div className={cn(usesUnifiedSidebar ? "min-h-full bg-[#071f49]" : "bg-[#0259e6]")}>
               <SidebarContent
                 currentPath={pathname}
                 expanded={expanded}
                 onToggle={toggleSection}
                 onClose={() => setMobileOpen(false)}
                 onAddFavorite={openAddFavorites}
-                favoritesActive={searchFavoritesOpen}
-                favoriteItems={favoriteItems}
-              />
+              favoritesActive={searchFavoritesOpen}
+              favoriteItems={favoriteItems}
+              dashboardVariant={usesUnifiedSidebar}
+            />
             </div>
             {searchFavoritesOpen && (
               <SearchFavoritesPanel
@@ -1150,42 +1270,49 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <div
         className={cn(
           "transition-[padding]",
-          collapsed ? "lg:pl-24" : "lg:pl-80"
+          usesUnifiedSidebar ? (collapsed ? "lg:pl-[64px]" : "lg:pl-[230px]") : collapsed ? (pathname === "/settings/setting-salarytype" ? "lg:pl-[105px]" : "lg:pl-24") : "lg:pl-80"
         )}
       >
         {/* Topbar — matches the reference toolbar (white bg, #D8E0E9 border) */}
         <header
-          className="sticky top-0 z-20 flex h-16 items-center justify-between gap-4 border-b bg-white px-4 sm:px-6"
-          style={{ borderColor: "#D8E0E9" }}
+          className={cn(
+            "sticky top-0 z-20 flex items-center justify-between gap-4 border-b px-4 sm:px-6",
+                usesModernPortalChrome ? "h-[70px] border-[#18355c] bg-[#061937] font-sans text-white shadow-md" : "h-16 bg-white"
+          )}
+          style={{ borderColor: usesModernPortalChrome ? "#18355c" : "#D8E0E9" }}
         >
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 flex-1 items-center gap-2">
             <button
-              className="rounded-md p-1.5 text-foreground hover:bg-accent lg:hidden"
+              className={cn("rounded-md p-1.5 hover:bg-accent lg:hidden", usesModernPortalChrome ? "text-white" : "text-foreground")}
               onClick={() => setMobileOpen(true)}
               aria-label="เปิดเมนู"
             >
               <Menu className="size-5" />
             </button>
 
+            {usesModernPortalChrome && (
+              <div className="relative hidden w-full max-w-[370px] sm:block">
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#667792]" />
+                <input aria-label="ค้นหา" placeholder="ค้นหาพนักงาน เอกสาร หรือรายงาน..." className="h-10 w-full rounded-xl border-0 bg-white pl-10 pr-4 text-sm text-[#233250] outline-none ring-[#5eaafa] placeholder:text-[#8995a6] focus:ring-2" />
+              </div>
+            )}
+
             {/* Company selector */}
-            <div className="relative lg:-ml-6">
+            <div className={cn("relative", usesEmployeeTemplateChrome ? "hidden" : usesModernPortalChrome ? "hidden xl:block [&>button]:h-10 [&>button]:rounded-xl [&>button]:bg-white [&>button]:px-3 [&>button_span_span]:!text-[#233250] [&>button_svg]:!text-[#738199]" : "lg:-ml-6")}>
               <button
                 type="button"
                 onClick={toggleCompanyMenu}
                 onPointerEnter={prefetchCompanyDirectory}
                 onFocus={prefetchCompanyDirectory}
-                className="group ml-3 flex h-12 w-[197.6px] items-center justify-between px-4 text-left"
+                className={cn("group ml-3 flex h-12 w-[197.6px] items-center justify-between px-4 text-left", usesModernPortalChrome && "outline-none ring-[#5eaafa] focus:ring-2")}
                 aria-haspopup="menu"
                 aria-expanded={companyMenuOpen}
                 aria-label="เลือกบริษัท"
               >
-                <span className="flex w-[129.6px] min-w-0 flex-col">
-                  <span className="truncate text-[14px] font-medium leading-[20.8px] text-black">{activeCompany?.code ?? "MIC"}</span>
-                  <span className="truncate text-xs font-normal leading-[18.4px] text-black">
-                    {activeCompany?.name ?? "MIC ORGANIZE CO., LTD."}
-                  </span>
+                <span className="flex w-[129.6px] min-w-0 items-center">
+                  <span className="truncate text-sm font-normal leading-5 text-black">{activeCompany?.code ?? "MIC"}</span>
                 </span>
-                <ChevronDown className={cn("size-6 shrink-0 text-black transition-transform", companyMenuOpen && "rotate-180")} />
+                <ChevronDown className={cn("size-3.5 shrink-0 text-black transition-transform", companyMenuOpen && "rotate-180")} />
               </button>
 
               {companyMenuOpen && (
@@ -1205,42 +1332,48 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className={cn("flex items-center gap-2.5 sm:gap-3", usesModernPortalChrome && "[&>button]:bg-transparent [&>button]:text-[#e5ebf5]")}>
             {/* Download queue — dark gray circle with white glyph (previous size) */}
-            <button
+            {!usesModernPortalChrome && <button
               type="button"
               className="flex size-6.5 shrink-0 items-center justify-center rounded-full bg-[#4d4d4d] text-white transition-opacity hover:opacity-80"
               aria-label="ดาวน์โหลด"
             >
               <Download className="size-3.25" strokeWidth={2} />
-            </button>
+            </button>}
 
             {/* Help center — dark gray circle with white question mark (previous size) */}
-            <button
+            {!usesModernPortalChrome && <button
               type="button"
               className="flex size-6.5 shrink-0 items-center justify-center rounded-full bg-[#4d4d4d] text-white transition-opacity hover:opacity-80"
               aria-label="ช่วยเหลือ"
             >
               <CircleHelp className="size-3.25" strokeWidth={2} />
-            </button>
+            </button>}
 
             {/* Notifications — solid dark gray bell (1.5x, others unchanged) */}
             <button
               type="button"
-              className="flex size-10 shrink-0 items-center justify-center rounded-full text-[#4d4d4d] transition-colors hover:bg-muted"
+              className={cn("relative flex size-10 shrink-0 items-center justify-center rounded-full text-[#4d4d4d] transition-colors hover:bg-muted", usesModernPortalChrome && "!text-[#e5ebf5] hover:!bg-white/10")}
               aria-label="การแจ้งเตือน"
             >
-              <Bell className="size-6" fill="currentColor" strokeWidth={2} />
+              <Bell className={cn("size-6", !usesModernPortalChrome && "fill-current")} strokeWidth={2} />
+              {usesModernPortalChrome && <span className="absolute right-0 top-0 flex size-4 items-center justify-center rounded-full bg-[#ed2856] text-[9px] font-bold text-white">5</span>}
             </button>
 
-            <UserDropdown
-              activeCompany={activeCompany}
-              companies={companies}
-              companiesLoading={companiesLoading}
-              switchingCompanyId={switchingCompanyId}
-              onRequestCompanies={prefetchCompanyDirectory}
-              onSelectCompany={selectCompany}
-            />
+            {usesModernPortalChrome && <button type="button" className="hidden size-9 items-center justify-center rounded-lg !text-[#e5ebf5] hover:!bg-white/10 sm:flex" aria-label="เต็มหน้าจอ"><Maximize className="size-5" /></button>}
+            {usesModernPortalChrome && <button type="button" className="hidden size-9 items-center justify-center rounded-lg !text-[#e5ebf5] hover:!bg-white/10 md:flex" aria-label="ตั้งค่า"><Settings className="size-5" /></button>}
+
+            <div className={cn(usesModernPortalChrome && "border-l border-white/15 pl-3 text-white [&_p]:!text-white [&_button:hover]:!bg-white/10")}>
+              <UserDropdown
+                activeCompany={activeCompany}
+                companies={companies}
+                companiesLoading={companiesLoading}
+                switchingCompanyId={switchingCompanyId}
+                onRequestCompanies={prefetchCompanyDirectory}
+                onSelectCompany={selectCompany}
+              />
+            </div>
           </div>
         </header>
 
@@ -1267,6 +1400,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               pathname === "/salary/calculate/work-time" ||
               pathname === "/salary/calculate/commission" ||
               pathname === "/settings/setting-general" ||
+              pathname === "/settings/setting-salarytype" ||
               pathname === "/training" ||
               pathname === "/reports/employee-history/registry" ||
               pathname === "/reports/employee-history/birthdays" ||
@@ -1278,12 +1412,14 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               pathname === "/reports/employee-history/restructure" ||
               pathname === "/reports/employee-history/salary-adjustment" ||
               pathname === "/reports/employee-history/type-change" ||
-              pathname === "/reports/calculation/net-regular") &&
+              pathname === "/reports/report-nettotal") &&
               "p-0 sm:p-0 lg:p-0",
             pathname === "/dashboard" &&
-              "h-[calc(100vh-4rem)] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+              "h-[calc(100vh-70px)] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
             pathname === "/settings/setting-general" &&
               "h-[calc(100vh-4rem)] overflow-y-auto",
+            pathname === "/settings/setting-salarytype" &&
+              "h-[calc(100vh-4rem)] overflow-hidden",
             pathname.startsWith("/organization/organization-employee/") &&
               "h-[calc(100vh-4rem)] overflow-y-auto",
             pathname === "/salary/calculate/normal" &&

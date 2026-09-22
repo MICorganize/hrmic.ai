@@ -49,6 +49,7 @@ Copy `.env.example` to `.env` and fill in credentials for:
 - Portal navigation resolves the active company in the RSC request and streams it into the client shell; do not reintroduce a parallel `/api/active-company` request.
 - Employee and payroll landing data use streamed server snapshots. Payroll month changes use the combined `/api/payroll/snapshot` BFF route so authorization, dashboard aggregates, and close-period state do not fan out into separate browser requests.
 - Authorized company projections are cached for `AUTHORIZATION_CACHE_TTL_SECONDS` (30 seconds by default, clamped to 5-60) and use a company generation for immediate invalidation after company changes.
+- Without Upstash the projection is cached per instance (`AUTHORIZATION_CACHE_WITHOUT_REDIS="memory"`, the default) so portal navigations skip the authorization round trip; a revocation performed on another instance then takes effect within the TTL, while mutations on the same instance invalidate immediately. Set it to `"database"` for strictly immediate cross-instance revocation at the cost of one extra round trip per request.
 
 After a production build, run `npm run analyze:bundles` to list the largest client chunks and catch bundle-size regressions before deployment.
 

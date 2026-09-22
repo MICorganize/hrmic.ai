@@ -27,10 +27,10 @@ export default function CommissionCalculationPage() {
     <div className="h-[calc(100vh-4rem)] overflow-hidden bg-[#e7eff8]">
       <section className="flex min-h-40 items-start justify-between gap-5 bg-[#61a8ff] px-6 pb-6 pt-12 text-white">
         <div>
-          <div className="flex items-center gap-1 text-sm text-white/90"><span>การประมวลผลเงินเดือน</span><ChevronRight className="size-4" /><span>คำนวณค่าคอมมิชชั่น</span></div>
+          <div className="flex items-center gap-1 text-sm text-white/90"><span>ประมวลผลเงินเดือน</span><ChevronRight className="size-4" /><span>คำนวณค่าคอมมิชชั่น</span></div>
           <h1 className="mt-[15px] text-[26px] font-bold leading-tight">คำนวณค่าคอมมิชชั่น</h1>
         </div>
-        <button type="button" className="mt-4 flex h-8 w-[180px] items-center rounded bg-white px-3 text-sm font-semibold text-[#4b4f53] shadow-sm">กันยายน 2026</button>
+        <button type="button" className="mt-4 flex h-8 w-[180px] items-center rounded bg-white px-3 text-sm font-semibold text-[#4b4f53] shadow-sm">กันยายน 2569</button>
       </section>
 
       <section className="px-8 pb-8 pt-[33px]">

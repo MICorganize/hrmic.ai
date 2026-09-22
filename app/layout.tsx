@@ -39,7 +39,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="th"
       className={`${kanit.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">
+      <body data-modern-typography className="min-h-full flex flex-col">
         <WebVitals />
         {children}
       </body>

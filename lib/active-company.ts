@@ -1,10 +1,12 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { connection } from "next/server";
 import type { Session } from "next-auth";
 import { cache } from "react";
 
 import { auth } from "@/auth";
+import { Prisma } from "@/generated/prisma/client";
 import { bumpReadCacheVersion, readThroughVersionedCache } from "@/lib/cache/read-through";
 import { redis } from "@/lib/cache/redis";
 import { prisma } from "@/lib/prisma";
@@ -19,6 +21,18 @@ export type ActiveCompany = {
 };
 
 type AccessibleCompanySnapshot = { company: ActiveCompany | null };
+
+type AuthorizationRow = {
+  id: string;
+  name: string;
+  code: string | null;
+  employeeLimit: number | null;
+  hasAccess: boolean;
+  /** jsonb, which drivers may hand back either parsed or as a string. */
+  roles: Array<{ code: string; name: string }> | string;
+};
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function authorizationCacheTtlSeconds() {
   const configured = Number.parseInt(process.env.AUTHORIZATION_CACHE_TTL_SECONDS ?? "30", 10);
@@ -54,49 +68,68 @@ export async function getAccessibleCompany(
   const userId = session.user.id;
 
   const loadAuthorization = async (): Promise<AccessibleCompanySnapshot> => {
-      // These checks are independent after the signed session has supplied
-      // the user id. One cache miss performs them concurrently; subsequent
-      // private API calls reuse the authorized, tenant-scoped projection.
-      const [user, company] = await Promise.all([
-        prisma.user.findFirst({
-          where: { id: userId, status: "active", deletedAt: null },
-          select: {
-            id: true,
-            tenantId: true,
-            UserRole: { select: { Role: { select: { code: true, name: true } } } },
-          },
-        }),
-        prisma.company.findFirst({
-          where: { id: companyId, status: "active", deletedAt: null },
-          select: {
-            id: true,
-            tenantId: true,
-            name: true,
-            companyCode: true,
-            employeeLimit: true,
-            UserCompanyAccess: { where: { userId }, select: { userId: true }, take: 1 },
-          },
-        }),
-      ]);
-      if (!user || !company || company.tenantId !== user.tenantId) return { company: null };
+      // A tampered cookie must not reach the database as an invalid uuid.
+      if (!UUID_PATTERN.test(companyId)) return { company: null };
 
-      const isTenantAdmin = hasTenantManagementRole(user.UserRole.map(({ Role }) => Role));
-      if (!isTenantAdmin && company.UserCompanyAccess.length === 0) return { company: null };
+      // One statement answers every part of the authorization question: the
+      // user scope, the tenant match, the company state, explicit company
+      // access, and the tenant-management roles. Prisma resolves nested
+      // selects as separate statements, so the previous shape spent four round
+      // trips before a page's own query could even start.
+      const [row] = await prisma.$queryRaw<AuthorizationRow[]>(Prisma.sql`
+        SELECT company."id" AS "id",
+               company."name" AS "name",
+               company."companyCode" AS "code",
+               company."employeeLimit" AS "employeeLimit",
+               EXISTS (
+                 SELECT 1 FROM "UserCompanyAccess" access
+                 WHERE access."userId" = account."id" AND access."companyId" = company."id"
+               ) AS "hasAccess",
+               COALESCE(
+                 (
+                   SELECT json_agg(DISTINCT jsonb_build_object('code', role."code", 'name', role."name"))
+                   FROM "UserRole" assignment
+                   INNER JOIN "Role" role ON role."id" = assignment."roleId"
+                   WHERE assignment."userId" = account."id"
+                 ),
+                 '[]'::json
+               ) AS "roles"
+        FROM "User" account
+        INNER JOIN "Company" company
+                ON company."id" = ${companyId}::uuid
+               AND company."tenantId" = account."tenantId"
+               AND company."status"::text = 'active'
+               AND company."deletedAt" IS NULL
+        WHERE account."id" = ${userId}::uuid
+          AND account."status"::text = 'active'
+          AND account."deletedAt" IS NULL
+      `);
+      if (!row) return { company: null };
+
+      const roles = typeof row.roles === "string"
+        ? JSON.parse(row.roles) as Array<{ code: string; name: string }>
+        : row.roles;
+      if (!hasTenantManagementRole(roles) && !row.hasAccess) return { company: null };
 
       return {
         company: {
-          id: company.id,
-          name: company.name,
-          code: company.companyCode,
-          employeeLimit: company.employeeLimit,
+          id: row.id,
+          name: row.name,
+          code: row.code,
+          employeeLimit: row.employeeLimit,
         },
       };
   };
 
-  // In a multi-instance production deployment a process-local authorization
-  // cache cannot receive revocation generations from another instance. If the
-  // shared Redis layer is not configured, prefer an authoritative DB read.
-  const snapshot = process.env.NODE_ENV === "production" && !redis
+  // Authorized projections live for AUTHORIZATION_CACHE_TTL_SECONDS. With Redis
+  // the generation marker is shared, so an access change is visible to every
+  // instance at once. Without Redis the marker is process-local: mutations
+  // handled by this instance invalidate immediately and other instances catch
+  // up within the TTL. Deployments that must read the database on every request
+  // can set AUTHORIZATION_CACHE_WITHOUT_REDIS=database.
+  const authoritativeEveryRequest =
+    !redis && process.env.AUTHORIZATION_CACHE_WITHOUT_REDIS === "database";
+  const snapshot = authoritativeEveryRequest
     ? await loadAuthorization()
     : await readThroughVersionedCache<AccessibleCompanySnapshot>(
     "authorization-company",
@@ -115,6 +148,10 @@ export async function getAccessibleCompany(
  * identifier; its value is authorized against the current session every time.
  */
 const resolveActiveCompanyForRequest = cache(async (): Promise<ActiveCompany | null> => {
+  // `auth()` mints its CSRF cookie with crypto.getRandomValues(), which cannot
+  // be observed while prerendering. Stop the prerender before the session read
+  // so the caller's Suspense boundary streams this at request time instead.
+  await connection();
   // Runtime APIs may suspend during PPR. Resolve them sequentially so an
   // interrupted prerender never leaves the other promise rejecting later.
   const cookieStore = await cookies();

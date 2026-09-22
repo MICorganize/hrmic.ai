@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, ChevronDown, ChevronRight, FileText, Grid3x3 } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Grid3x3 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ThaiDateRangePicker } from "@/components/ui/thai-date-picker";
 
 const ORG_STRUCTURES = ["", "สำนักงานใหญ่", "สาขา 1"];
 const POSITIONS = ["", "พนักงานปฏิบัติการ", "หัวหน้างาน", "ผู้จัดการ"];
@@ -47,6 +48,7 @@ export default function ReportEmployeeRenewalsPage() {
   const [position, setPosition] = useState("");
   const [employee, setEmployee] = useState("");
   const [documentType, setDocumentType] = useState("ทั้งหมด");
+  const [dateRange, setDateRange] = useState({ from: "2026-08-23", to: "2026-08-23" });
 
   return (
     <div>
@@ -67,7 +69,7 @@ export default function ReportEmployeeRenewalsPage() {
               <Field label="พนักงาน"><input value={employee} onChange={(event) => setEmployee(event.target.value)} className="h-8 w-full rounded-[3px] border border-[#d9d9d9] bg-white px-2.5 text-sm text-[#555] shadow-sm outline-none focus:border-[#40a9ff]" /></Field>
             </div>
             <div className="mt-2 grid grid-cols-1 gap-x-2 md:grid-cols-3">
-              <Field label="ตั้งแต่วันที่ - จนถึงวันที่"><button type="button" className="flex h-8 w-full items-center rounded-[3px] border border-[#d9d9d9] bg-white px-2.5 text-sm text-[#555] shadow-sm"><span>23/08/2026</span><span className="mx-auto text-[#999]">→</span><span>23/08/2026</span><CalendarDays className="ml-auto size-4 text-[#8c8c8c]" /></button></Field>
+              <Field label="ตั้งแต่วันที่ - จนถึงวันที่"><ThaiDateRangePicker value={dateRange} onChange={setDateRange} /></Field>
               <Field label="ประเภทเอกสาร"><SelectBox value={documentType} options={DOCUMENT_TYPES} onChange={setDocumentType} /></Field>
               <div />
             </div>

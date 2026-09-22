@@ -11,6 +11,7 @@ import {
 import { cn } from "@/lib/utils"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { ChevronLeftIcon, ChevronRightIcon, ChevronDownIcon } from "lucide-react"
+import { formatThaiMonthYear, gregorianToBuddhistYear } from "@/lib/date/thai-date"
 
 function Calendar({
   className,
@@ -43,6 +44,8 @@ function Calendar({
       formatters={{
         formatMonthDropdown: (date) =>
           date.toLocaleString(locale?.code, { month: "short" }),
+        formatCaption: (date) => formatThaiMonthYear(date),
+        formatYearDropdown: (date) => String(gregorianToBuddhistYear(date.getFullYear())),
         ...formatters,
       }}
       classNames={{

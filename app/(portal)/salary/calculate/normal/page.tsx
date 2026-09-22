@@ -60,7 +60,7 @@ async function PayrollSnapshotLoader() {
 export default function PayrollCalculationPage() {
   return (
     <Suspense
-      fallback={<div aria-busy="true" className="min-h-[calc(100vh-10rem)] animate-pulse bg-[#eef6fd]" />}
+      fallback={<div aria-busy="true" className="min-h-[calc(100vh-70px)] animate-pulse bg-[#f3f6fb]" />}
     >
       <PayrollSnapshotLoader />
     </Suspense>

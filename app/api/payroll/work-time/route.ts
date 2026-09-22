@@ -42,10 +42,6 @@ function dateKey(value: Date) {
   return value.toISOString().slice(0, 10);
 }
 
-function displayDate(value: Date) {
-  return `${String(value.getUTCDate()).padStart(2, "0")}/${String(value.getUTCMonth() + 1).padStart(2, "0")}/${value.getUTCFullYear()}`;
-}
-
 function timeInBangkok(value: Date | null) {
   if (!value) return undefined;
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -146,12 +142,11 @@ export async function GET(request: Request) {
     for (let cursor = new Date(periodStart); cursor < periodEnd; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
       const date = new Date(cursor);
       const key = dateKey(date);
-      const textDate = displayDate(date);
       const beforeHire = date < employee.hireDate;
       const afterTermination = employee.terminationDate !== null && date > employee.terminationDate;
 
       if (beforeHire || afterTermination) {
-        naDates.push(textDate);
+        naDates.push(key);
         continue;
       }
 
@@ -166,7 +161,7 @@ export async function GET(request: Request) {
         : undefined;
 
       rows.push({
-        date: textDate,
+        date: key,
         day: THAI_DAYS[date.getUTCDay()],
         type: isHoliday ? "holiday" : "work",
         status: DAY_TYPE_LABELS[dayType],

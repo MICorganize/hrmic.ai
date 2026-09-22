@@ -25,7 +25,15 @@ const summary: EmployeeSummaryData = {
   byEmploymentType: {}, byBranch: [], byNationality: [], history: [], historyTotal: 0,
 };
 
-beforeEach(() => { vi.mocked(preloadEmployeeSummary).mockReset(); });
+beforeEach(() => {
+  vi.mocked(preloadEmployeeSummary).mockReset();
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+    if (String(input).includes("view=basic")) {
+      return new Response(JSON.stringify({ employees: [], nextCursor: null }));
+    }
+    throw new Error(`Unexpected request: ${String(input)}`);
+  }));
+});
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 
 describe("Employee Dashboard shell-first rendering", () => {
@@ -45,34 +53,12 @@ describe("Employee Dashboard shell-first rendering", () => {
     expect(screen.queryByRole("button", { name: "Dashboard" })).not.toBeInTheDocument();
   });
 
-  it("opens the employee panel on the first click while summary and tree reads are pending", async () => {
+  it("does not render the legacy employee picker while the summary is pending", () => {
     vi.mocked(preloadEmployeeSummary).mockReturnValue(new Promise(() => {}));
-    let resolveTree!: (response: Response) => void;
-    const fetchTree = vi.fn(() => new Promise<Response>((resolve) => { resolveTree = resolve; }));
-    vi.stubGlobal("fetch", fetchTree);
     render(<OrganizationEmployeePage />);
-    expect(fetchTree).not.toHaveBeenCalled();
-    const trigger = screen.getByRole("button", { name: "เลือกพนักงาน" });
-    fireEvent.click(trigger);
-    expect(screen.getByRole("complementary", { name: "รายชื่อพนักงาน" })).toBeVisible();
-    expect(screen.getByTestId("org-emp-select-tree")).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByRole("heading", { name: "เมนูย่อย" })).toBeVisible();
-    expect(screen.queryByText("Employee editor")).not.toBeInTheDocument();
-    expect(fetchTree).toHaveBeenCalledWith("/api/employee?view=tree&includeEmployees=1", expect.objectContaining({ cache: "no-store" }));
-    await act(async () => resolveTree(new Response(JSON.stringify({ orgTree: [{
-      id: "company-pecth", code: "PECTH", name: "PECTH", count: 1, children: [{
-        id: "employee-1", code: "E001", name: "พนักงานทดสอบ", status: "active",
-      }],
-    }] }))));
-    expect(screen.getByRole("button", { name: /E001: พนักงานทดสอบ/ })).toBeVisible();
-    expect(screen.getByTestId("org-emp-select-tree")).toHaveAttribute("aria-busy", "false");
-    fireEvent.click(trigger);
+    expect(screen.queryByRole("button", { name: "เลือกพนักงาน" })).not.toBeInTheDocument();
     expect(screen.queryByRole("complementary", { name: "รายชื่อพนักงาน" })).not.toBeInTheDocument();
-    fireEvent.click(trigger);
-    expect(screen.getByRole("button", { name: /E001: พนักงานทดสอบ/ })).toBeVisible();
-    expect(fetchTree).toHaveBeenCalledOnce();
-    fireEvent.click(screen.getByRole("button", { name: /E001: พนักงานทดสอบ/ }));
-    expect(screen.getByText("Employee editor")).toBeVisible();
+    expect(screen.getByRole("heading", { name: "เมนูย่อย" })).toBeVisible();
   });
 
   it("sends the shell as HTML without requesting summary and hydrates while data is pending", async () => {

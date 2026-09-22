@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, Grid3x3, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronRight, CircleHelp, FileSpreadsheet, RefreshCw, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -70,7 +70,7 @@ function SelectBox({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="h-8 w-full cursor-pointer appearance-none rounded-[4px] border border-[#d9d9d9] bg-white px-[11px] pr-8 font-[Kanit,sans-serif] text-sm leading-[22px] text-[rgba(0,0,0,0.65)] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#40a9ff]"
+        className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-[#dfe4e8] bg-white px-3 pr-9 text-sm font-normal leading-5 text-[#34425c] transition-colors outline-none ring-[#5eaafa] focus:ring-2"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>
@@ -78,15 +78,15 @@ function SelectBox({
           </option>
         ))}
       </select>
-      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#8c8c8c]" />
+      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[#738199]" />
     </div>
   );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div>
-      <label className="block font-[Kanit,sans-serif] text-sm leading-[22px] text-[rgba(0,0,0,0.65)]">{label}</label>
+    <div className="min-w-0">
+      <label className="mb-1.5 block text-xs font-medium leading-5 text-[#5e6b7c]">{label}</label>
       {children}
     </div>
   );
@@ -110,13 +110,19 @@ function SearchCard({
   custom?: boolean;
 }) {
   return (
-    <Card className="mb-3 overflow-hidden rounded-lg border-0 bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]">
-      <div className="flex h-[58.5625px] items-center p-3">
-        <p className="font-[Kanit,sans-serif] text-[22px] font-normal leading-[34.573px] text-[rgba(0,0,0,0.65)]">ค้นหา</p>
+    <Card className="mb-3 overflow-hidden rounded-xl border border-[#e7eaf0] bg-white shadow-[0_3px_12px_rgba(29,52,93,.07)]">
+      <div className="flex items-center gap-2 border-b border-[#edf0f4] px-4 py-3.5">
+        <span className="flex size-8 items-center justify-center rounded-lg bg-[#eaf4ff] text-[#1474ee]">
+          <Search className="size-4" />
+        </span>
+        <div>
+          <h2 className="text-sm font-semibold leading-5 text-[#172348]">ค้นหาข้อมูลพนักงาน</h2>
+          <p className="text-xs leading-5 text-[#7b8798]">กำหนดเงื่อนไขสำหรับรายงานที่ต้องการ</p>
+        </div>
       </div>
-      <CardContent className="px-2 py-4">
+      <CardContent className="p-4">
         {/* Row 1: โครงสร้างองค์กร / ตำแหน่ง / ประเภทข้อมูล */}
-        <div className="grid grid-cols-1 gap-x-2 gap-y-0 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           <Field label="โครงสร้างองค์กร">
             <SelectBox
               value={filters.orgStructure}
@@ -151,7 +157,7 @@ function SearchCard({
         </div>
 
         {/* Row 2: ประเภทพนักงาน / สถานะ / Hashtag */}
-        <div className="grid grid-cols-1 gap-x-2 gap-y-0 md:grid-cols-3">
+        <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {!custom && (
             <Field label="ประเภทพนักงาน">
               <SelectBox
@@ -173,7 +179,7 @@ function SearchCard({
               value={filters.hashtag}
               onChange={(e) => onChange({ ...filters, hashtag: e.target.value })}
               placeholder="#Hashtag"
-              className="h-8 rounded-[4px] border-[#d9d9d9] bg-white px-[11px] font-[Kanit,sans-serif] text-sm leading-[22px] text-[rgba(0,0,0,0.65)] shadow-none focus-visible:ring-1 focus-visible:ring-[#40a9ff]"
+              className="h-10 rounded-lg border-[#dfe4e8] bg-white px-3 text-sm font-normal leading-5 text-[#34425c] shadow-none ring-[#5eaafa] placeholder:text-[#9aa5b4] focus-visible:ring-2 focus-visible:ring-[#5eaafa] focus-visible:ring-offset-0"
             />
           </Field>
           {custom && <div />}
@@ -181,15 +187,16 @@ function SearchCard({
 
       </CardContent>
       {/* Footer — right-aligned buttons (12px padding / 8px gap in the reference). */}
-      <div className="flex h-[60.65px] items-start justify-end gap-2 p-3">
-        <Button className="h-9 rounded-[4px] bg-[#4caf50] px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 shadow-[0px_3px_1px_-2px_rgba(0,0,0,0.2),0px_2px_2px_0px_rgba(0,0,0,0.14),0px_1px_5px_0px_rgba(0,0,0,0.12)] hover:bg-[#4caf50]/90">
+      <div className="flex items-center justify-end gap-2 border-t border-[#edf0f4] px-4 py-3">
+        <Button className="h-9 w-[130px] gap-2 rounded-lg bg-[#20a464] px-4 text-sm font-medium text-white shadow-[0_4px_12px_rgba(32,164,100,.2)] hover:bg-[#188b54]">
           EXCEL
-          <Grid3x3 className="size-4" />
+          <FileSpreadsheet className="size-4" />
         </Button>
         <Button
-          className="h-9 rounded-[4px] bg-[#2299ff] px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 shadow-[0px_3px_1px_-2px_rgba(0,0,0,0.2),0px_2px_2px_0px_rgba(0,0,0,0.14),0px_1px_5px_0px_rgba(0,0,0,0.12)] hover:bg-[#2299ff]/90"
+          className="h-9 w-[130px] gap-2 rounded-lg bg-[#1474ee] px-4 text-sm font-medium text-white shadow-[0_4px_12px_rgba(20,116,238,.24)] hover:bg-[#0d65d8]"
           onClick={onSearch}
         >
+          <Search className="size-4" />
           ค้นหา
         </Button>
       </div>
@@ -251,15 +258,15 @@ const REPORT_COLUMNS: { label: string; align: CellAlign; headerAlign?: CellAlign
 
 function ReportTable({ rows }: { rows: string[][] }) {
   return (
-    <div className="max-h-[650px] overflow-auto border border-[#e8e8e8] bg-white">
-      <table className="min-w-full w-max table-fixed border-separate border-spacing-0 font-[Kanit,sans-serif] text-sm leading-[22px]">
+    <div className="max-h-[650px] overflow-auto rounded-lg border border-[#e5eaf0] bg-white">
+      <table className="min-w-full w-max table-fixed border-separate border-spacing-0 text-sm leading-5">
         <thead>
           <tr>
             {REPORT_COLUMNS.map((col) => (
               <th
                 key={col.label}
                 className={cn(
-                  "sticky top-0 z-10 whitespace-nowrap border-b border-r border-[#e8e8e8] bg-[#61a8ff] px-4 py-4 text-sm font-medium normal-case tracking-normal text-white last:border-r-0",
+                  "sticky top-0 z-10 whitespace-nowrap border-b border-r border-[#2b88ef] bg-[#1474ee] px-4 py-3 text-xs font-semibold normal-case tracking-normal text-white last:border-r-0",
                   (col.headerAlign ?? col.align) === "center" && "text-center",
                   (col.headerAlign ?? col.align) === "right" && "text-right"
                 )}
@@ -271,12 +278,12 @@ function ReportTable({ rows }: { rows: string[][] }) {
         </thead>
         <tbody>
           {rows.map((row, ri) => (
-            <tr key={ri} className="bg-white">
+            <tr key={ri} className="bg-white transition-colors hover:bg-[#f7faff]">
               {row.map((cell, ci) => (
                 <td
                   key={ci}
                   className={cn(
-                    "whitespace-nowrap border-b border-r border-[#e8e8e8] px-4 py-4 text-sm font-normal text-[rgba(0,0,0,0.65)] last:border-r-0",
+                    "whitespace-nowrap border-b border-r border-[#edf0f4] px-4 py-3 text-sm font-normal text-[#4d5a6d] last:border-r-0",
                     REPORT_COLUMNS[ci].align === "center" && "text-center",
                     REPORT_COLUMNS[ci].align === "right" && "text-right"
                   )}
@@ -304,30 +311,36 @@ function NormalReportCard({
   onRetry: () => void;
 }) {
   return (
-    <Card className="mb-3 overflow-hidden rounded-lg border-0 bg-white shadow-[0px_2px_1px_-1px_rgba(0,0,0,0.2),0px_1px_1px_0px_rgba(0,0,0,0.14),0px_1px_3px_0px_rgba(0,0,0,0.12)]">
-      <div className="flex h-[58.5625px] items-center p-3">
-        <p className="font-[Kanit,sans-serif] text-[22px] font-bold leading-[34.573px] text-[rgba(0,0,0,0.65)]">รายงานทะเบียนพนักงาน</p>
+    <Card className="mb-3 overflow-hidden rounded-xl border border-[#e7eaf0] bg-white shadow-[0_3px_12px_rgba(29,52,93,.07)]">
+      <div className="flex items-center justify-between border-b border-[#edf0f4] px-4 py-4">
+        <div>
+          <h2 className="text-sm font-semibold leading-5 text-[#172348]">รายงานทะเบียนพนักงาน</h2>
+          <p className="mt-0.5 text-xs leading-5 text-[#7b8798]">ผลลัพธ์ตามเงื่อนไขการค้นหาที่เลือก</p>
+        </div>
+        {!loading && !error && rows.length > 0 && (
+          <span className="rounded-full bg-[#eaf4ff] px-2.5 py-1 text-xs font-medium text-[#1474ee]">{rows.length} รายการ</span>
+        )}
       </div>
-      <CardContent className="px-2 py-4">
+      <CardContent className="p-4">
         {loading ? (
-          <div className="flex h-64 items-center justify-center gap-2 rounded-md border border-border bg-[#f8f9fa] text-sm text-muted-foreground">
-            <RefreshCw className="size-5 animate-spin" />
+          <div className="flex h-64 items-center justify-center gap-2 rounded-lg border border-[#e7eaf0] bg-[#f8faff] text-sm text-[#6f7b90]">
+            <RefreshCw className="size-5 animate-spin text-[#1474ee]" />
             กำลังโหลดข้อมูล...
           </div>
         ) : error ? (
-          <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-md border border-border bg-[#f8f9fa] text-center">
-            <p className="text-sm text-foreground">ไม่สามารถโหลดรายงานทะเบียนพนักงานได้</p>
+          <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-lg border border-[#e7eaf0] bg-[#f8faff] text-center">
+            <p className="text-sm text-[#34425c]">ไม่สามารถโหลดรายงานทะเบียนพนักงานได้</p>
             <button
               type="button"
               onClick={onRetry}
-              className="inline-flex items-center gap-1.5 rounded-md bg-[#2563eb] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#1d4ed8]"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#1474ee] px-4 py-2 text-sm font-medium text-white shadow-[0_4px_12px_rgba(20,116,238,.24)] transition-colors hover:bg-[#0d65d8]"
             >
               <RefreshCw className="size-4" />
               ลองอีกครั้ง
             </button>
           </div>
         ) : rows.length === 0 ? (
-          <div className="flex h-[163.6px] flex-col items-center justify-center border border-[#f0f0f0] bg-white">
+          <div className="flex h-52 flex-col items-center justify-center rounded-lg border border-dashed border-[#dfe5ee] bg-[#fbfcfe]">
             <svg width="64" height="41" viewBox="0 0 64 41" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
               <g transform="translate(0 1)" fill="none" fillRule="evenodd">
                 <ellipse cx="32" cy="33" rx="32" ry="7" fill="#f5f5f5" />
@@ -337,7 +350,8 @@ function NormalReportCard({
                 </g>
               </g>
             </svg>
-            <p className="mt-2 text-sm text-[#666]">ไม่มีข้อมูล</p>
+            <p className="mt-3 text-sm font-medium text-[#5f6d80]">ไม่มีข้อมูล</p>
+            <p className="mt-1 text-xs text-[#929dac]">กำหนดเงื่อนไขแล้วกดค้นหาเพื่อแสดงรายงาน</p>
           </div>
         ) : (
           <ReportTable rows={rows} />
@@ -418,65 +432,58 @@ export default function ReportEmployeeRegistryPage() {
   }, []);
 
   return (
-    <div>
-      {/* Blue banner — matches the reference: full-width, h-160 (160px), p-24 (24px) */}
-      <section className="relative h-40 border-b border-border bg-[#51A0F5] p-6 text-white">
-        <div className="flex h-full flex-col items-start justify-center">
-          {/* Breadcrumb: รายงาน > กลุ่มประวัติพนักงาน */}
-          <p className="flex items-center gap-0.5 text-sm text-white/85">
-            รายงาน
-            <ChevronRight className="size-4" />
-            กลุ่มประวัติพนักงาน
-          </p>
-
-          {/* Title + tooltip */}
-          <div className="mt-4 flex items-center gap-2.5">
-            <h1 className="font-[Kanit,sans-serif] text-2xl font-normal leading-[37.716px] text-white">รายงานทะเบียนพนักงาน</h1>
-            <button
-              type="button"
-              className="flex size-6 items-center justify-center rounded-full border border-white/70 text-sm font-bold leading-none text-white transition-colors hover:bg-white/20"
-              aria-label="ช่วยเหลือ"
-            >
-              ?
-            </button>
+    <div className="min-h-[calc(100vh-70px)] bg-[#f3f6fb] font-sans">
+      <div className="mx-auto max-w-[1600px] p-3 sm:p-4">
+        <section className="mb-3 overflow-hidden rounded-xl border border-[#e5eaf2] bg-white shadow-[0_3px_12px_rgba(29,52,93,.07)]">
+          <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <p className="flex items-center gap-1 text-xs font-normal leading-5 text-[#7b8798]">
+                รายงาน
+                <ChevronRight className="size-3.5" />
+                กลุ่มประวัติพนักงาน
+              </p>
+              <div className="mt-0.5 flex items-center gap-2">
+                <h1 className="text-xl font-semibold tracking-tight text-[#172348]">รายงานทะเบียนพนักงาน</h1>
+                <button
+                  type="button"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-lg text-[#718096] transition-colors hover:bg-[#eef5ff] hover:text-[#1474ee]"
+                  aria-label="ช่วยเหลือ"
+                >
+                  <CircleHelp className="size-4" />
+                </button>
+              </div>
+              <p className="mt-0.5 text-xs leading-5 text-[#6f7b90]">ค้นหาและจัดทำรายงานข้อมูลพนักงานขององค์กร</p>
+            </div>
           </div>
-        </div>
-      </section>
 
-      {/* Tabs nav — antd-style: tabs with an ink-bar underline on the active tab */}
-      <div className="border-b border-border bg-white">
-        <div className="flex px-4" role="tablist">
-          {TABS.map((tab) => {
-            const active = tab === activeTab;
-            return (
-              <button
-                key={tab}
-                type="button"
-                role="tab"
-                aria-selected={active}
-                onClick={() => setActiveTab(tab)}
-                className={cn(
-                  "relative mr-8 whitespace-nowrap p-3 text-sm leading-[22px] transition-colors last:mr-0",
-                  active ? "font-medium text-[#1976d2]" : "text-[#616161] hover:text-foreground"
-                )}
-              >
-                {tab}
-                {active && (
-                  <span className="absolute inset-x-0 -bottom-px h-0.5 bg-[#1976d2]" />
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
+          <div className="flex border-t border-[#edf0f4] px-4" role="tablist">
+            {TABS.map((tab) => {
+              const active = tab === activeTab;
+              return (
+                <button
+                  key={tab}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setActiveTab(tab)}
+                  className={cn(
+                    "relative mr-7 whitespace-nowrap py-3 text-sm leading-5 transition-colors last:mr-0",
+                    active ? "font-medium text-[#1474ee]" : "font-normal text-[#6f7b90] hover:text-[#34425c]"
+                  )}
+                >
+                  {tab}
+                  {active && <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-[#1474ee]" />}
+                </button>
+              );
+            })}
+          </div>
+        </section>
 
-      {/* Tab content */}
-      <div className="bg-[#f0f2f5] px-6 pb-6 pt-[32.8px]">
-          <SearchCard
-            filters={filters}
-            organizationOptions={organizationOptions}
-            positionOptions={positionOptions}
-            onChange={setFilters}
+        <SearchCard
+          filters={filters}
+          organizationOptions={organizationOptions}
+          positionOptions={positionOptions}
+          onChange={setFilters}
           onSearch={() => loadData(filters)}
           custom={activeTab === "รายงานกำหนดเอง"}
         />

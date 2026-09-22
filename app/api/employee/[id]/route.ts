@@ -70,9 +70,7 @@ function parseMoney(value: unknown): number | null {
 /** Formats a DATE (returned at UTC midnight) as dd/mm/yyyy. */
 function fmtDate(value: Date | null | undefined): string | null {
   if (!value) return null;
-  const d = String(value.getUTCDate()).padStart(2, "0");
-  const m = String(value.getUTCMonth() + 1).padStart(2, "0");
-  return `${d}/${m}/${value.getUTCFullYear()}`;
+  return value.toISOString().slice(0, 10);
 }
 
 /** Formats a money value as 1,234.00; empty → null. */

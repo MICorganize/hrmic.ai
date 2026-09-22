@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { format, parse } from "date-fns";
 import { th } from "date-fns/locale/th";
 import {
   Calendar as CalendarIcon,
@@ -12,17 +11,17 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleHelp,
-  Pencil,
   RefreshCw,
-  UserCog,
-  UserPlus,
 } from "lucide-react";
 
-import { EmployeeSelectPanel, type OrgNode } from "@/components/employee/EmployeeSelectPanel";
+import type { OrgNode } from "@/components/employee/EmployeeSelectPanel";
 import { Calendar } from "@/components/ui/calendar";
 import { Card, CardContent } from "@/components/ui/card";
+import { ThaiYearPicker } from "@/components/ui/thai-date-picker";
+import { EmployeePageHeadingCard } from "../employee-page-heading-card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SUPPORT_ASSET_ORIGIN, USER_IMAGE_ORIGIN } from "@/lib/external-assets";
+import { formatThaiDateNumeric, formatThaiDateTimeText, formatThaiYear, parseIsoDate, toIsoDate } from "@/lib/date/thai-date";
 import { formatPhone } from "@/lib/phone";
 import { cn } from "@/lib/utils";
 
@@ -310,10 +309,10 @@ function FieldShell({
   className?: string;
 }) {
   return (
-    <div className={className}>
-      <label className="mb-1 block font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-[rgba(0,0,0,0.65)]">
+    <div className={cn("px-1.5 py-[5px]", className)}>
+      <label className="mb-1 block text-sm font-normal leading-5 text-[#4b5870]">
         {label}
-        {required && <span className="text-red-500"> *</span>}
+        {required && <span className="text-[#ff0000]"> *</span>}
       </label>
       {children}
     </div>
@@ -350,8 +349,8 @@ function TextBox({
       inputMode={inputMode}
       maxLength={maxLength}
       className={cn(
-        "relative -top-1 flex h-8 w-full rounded-[4px] border border-[#d9d9d9] bg-white px-3 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none focus:border-[#2299ff]",
-        disabled && "bg-[#f5f5f5] text-black/45",
+        "h-8 w-full rounded-lg border border-[#dfe4e8] bg-white px-3 text-sm font-normal leading-5 text-[#34425c] shadow-none outline-none transition-colors placeholder:text-[#9aa5b5] focus:border-[#5eaafa] focus:ring-2 focus:ring-[#5eaafa]/20",
+        disabled && "cursor-not-allowed bg-[#f5f7fa] text-[#7b8798]",
         className
       )}
     />
@@ -370,18 +369,18 @@ function SelectBox({
   className?: string;
 }) {
   return (
-    <div className="relative -top-1 w-full">
+    <div className="relative w-full">
       <input
         name={name}
         type="text"
         defaultValue={value ?? ""}
         placeholder={placeholder}
         className={cn(
-          "flex h-8 w-full rounded-[4px] border border-[#d9d9d9] bg-white px-3 pr-9 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none focus:border-[#2299ff]",
+          "h-8 w-full rounded-lg border border-[#dfe4e8] bg-white px-3 pr-9 text-sm font-normal leading-5 text-[#34425c] shadow-none outline-none transition-colors placeholder:text-[#9aa5b5] focus:border-[#5eaafa] focus:ring-2 focus:ring-[#5eaafa]/20",
           className
         )}
       />
-      <ChevronDown className="pointer-events-none absolute right-3 top-2 size-4 text-black/45" />
+      <ChevronDown className="pointer-events-none absolute right-2.5 top-[calc(50%-4px)] size-4 -translate-y-1/2 text-black/45" />
     </div>
   );
 }
@@ -397,23 +396,18 @@ function DateBox({
   placeholder?: string;
   className?: string;
 }) {
-  const initialDate = (() => {
-    if (!value) return undefined;
-    const raw = value.split("T")[0];
-    try { return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? parse(raw, "yyyy-MM-dd", new Date()) : parse(raw, "dd/MM/yyyy", new Date()); }
-    catch { return undefined; }
-  })();
+  const initialDate = parseIsoDate(value);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Date | undefined>(initialDate);
-  const displayText = selected ? format(selected, "dd/MM/yyyy") : "";
+  const displayText = selected ? formatThaiDateNumeric(selected) : "";
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      {name && <input type="hidden" name={name} value={selected ? format(selected, "yyyy-MM-dd") : ""} />}
+      {name && <input type="hidden" name={name} value={selected ? toIsoDate(selected) : ""} />}
       <PopoverTrigger asChild>
-        <button type="button" className={cn("relative -top-1 flex h-8 w-full items-center justify-between rounded-[4px] border border-[#d9d9d9] bg-white px-3 pr-9 text-left font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none focus:border-[#2299ff]", !selected && "text-muted-foreground/60", className)}>
+        <button type="button" className={cn("relative flex h-8 w-full items-center justify-between rounded-lg border border-[#dfe4e8] bg-white px-3 pr-9 text-left text-sm font-normal leading-5 text-[#34425c] shadow-none outline-none transition-colors focus:border-[#5eaafa] focus:ring-2 focus:ring-[#5eaafa]/20", !selected && "text-muted-foreground/60", className)}>
           <span className="truncate">{displayText || placeholder || "เลือกวันที่"}</span>
-          <CalendarIcon className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-black/65" />
+          <CalendarIcon className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0">
@@ -434,35 +428,28 @@ function RadioRow({
   value: string;
   className?: string;
 }) {
-  const isGender = options.includes("ชาย");
-  const optionWidths = isGender
-    ? [54.375, 61.6375, 69.55]
-    : [52.75, 207.4625, 82.9375];
-
   return (
     <div
       className={cn(
-        "flex h-8 w-full flex-wrap content-start gap-x-2 gap-y-0 overflow-visible font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-[rgba(0,0,0,0.65)]",
-        isGender ? "relative -top-1 pl-[1.4px]" : "pt-px pl-[2.74px]",
+        "flex w-full flex-wrap items-center gap-x-2",
         className
       )}
     >
-      {options.map((opt, index) => {
+      {options.map((opt) => {
         const checked = opt === value;
         return (
         <label
           key={opt}
-          className="inline-flex h-[22.001px] shrink-0 items-center gap-2"
-          style={{ width: `${optionWidths[index]}px` }}
+          className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-[8px] text-sm font-normal leading-5 text-[#4b5870]"
         >
           <input type="radio" name={name} value={opt} defaultChecked={checked} className="sr-only" />
           <span
             className={cn(
-              "flex size-4 items-center justify-center rounded-[100px] border-[0.8px] bg-white",
-              checked ? "border-[#1890ff]" : "border-[#d9d9d9]"
+              "flex size-4 items-center justify-center rounded-full border bg-white",
+              checked ? "border-[#1474ee]" : "border-[#cbd5e1]"
             )}
           >
-            {checked && <span className="size-2 rounded-[8px] bg-[#1890ff]" />}
+            {checked && <span className="size-2 rounded-full bg-[#1474ee]" />}
           </span>
           <span>{opt}</span>
         </label>
@@ -541,12 +528,12 @@ function SettingsTable({ headers, children }: { headers: string[]; children: Rea
 function SettingPanel({ title, children, contentClassName }: { title: string; children: React.ReactNode; contentClassName?: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <section className="border-b border-[#d9d9d9] font-[Kanit,sans-serif]">
-      <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} className="relative flex h-[46px] w-full items-center bg-transparent py-3 pl-10 pr-4 text-left font-[kanit] text-sm font-normal leading-[22px] tracking-[-0.1px] text-[rgba(0,0,0,0.85)]">
-        <ChevronRight className={cn("absolute left-4 size-3.5 shrink-0 text-black/65 transition-transform", open && "rotate-90")} strokeWidth={2} />
+    <section className="border-b border-[#e5eaf2] font-[Kanit,sans-serif] last:border-b-0">
+      <button type="button" onClick={() => setOpen((current) => !current)} aria-expanded={open} className="relative flex h-12 w-full items-center bg-white py-3 pl-10 pr-4 text-left text-sm font-normal leading-[22px] text-[#34425c] transition-colors hover:bg-[#f8faff]">
+        <ChevronRight className={cn("absolute left-4 size-3.5 shrink-0 text-[#738199] transition-transform", open && "rotate-90 text-[#1474ee]")} strokeWidth={2} />
         {title}
       </button>
-      {open && <div className={cn("border-t border-[#d9d9d9] bg-white p-3", contentClassName)}>{children}</div>}
+      {open && <div className={cn("border-t border-[#edf0f5] bg-[#f8faff] p-4", contentClassName)}>{children}</div>}
     </section>
   );
 }
@@ -557,12 +544,12 @@ function EmployeeSettingsContent() {
     setSaved(true);
     window.setTimeout(() => setSaved(false), 1600);
   };
-  const saveButton = <button type="button" onClick={save} className="mt-4 h-9 w-full rounded-[4px] bg-[#03ae03] px-4 font-[Kanit,sans-serif] text-sm font-semibold text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-[#029b02]">{saved ? "บันทึกแล้ว" : "บันทึก"}</button>;
+  const saveButton = <button type="button" onClick={save} className="mt-4 h-10 w-full rounded-lg bg-[#1474ee] px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-[22px] text-white shadow-[0_4px_12px_rgba(20,116,238,.24)] transition-colors hover:bg-[#0d65d8]">{saved ? "บันทึกแล้ว" : "บันทึก"}</button>;
   const checkbox = <input type="checkbox" defaultChecked className="size-4 accent-[#1890ff]" aria-label="เปิดใช้งาน" />;
 
   return (
-    <div className="bg-white pb-4 font-[Kanit,sans-serif]">
-      <div className="mx-0 w-[calc(100%+0.2px)] overflow-hidden rounded-[2px] border-x border-t border-b-0 border-[#d9d9d9] bg-[#fafafa]">
+    <div className="overflow-hidden rounded-xl border border-[#e5eaf2] bg-white shadow-[0_3px_12px_rgba(29,52,93,0.06)]">
+      <div className="overflow-hidden bg-white">
         <SettingPanel title="ตั้งค่าทั่วไป">
           <div className="space-y-3">
             <div><label className="mb-1 block text-sm text-[rgba(0,0,0,0.65)]">จำนวนวันที่ทำงาน</label><SettingRadioGroup name="working-days" options={["26 วัน", "30 วัน", "ตามจริง", "ตามการตั้งค่าองค์กร"]} initialValue="30 วัน" /></div>
@@ -595,7 +582,7 @@ function EmployeeSettingsContent() {
         <SettingPanel title="ตั้งค่าวันทำงาน-วันหยุด"><label className="mb-1 block text-sm text-[rgba(0,0,0,0.65)]">วันทำงาน - วันหยุด</label><SettingSelect /><SettingsTable headers={["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"]}><tr>{["วันทำงาน", "วันทำงาน", "วันทำงาน", "วันทำงาน", "วันทำงาน", "วันหยุดพนักงาน", "วันหยุดพนักงาน"].map((day, index) => <td key={`work-day-${index}`} className="border-r border-t border-[#d9d9d9] px-3 py-2 text-center last:border-r-0">{day}</td>)}</tr></SettingsTable></SettingPanel>
         <SettingPanel title="ตั้งค่าการมองเห็นประเภทโอที"><SettingsTable headers={["เปิดโอทีทั้งหมด", "โอทีล่วงเวลา (x1.0)", "โอทีล่วงเวลา (x1.5)", "โอทีวันหยุด (x2.0)", "โอทีล่วงเวลาวันหยุด (x3.0)"]}><tr>{Array.from({ length: 5 }).map((_, index) => <td key={index} className="border-r border-t border-[#d9d9d9] px-3 py-2 text-center last:border-r-0">{checkbox}</td>)}</tr></SettingsTable>{saveButton}</SettingPanel>
         <SettingPanel title="ตั้งค่าการมองเห็นประเภทการลา"><SettingsTable headers={["ลากิจพิเศษ", "ลากิจธุระส่วนตัว", "ลาป่วย", "ลาพักร้อน"]}><tr>{Array.from({ length: 4 }).map((_, index) => <td key={index} className="border-r border-t border-[#d9d9d9] px-3 py-2 text-center last:border-r-0">{checkbox}</td>)}</tr></SettingsTable><p className="mt-2 text-sm text-black/65">หมายเหตุ: รายการนี้จะแสดงเฉพาะประเภทการลาที่เปิดใช้งานเท่านั้น และยกเว้นประเภทการลาที่มีรหัสอ้างอิง 09</p>{saveButton}</SettingPanel>
-        <SettingPanel title="ตั้งค่าโควตาการลา"><SettingsTable headers={["ปี", "ลากิจพิเศษ", "ลากิจธุระส่วนตัว", "ลาป่วย", "ลาพักร้อน", "ขาดงาน"]}>{[2024, 2025, 2026].map((year) => <tr key={year}><td className="border-r border-t border-[#d9d9d9] px-3 py-2 text-center">{year}</td>{Array.from({ length: 5 }).map((_, index) => <td key={index} className="border-r border-t border-[#d9d9d9] px-3 py-1.5 text-center last:border-r-0"><input disabled={year !== 2026} type="number" min="0" className="h-8 w-full rounded border border-[#d9d9d9] px-2 disabled:bg-[#f5f5f5]" /></td>)}</tr>)}</SettingsTable>{saveButton}</SettingPanel>
+        <SettingPanel title="ตั้งค่าโควตาการลา"><SettingsTable headers={["ปี", "ลากิจพิเศษ", "ลากิจธุระส่วนตัว", "ลาป่วย", "ลาพักร้อน", "ขาดงาน"]}>{[2024, 2025, 2026].map((year) => <tr key={year}><td className="border-r border-t border-[#d9d9d9] px-3 py-2 text-center">{formatThaiYear(year)}</td>{Array.from({ length: 5 }).map((_, index) => <td key={index} className="border-r border-t border-[#d9d9d9] px-3 py-1.5 text-center last:border-r-0"><input disabled={year !== 2026} type="number" min="0" className="h-8 w-full rounded border border-[#d9d9d9] px-2 disabled:bg-[#f5f5f5]" /></td>)}</tr>)}</SettingsTable>{saveButton}</SettingPanel>
         <SettingPanel title="ตั้งค่าเวลาการทำงาน"><p className="mb-3 text-base text-[rgba(0,0,0,0.85)]">ประเภทเวลาการทำงาน</p><SettingsTable headers={["ประเภทเวลาการทำงาน", "เริ่มนับเวลา (นาที)", "เวลาคำนวณ", "วิธีการคำนวณ", "นำไปคำนวณกับ", "ประเภทวันที่คำนวณ"]}>{["มาเช้า", "สาย", "พักเกิน", "พักไว", "กลับก่อน", "กลับช้า"].map((type) => <tr key={type}><td className="border-r border-t border-[#d9d9d9] px-3 py-2 text-center font-medium">{type}</td><td className="border-r border-t border-[#d9d9d9] px-3 py-2 text-center">0</td><td className="border-r border-t border-[#d9d9d9] px-3 py-2">เริ่มคำนวณทันที</td><td className="border-r border-t border-[#d9d9d9] px-3 py-2">1 เท่าของค่าแรง</td><td className="border-r border-t border-[#d9d9d9] px-3 py-2 text-center">-</td><td className="border-t border-[#d9d9d9] px-3 py-2">วันทำงาน</td></tr>)}</SettingsTable><p className="mb-3 mt-5 text-base text-[rgba(0,0,0,0.85)]">ประเภทโอที</p><SettingsTable headers={["ประเภทโอที", "เริ่มนับเวลา (นาที)", "เวลาคำนวณ", "วิธีการคำนวณ", "ชั่วโมงโอทีสูงสุด", "การปัดเศษชั่วโมง"]}>{["โอทีล่วงเวลา (x1.0)", "โอทีล่วงเวลา (x1.5)", "โอทีวันหยุด (x2.0)", "โอทีล่วงเวลาวันหยุด (x3.0)"].map((type) => <tr key={type}><td className="border-r border-t border-[#d9d9d9] px-3 py-2 text-center font-medium">{type}</td><td className="border-r border-t border-[#d9d9d9] px-3 py-2 text-center">0</td><td className="border-r border-t border-[#d9d9d9] px-3 py-2">เริ่มคำนวณทันที</td><td className="border-r border-t border-[#d9d9d9] px-3 py-2">1 เท่าของค่าแรง</td><td className="border-r border-t border-[#d9d9d9] px-3 py-2">ตามกะการทำงาน</td><td className="border-t border-[#d9d9d9] px-3 py-2">ไม่ปัดเศษ</td></tr>)}</SettingsTable></SettingPanel>
         <SettingPanel title="ตั้งค่าใบหน้า">
           <div className="space-y-4">
@@ -910,8 +897,7 @@ function SalaryAdjustmentHistoryContent() {
             <label className="flex min-w-0 flex-1 flex-col text-sm leading-[22px] text-[rgba(0,0,0,0.87)]">
               ปี
               <span className="relative block">
-                <input value={year} onChange={(event) => { setYear(event.target.value.replace(/\D/g, "").slice(0, 4)); setMonth(""); }} placeholder="ปี" inputMode="numeric" className="h-[31.6px] w-full rounded border border-[#d9d9d9] bg-white px-[11px] py-1 pr-9 text-sm leading-[22px] text-[rgba(0,0,0,0.65)] outline-none placeholder:text-[#bfbfbf] focus:border-[#1890ff]" />
-                <svg aria-hidden="true" viewBox="64 64 896 896" className="pointer-events-none absolute right-[11px] top-1/2 size-3.5 -translate-y-1/2 fill-current text-black/45"><path d="M880 184H712v-64c0-4.4-3.6-8-8-8h-56c-4.4 0-8 3.6-8 8v64H384v-64c0-4.4-3.6-8-8-8h-56c-4.4 0-8 3.6-8 8v64H144c-17.7 0-32 14.3-32 32v664c0 17.7 14.3 32 32 32h736c17.7 0 32-14.3 32-32V216c0-17.7-14.3-32-32-32zm-40 656H184V460h656v380zM184 392V256h128v48c0 4.4 3.6 8 8 8h56c4.4 0 8-3.6 8-8v-48h256v48c0 4.4 3.6 8 8 8h56c4.4 0 8-3.6 8-8v-48h128v136H184z" /></svg>
+                <ThaiYearPicker value={year} onChange={(value) => { setYear(value); setMonth(""); }} className="h-[31.6px] w-full rounded border border-[#d9d9d9] bg-white px-[11px] py-1 pr-9 text-sm leading-[22px] text-[rgba(0,0,0,0.65)] outline-none focus:border-[#1890ff]" />
               </span>
             </label>
             <label className="flex min-w-0 flex-1 flex-col text-sm leading-[22px] text-[rgba(0,0,0,0.87)]">
@@ -1322,22 +1308,22 @@ type EditHistoryRow = {
 };
 
 const EDIT_HISTORY_ROWS: readonly EditHistoryRow[] = [
-  { date: "26/08/2026 22:08:22", note: ["แก้ไขข้อมูลพนักงาน (Manual)", 'Email เปลี่ยนจาก "cadirek@gmail.com" เป็น "micorganize@gmail.com"'] },
-  { date: "24/08/2026 17:44:42", note: ['แก้ไขรายรับรายจ่ายคงที่ "ค่าตอบแทนจากยอดขาย" มูลค่า  บาท'] },
-  { date: "03/08/2026 12:49:31", note: ["แก้ไขข้อมูลพนักงาน (Manual)", ' เปลี่ยนจาก "235/15 หมู่บ้าน ปรีชาราม 2 ถนน ราษฎร์พัฒนา" เป็น "47 ถ.เลียบคลองภาษีเจริญฝั่งใต้"', 'รหัสไปรษณีย์ เปลี่ยนจาก "10240" เป็น "10160"', ' เปลี่ยนจาก "235/15 หมู่บ้าน ปรีชาราม 2 ถนน ราษฎร์พัฒนา" เป็น "47 ถ.เลียบคลองภาษีเจริญฝั่งใต้"', 'อำเภอ/เขต เปลี่ยนจาก "เขตสะพานสูง" เป็น "เขตหนองแขม"', 'ตำบล/แขวง เปลี่ยนจาก "แขวงราษฎร์พัฒนา" เป็น "แขวงหนองแขม"', 'เลขไปรษณีย์ เปลี่ยนจาก "10240" เป็น "10160"'] },
-  { date: "03/08/2026 12:46:09", note: ["แก้ไขข้อมูลพนักงาน (Manual)"], editor: "อดิเรก ฉ่ำชื่น" },
-  { date: "29/05/2026 09:30:18", note: ["แก้ไขข้อมูลพนักงาน (Manual)", 'ประกันสังคม เปลี่ยนจาก "คิดตามฐานเงินเดือนจริงที่ได้รับ" เป็น "ไม่คิดประกันสังคม"'] },
-  { date: "29/04/2026 18:59:16", note: ["แก้ไขข้อมูลพนักงาน (Multiple)"] },
-  { date: "06/04/2026 04:17:17", note: ["แก้ไขข้อมูลพนักงาน (Manual)"] },
-  { date: "27/03/2026 13:21:20", note: ['แก้ไขรายรับรายจ่ายคงที่ "ค่าเดินทาง/ ค่าน้ำมัน" มูลค่า 5000 บาท'] },
-  { date: "27/03/2026 13:21:11", note: ['แก้ไขรายรับรายจ่ายคงที่ "ค่าบำรุงรักษารถ" มูลค่า  บาท'] },
-  { date: "27/03/2026 13:20:20", note: ['แก้ไขรายรับรายจ่ายคงที่ "ค่าบำรุงรักษารถ" มูลค่า 5000 บาท'] },
-  { date: "27/02/2026 19:15:14", note: ["แก้ไขข้อมูลพนักงาน (Manual)"] },
-  { date: "27/02/2026 18:57:09", note: ['แก้ไขรายรับรายจ่ายคงที่ "ค่าเดินทาง/ ค่าน้ำมัน" มูลค่า 0 บาท'] },
-  { date: "27/02/2026 18:56:16", note: ["แก้ไขข้อมูลพนักงาน (Manual)"] },
-  { date: "27/02/2026 16:06:25", note: ['แก้ไขรายรับรายจ่ายคงที่ "ค่าเดินทาง/ ค่าน้ำมัน" มูลค่า 5000 บาท'] },
-  { date: "27/02/2026 16:00:27", note: ["แก้ไขข้อมูลพนักงาน (Manual)"] },
-  { date: "27/02/2026 15:57:35", note: ["แก้ไขข้อมูลพนักงาน (Manual)", 'เลขที่บัญชีธนาคาร เปลี่ยนจาก "" เป็น "0692223501"'] },
+  { date: "26/08/2569 22:08:22", note: ["แก้ไขข้อมูลพนักงาน (Manual)", 'Email เปลี่ยนจาก "cadirek@gmail.com" เป็น "micorganize@gmail.com"'] },
+  { date: "24/08/2569 17:44:42", note: ['แก้ไขรายรับรายจ่ายคงที่ "ค่าตอบแทนจากยอดขาย" มูลค่า  บาท'] },
+  { date: "03/08/2569 12:49:31", note: ["แก้ไขข้อมูลพนักงาน (Manual)", ' เปลี่ยนจาก "235/15 หมู่บ้าน ปรีชาราม 2 ถนน ราษฎร์พัฒนา" เป็น "47 ถ.เลียบคลองภาษีเจริญฝั่งใต้"', 'รหัสไปรษณีย์ เปลี่ยนจาก "10240" เป็น "10160"', ' เปลี่ยนจาก "235/15 หมู่บ้าน ปรีชาราม 2 ถนน ราษฎร์พัฒนา" เป็น "47 ถ.เลียบคลองภาษีเจริญฝั่งใต้"', 'อำเภอ/เขต เปลี่ยนจาก "เขตสะพานสูง" เป็น "เขตหนองแขม"', 'ตำบล/แขวง เปลี่ยนจาก "แขวงราษฎร์พัฒนา" เป็น "แขวงหนองแขม"', 'เลขไปรษณีย์ เปลี่ยนจาก "10240" เป็น "10160"'] },
+  { date: "03/08/2569 12:46:09", note: ["แก้ไขข้อมูลพนักงาน (Manual)"], editor: "อดิเรก ฉ่ำชื่น" },
+  { date: "29/05/2569 09:30:18", note: ["แก้ไขข้อมูลพนักงาน (Manual)", 'ประกันสังคม เปลี่ยนจาก "คิดตามฐานเงินเดือนจริงที่ได้รับ" เป็น "ไม่คิดประกันสังคม"'] },
+  { date: "29/04/2569 18:59:16", note: ["แก้ไขข้อมูลพนักงาน (Multiple)"] },
+  { date: "06/04/2569 04:17:17", note: ["แก้ไขข้อมูลพนักงาน (Manual)"] },
+  { date: "27/03/2569 13:21:20", note: ['แก้ไขรายรับรายจ่ายคงที่ "ค่าเดินทาง/ ค่าน้ำมัน" มูลค่า 5000 บาท'] },
+  { date: "27/03/2569 13:21:11", note: ['แก้ไขรายรับรายจ่ายคงที่ "ค่าบำรุงรักษารถ" มูลค่า  บาท'] },
+  { date: "27/03/2569 13:20:20", note: ['แก้ไขรายรับรายจ่ายคงที่ "ค่าบำรุงรักษารถ" มูลค่า 5000 บาท'] },
+  { date: "27/02/2569 19:15:14", note: ["แก้ไขข้อมูลพนักงาน (Manual)"] },
+  { date: "27/02/2569 18:57:09", note: ['แก้ไขรายรับรายจ่ายคงที่ "ค่าเดินทาง/ ค่าน้ำมัน" มูลค่า 0 บาท'] },
+  { date: "27/02/2569 18:56:16", note: ["แก้ไขข้อมูลพนักงาน (Manual)"] },
+  { date: "27/02/2569 16:06:25", note: ['แก้ไขรายรับรายจ่ายคงที่ "ค่าเดินทาง/ ค่าน้ำมัน" มูลค่า 5000 บาท'] },
+  { date: "27/02/2569 16:00:27", note: ["แก้ไขข้อมูลพนักงาน (Manual)"] },
+  { date: "27/02/2569 15:57:35", note: ["แก้ไขข้อมูลพนักงาน (Manual)", 'เลขที่บัญชีธนาคาร เปลี่ยนจาก "" เป็น "0692223501"'] },
 ] as const;
 
 function EditHistoryContent() {
@@ -1372,7 +1358,7 @@ function EditHistoryContent() {
                     <td className="border-b border-r border-[#f0f0f0] p-4 text-center leading-[22px]">{index + 1}</td>
                     <td className="border-b border-r border-[#f0f0f0] p-4 text-left leading-[22px]">อดิเรก ฉ่ำชื่น</td>
                     <td className="border-b border-r border-[#f0f0f0] p-4 text-left leading-[22px]">{row.editor ?? "Adirek Chumchuen"}</td>
-                    <td className="border-b border-r border-[#f0f0f0] p-4 text-center leading-[22px]">{row.date}</td>
+                    <td className="border-b border-r border-[#f0f0f0] p-4 text-center leading-[22px]">{formatThaiDateTimeText(row.date)}</td>
                     <td className="border-b border-r border-[#f0f0f0] p-4 text-left leading-[22px]">
                       <p className="m-0 p-0">
                         {row.note.map((line, lineIndex) => (
@@ -1481,9 +1467,9 @@ function WelfareContent() {
 }
 
 const TAX_ROWS = [
-  { year: "2026", months: "9 เดือน", value: "63,500" },
-  { year: "2025", months: "1 เดือน", value: "60,000" },
-  { year: "2024", months: "1 เดือน", value: "0" },
+  { year: "2569", months: "9 เดือน", value: "63,500" },
+  { year: "2568", months: "1 เดือน", value: "60,000" },
+  { year: "2567", months: "1 เดือน", value: "0" },
 ];
 
 function TaxContent() {
@@ -1534,12 +1520,11 @@ function TaxContent() {
 /* --------------------------------- Helpers -------------------------------- */
 
 /** Formats elapsed employment time as the reference header's month/day text. */
-function employmentDuration(dateStr: string | null): string | null {
+function employmentDuration(dateStr: string | null, showYears = false): string | null {
   if (!dateStr) return null;
-  const m = dateStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!m) return null;
   const now = new Date();
-  const start = new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+  const start = parseIsoDate(dateStr);
+  if (!start) return null;
   if (Number.isNaN(start.getTime()) || start > now) return null;
   let months = (now.getFullYear() - start.getFullYear()) * 12 + now.getMonth() - start.getMonth();
   let days = now.getDate() - start.getDate();
@@ -1547,7 +1532,10 @@ function employmentDuration(dateStr: string | null): string | null {
     months--;
     days += new Date(now.getFullYear(), now.getMonth(), 0).getDate();
   }
-  return `${months} เดือน ${days} วัน`;
+  if (!showYears) return `${months} เดือน ${days} วัน`;
+  const years = Math.floor(months / 12);
+  const remainingMonths = months % 12;
+  return `${years} ปี ${remainingMonths} เดือน ${days} วัน`;
 }
 
 /* ------------------------------- Status cards ------------------------------ */
@@ -1616,26 +1604,21 @@ export default function OrganizationEmployeeDetailPage({
   selectedEmployee,
   initialEmployee,
   onBack,
-  onEmployeeChange,
 }: {
   employeeId?: string;
   selectedEmployee?: OrgNode | null;
   /** Fully loaded data supplied by the employee picker to avoid a preview render. */
   initialEmployee?: EmployeeDetail | null;
   onBack?: () => void;
-  onEmployeeChange?: (employee: OrgNode) => void;
 }) {
   const params = useParams<{ id?: string }>();
   const employeeId = selectedEmployeeId ?? params.id ?? "";
   const [activeTab, setActiveTab] = useState(TABS[0]);
-  const [selectOpen, setSelectOpen] = useState(false);
   const tabsScrollRef = useRef<HTMLDivElement>(null);
   const [tabPagination, setTabPagination] = useState({ canGoBack: false, canGoForward: true });
   const [loadedEmp, setEmp] = useState<EmployeeDetail | null>(() =>
     initialEmployee ?? (selectedEmployee ? detailPreviewFromTreeNode(selectedEmployee) : null)
   );
-  const [orgTree, setOrgTree] = useState<OrgNode[]>([]);
-  const [orgTreeLoading, setOrgTreeLoading] = useState(true);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [pendingSavePayload, setPendingSavePayload] = useState<Record<string, FormDataEntryValue> | null>(null);
   const saveButtonRef = useRef<HTMLButtonElement>(null);
@@ -1677,28 +1660,6 @@ export default function OrganizationEmployeeDetailPage({
       cancelled = true;
     };
   }, [employeeId, initialEmployee, load, reloadVersion]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      setOrgTreeLoading(true);
-      try {
-        const response = await fetch("/api/employee?view=tree&includeEmployees=1", { cache: "no-store" });
-        if (!response.ok) return;
-        const data = (await response.json()) as { orgTree?: OrgNode[] };
-        if (!cancelled) setOrgTree(data.orgTree ?? []);
-      } finally {
-        if (!cancelled) setOrgTreeLoading(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  useEffect(() => {
-    const closeEmployeeList = () => setSelectOpen(false);
-    window.addEventListener("employee-list-close", closeEmployeeList);
-    return () => window.removeEventListener("employee-list-close", closeEmployeeList);
-  }, []);
 
   const retry = useCallback(() => {
     setReloadVersion((current) => current + 1);
@@ -1757,160 +1718,47 @@ export default function OrganizationEmployeeDetailPage({
       : emp.nationality === "ต่างชาติ"
         ? "ต่างชาติ"
         : "ไม่ระบุสัญชาติ / บุคคลพื้นที่สูง";
-  const code = emp.employeeCode ?? emp.employeeNumber;
   const orgLabel = [emp.companyName, emp.branchName].filter(Boolean).join(" - ");
-  const startDuration = employmentDuration(emp.hireDate);
-  const confirmationDuration = employmentDuration(emp.confirmationDate);
+  const startDuration = employmentDuration(emp.hireDate, true);
+  const confirmationDuration = employmentDuration(emp.confirmationDate, true);
   const pendingValue = (loading && selectedEmployee) || isPreview ? "" : "-";
 
   return (
     <div
       className={cn(
-        "transition-[opacity,transform] duration-200 ease-out",
+        "h-[calc(100vh-70px)] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-white font-sans transition-[opacity,transform] duration-200 ease-out",
         isPreview ? "translate-y-0.5 opacity-75" : "translate-y-0 opacity-100"
       )}
       aria-busy={loading}
-      onClick={(event) => {
-        const target = event.target as HTMLElement;
-        if (!target.closest("[data-employee-select-panel]") && !target.closest("[data-employee-select-trigger]")) {
-          setSelectOpen(false);
-        }
-      }}
     >
-      <section className="flex h-40 w-[calc(100%+15.2px)] items-center justify-between overflow-hidden bg-[#61a8ff] p-6 font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-white">
-        <div className="flex h-28 w-[210.8px] shrink-0 flex-col items-start">
-          <div className="mt-[6.675px] flex h-[22.001px] w-full items-center text-sm leading-[22.001px] text-white/70">
-            <span>ข้อมูลองค์กร</span>
-            <ChevronRight className="mx-0.5 size-4" />
-            <span>ข้อมูลพนักงาน</span>
-          </div>
-          <div className="flex h-10 items-center">
-            {onBack ? (
-              <button
-                type="button"
-                onClick={onBack}
-                className="flex size-10 shrink-0 items-center justify-center text-white transition-colors hover:bg-white/15"
-                aria-label="กลับ"
-              >
-                <ChevronLeft className="size-5" />
-              </button>
-            ) : (
-              <Link
-                href="/organization/organization-employee"
-                className="flex size-10 shrink-0 items-center justify-center text-white transition-colors hover:bg-white/15"
-                aria-label="กลับ"
-              >
-                <ChevronLeft className="size-5" />
-              </Link>
-            )}
-            <h1 className="flex h-[37.7125px] w-[170.8px] shrink-0 items-center whitespace-nowrap pr-[30px] text-[24px] font-normal leading-[37.716px]">ข้อมูลพนักงาน</h1>
-          </div>
-          <button
-            type="button"
-            data-employee-select-trigger
-            onClick={() => setSelectOpen((v) => !v)}
-            className={cn(
-              "inline-flex h-[36.65px] w-[210.8px] items-center justify-center gap-0 rounded-[4px] bg-white px-4 text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-slate-100",
-              selectOpen && "bg-slate-100"
-            )}
-            aria-expanded={selectOpen}
-          >
-            <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" className="size-6 shrink-0" fill="currentColor">
-              <path d="M3 18h18v-2H3v2Zm0-5h18v-2H3v2Zm0-7v2h18V6H3Z" />
-            </svg>
-            เลือกพนักงาน
-          </button>
-        </div>
-
-        <div id="card-user-profile" className="flex h-[131.4px] min-w-0 flex-1 items-center">
-          <div id="container-user-info" className="flex h-full w-full items-center">
-            <div id="container-image-profile" className="h-24 w-32 shrink-0">
-              {/* The reference application uses a direct avatar image here. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                id="image-user"
-                src={`${USER_IMAGE_ORIGIN}/images/userPlaceHolder.png`}
-                alt=""
-                className="ml-6 mr-2 block size-24 rounded-full object-fill shadow-[0_0_0_1.79272px_rgba(3,174,3,0.7),0_0_0_7.88179px_rgba(3,174,3,0.333)]"
-              />
-            </div>
-
-            <div id="container-status-user-name" className="ml-3 flex h-full min-w-0 flex-1 flex-col">
-              <div id="label-status" className="flex h-[18.4px] items-center">
-                <span className="flex h-[18.4px] w-[53.9125px] items-center rounded-[100px] bg-[#61a8ff] px-1.5 text-xs font-normal leading-[normal] text-white">{code}</span>
-              </div>
-
-              <div id="label-user-name" className="flex flex-1 items-center justify-between pr-[2vw]">
-                <div id="section-user-name-1" className="flex w-[198.5375px] shrink-0 flex-col">
-                  <p className="whitespace-nowrap text-xl font-semibold leading-[30.4px]">{emp.firstNameTH} {emp.lastNameTH}</p>
-                  <div className="text-[14px] font-normal text-[#f5f5f5]">
-                    <p className="whitespace-nowrap leading-[20.8px]">ตำแหน่ง: <span className="font-medium text-white">{emp.positionName ?? pendingValue}</span></p>
-                    <p className="whitespace-nowrap leading-[20.8px]">แผนก: <span className="font-medium text-white">{emp.departmentName ?? pendingValue}</span></p>
-                    <p className="whitespace-nowrap leading-[20.8px]">ประเภทพนักงาน: <span className="font-medium text-white">{emp.employmentType ?? pendingValue}</span></p>
-                  </div>
-                </div>
-
-                <div id="section-user-name-2" className="flex w-[229.625px] shrink-0 translate-x-[30px] flex-col text-[14px] font-normal text-[#f5f5f5]">
-                  <p className="translate-y-[5px] whitespace-nowrap leading-[20.8px]">วันที่เริ่มงาน: <span className="font-medium text-white">{emp.hireDate ?? pendingValue}{startDuration && ` ${startDuration}`}</span></p>
-                  <p className="translate-y-[5px] whitespace-nowrap leading-[20.8px]">วันที่บรรจุ: <span className="font-medium text-white">{emp.confirmationDate ?? pendingValue}{confirmationDuration && ` ${confirmationDuration}`}</span></p>
-          <p className="translate-y-[5px] whitespace-nowrap leading-[20.8px]">เบอร์โทรศัพท์: <span className="font-medium text-white">{formatPhone(emp.phone ?? pendingValue)}</span></p>
-                  <p className="translate-y-[5px] whitespace-nowrap leading-[20.8px]">อีเมล: <span className="font-medium text-white">{emp.email}</span></p>
-                </div>
-
-                <div className="container-approver flex h-[113px] w-[250px] shrink-0 translate-x-[30px] flex-col">
-                  <div className="flex items-center gap-1">
-                    <span className="text-base font-medium leading-6">ผู้อนุมัติ</span>
-                    <Pencil className="size-[14px]" />
-                  </div>
-                  <button type="button" className="mt-1 flex size-[35px] items-center justify-center rounded-full border border-white/50 bg-[#b2ccf2] text-white" aria-label="ผู้อนุมัติ 8 คนขึ้นไป">
-                    <UserPlus className="size-5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div id="container-management-dropdown" className="flex w-[95.2375px] shrink-0 flex-col">
-          <button type="button" className="inline-flex h-[33px] w-[95.2375px] items-center justify-center gap-2 rounded-[4px] bg-white px-4 text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0_2px_4px_1px_rgba(0,0,0,0.25)]">
-            <UserCog className="size-5" />
-            จัดการ
-          </button>
-        </div>
-      </section>
-
-      <div
-        className="space-y-0 px-4 pb-4 pt-0 lg:-mr-[15px]"
-        onClick={(event) => {
-          if (!(event.target as HTMLElement).closest("[data-employee-select-panel]")) {
-            setSelectOpen(false);
-          }
-        }}
-      >
-        {selectOpen && (
-          <EmployeeSelectPanel
-            placement="detail"
-            onClose={() => setSelectOpen(false)}
-            orgTree={orgTree}
-            loading={orgTreeLoading}
-            onEmployeeSelect={onEmployeeChange ? (employee) => {
-              setSelectOpen(false);
-              if (employee.id === employeeId) {
-                setReloadVersion((current) => current + 1);
-                return;
-              }
-              onEmployeeChange(employee);
-            } : undefined}
-          />
-        )}
+      <div className="mx-auto max-w-[1600px] px-3 pt-3 sm:px-4 sm:pt-4">
+        <EmployeePageHeadingCard
+          avatarSrc={`${USER_IMAGE_ORIGIN}/images/userPlaceHolder.png`}
+          avatarAlt={`${emp.firstNameTH} ${emp.lastNameTH}`.trim()}
+          onBack={onBack}
+          backHref="/organization/organization-employee"
+          employee={{
+            name: `${emp.firstNameTH} ${emp.lastNameTH}`.trim(),
+            position: emp.positionName ?? pendingValue,
+            department: emp.departmentName ?? pendingValue,
+            employmentType: emp.employmentType ?? pendingValue,
+            startDate: `${formatThaiDateNumeric(emp.hireDate) || pendingValue}${startDuration ? ` (${startDuration})` : ""}`,
+            confirmationDate: `${formatThaiDateNumeric(emp.confirmationDate) || pendingValue}${confirmationDuration ? ` (${confirmationDuration})` : ""}`,
+            phone: formatPhone(emp.phone ?? pendingValue),
+            email: emp.email,
+          }}
+        />
+      </div>
+      <div className="mx-auto mt-3 max-w-[1600px]">
+      <div className="relative z-10 mx-auto max-w-[1600px] space-y-3 px-4">
 
         {/* Sub-navigation tabs */}
-        <div className="-mt-[9px] flex h-[48.8px] overflow-hidden border-b-[0.8px] bg-white font-[Kanit,sans-serif] text-sm font-semibold leading-[22.001px] text-[rgba(0,0,0,0.87)]" style={{ borderBottomColor: "rgba(0, 0, 0, 0.12)" }}>
+        <div className="flex h-12 overflow-hidden rounded-t-xl border border-[#e5eaf2] bg-white font-[Kanit,sans-serif] text-sm font-semibold leading-[22px] text-[#65728a] shadow-[0_3px_12px_rgba(29,52,93,0.06)]">
           <button
             type="button"
             onClick={() => moveTabs(-1)}
             disabled={!tabPagination.canGoBack}
-            className="flex h-12 w-8 shrink-0 items-center justify-center pl-1 pr-0 text-black/87 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.2),0_4px_5px_rgba(0,0,0,0.14),0_1px_10px_rgba(0,0,0,0.12)] disabled:opacity-30"
+            className="flex h-12 w-9 shrink-0 items-center justify-center border-r border-[#edf0f5] text-[#718096] transition-colors hover:bg-[#f6f8fc] hover:text-[#1474ee] disabled:cursor-not-allowed disabled:opacity-30"
             aria-label="ก่อนหน้า"
           >
             <ChevronLeft className="size-5" strokeWidth={1.75} />
@@ -1936,13 +1784,13 @@ export default function OrganizationEmployeeDetailPage({
                     onClick={() => setActiveTab(tab)}
                     style={{ width: tabWidth, minWidth: tabWidth }}
                     className={cn(
-                      "relative flex h-12 shrink-0 items-center justify-center overflow-hidden px-6 font-[Kanit,sans-serif] text-sm font-semibold leading-[22.001px] opacity-60 transition-colors",
+                      "relative flex h-12 shrink-0 items-center justify-center overflow-hidden px-5 font-[Kanit,sans-serif] text-sm font-semibold leading-[22px] text-[#65728a] transition-colors",
                       NO_WRAP_TABS.has(tab) && "whitespace-nowrap",
-                      active && "!opacity-100",
-                      active && "after:absolute after:bottom-0 after:left-0 after:h-0.5 after:w-full after:bg-[#3c4252]",
+                      active && "bg-[#f8fbff] !text-[#126fd5]",
+                      active && "after:absolute after:bottom-0 after:left-2 after:right-2 after:h-0.5 after:rounded-full after:bg-[#1474ee]",
                       disabled
-                        ? "cursor-default text-[rgba(0,0,0,0.38)]"
-                        : "text-[rgba(0,0,0,0.87)] hover:bg-black/[0.04]"
+                        ? "cursor-default text-[#b1bac7]"
+                        : "hover:bg-[#f6f8fc] hover:text-[#26344f]"
                     )}
                   >
                     {tab}
@@ -1955,27 +1803,30 @@ export default function OrganizationEmployeeDetailPage({
             type="button"
             onClick={() => moveTabs(1)}
             disabled={!tabPagination.canGoForward}
-            className="flex h-12 w-8 shrink-0 items-center justify-center pl-0 pr-1 text-black/87 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.2),0_4px_5px_rgba(0,0,0,0.14),0_1px_10px_rgba(0,0,0,0.12)] disabled:opacity-30"
+            className="flex h-12 w-9 shrink-0 items-center justify-center border-l border-[#edf0f5] text-[#718096] transition-colors hover:bg-[#f6f8fc] hover:text-[#1474ee] disabled:cursor-not-allowed disabled:opacity-30"
             aria-label="ถัดไป"
           >
             <ChevronRight className="size-5" strokeWidth={1.75} />
           </button>
         </div>
+      </div>
+
+      <div className="relative z-10 mx-auto max-w-[1600px] space-y-3 px-4">
 
         {/* Form content */}
         {activeTab === "ข้อมูลพื้นฐาน" ? (
-          <Card className="rounded-[5px] border-0 bg-white shadow-none">
-            <CardContent className="space-y-1 bg-white px-7 pb-6 pt-5">
+          <Card className="rounded-t-none rounded-b-xl xl:min-h-[1184.85px] border border-t-0 border-[#e7eaf0] bg-white shadow-[0_3px_12px_rgba(29,52,93,0.07)]">
+            <CardContent className="p-0">
               <form
                 key={`${emp.id}-${isPreview || loading ? "preview" : "loaded"}`}
-                className="space-y-1"
+                className="w-full space-y-0 px-3 pt-3 text-sm font-normal leading-5 sm:px-4 sm:pt-4 lg:mx-6 lg:w-[calc(100%-48px)] lg:px-0"
                 onSubmit={(event) => {
                   event.preventDefault();
                   setPendingSavePayload(Object.fromEntries(new FormData(event.currentTarget)));
                 }}
               >
               {/* Row 1 */}
-              <div className="mb-4 grid gap-x-2 gap-y-3 sm:grid-cols-2 xl:grid-cols-6">
+              <div className="grid w-full grid-cols-1 gap-0 sm:grid-cols-2 xl:grid-cols-[190.2125fr_190.2125fr_190.2125fr_187.578125fr_187.578125fr_190.20625fr]">
                 <FieldShell label="รหัสพนักงาน">
                   <TextBox name="employeeCode" value={emp.employeeCode} />
                 </FieldShell>
@@ -1994,7 +1845,7 @@ export default function OrganizationEmployeeDetailPage({
               </div>
 
               {/* Row 2 */}
-              <div className="grid gap-x-2 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 xl:grid-cols-4">
                 <FieldShell label="คำนำหน้าชื่อ" required>
                   <SelectBox name="title" value={emp.title} placeholder="เลือกคำนำหน้า" />
                 </FieldShell>
@@ -2010,7 +1861,7 @@ export default function OrganizationEmployeeDetailPage({
               </div>
 
               {/* Row 3 */}
-              <div className="grid gap-x-2 gap-y-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[378.68125fr_378.6625fr_378.65625fr]">
                 <FieldShell label="ชื่อ (ENG)">
                   <TextBox name="firstNameEN" value={emp.firstNameEN} placeholder="First Name" />
                 </FieldShell>
@@ -2023,39 +1874,37 @@ export default function OrganizationEmployeeDetailPage({
               </div>
 
               {/* Row 4 */}
-              <div className="mb-[9px] grid gap-x-2 gap-y-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 xl:grid-cols-[25%_12.4%_12.6%_25%_25%]">
                 <FieldShell label="สถานะ">
                   <SelectBox name="maritalStatus" value={emp.maritalStatus} placeholder="เลือกสถานะ" />
                 </FieldShell>
-                <div className="grid grid-cols-2 gap-2 pt-[3.2px]">
-                  <FieldShell label="วันเกิด">
-                    <DateBox name="birthDate" value={emp.birthDate} />
-                  </FieldShell>
-                  <FieldShell label="อายุ">
-                    <TextBox value={emp.age} disabled />
-                  </FieldShell>
-                </div>
-                <FieldShell label="เบอร์โทรศัพท์" className="pt-[3.2px]">
+                <FieldShell label="วันเกิด">
+                  <DateBox name="birthDate" value={emp.birthDate} />
+                </FieldShell>
+                <FieldShell label="อายุ">
+                  <TextBox value={emp.age} disabled />
+                </FieldShell>
+                <FieldShell label="เบอร์โทรศัพท์">
                   <TextBox name="phone" value={formatPhone(emp.phone)} inputMode="numeric" maxLength={12} onChange={(event) => { event.currentTarget.value = formatPhone(event.currentTarget.value); }} />
                 </FieldShell>
-                <FieldShell label="อีเมล" className="pt-[3.2px]">
+                <FieldShell label="อีเมล">
                   <TextBox name="email" value={emp.email} />
                 </FieldShell>
               </div>
 
               {/* Row 5 */}
-              <div className="grid gap-x-2 gap-y-3 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 xl:grid-cols-5">
                 <FieldShell label="เลขประจำตัวประชาชน / ผู้เสียภาษี" required>
                   <TextBox name="citizenId" value={emp.citizenId} />
                 </FieldShell>
                 <FieldShell label="เลขประจำตัวซึ่งไม่มีสัญชาติไทย">
-                  <TextBox name="alienIdNumber" value={emp.alienIdNumber} placeholder="เลขประจำตัวซึ่งไม่มีสัญชาติไทย" />
+                  <TextBox name="alienIdNumber" value={emp.alienIdNumber} placeholder="" />
                 </FieldShell>
                 <FieldShell label="เลขหนังสือเดินทาง">
-                  <TextBox name="passportNo" value={emp.passportNo} placeholder="เลขหนังสือเดินทาง" />
+                  <TextBox name="passportNo" value={emp.passportNo} placeholder="" />
                 </FieldShell>
                 <FieldShell label="เลขที่ใบอนุญาตทำงาน">
-                  <TextBox name="workPermitNo" value={emp.workPermitNo} placeholder="เลขที่ใบอนุญาตทำงาน" />
+                  <TextBox name="workPermitNo" value={emp.workPermitNo} placeholder="" />
                 </FieldShell>
                 <FieldShell label="เลขประจำตัวประกันสังคม">
                   <TextBox name="socialSecurityNumber" value={emp.socialSecurity?.ssoNumber} placeholder="เลขประจำตัวประกันสังคม" />
@@ -2063,7 +1912,7 @@ export default function OrganizationEmployeeDetailPage({
               </div>
 
               {/* Row 6 */}
-              <div className="grid gap-x-2 gap-y-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,197fr)_minmax(0,170fr)_minmax(0,196fr)_minmax(0,170fr)_minmax(0,184fr)_minmax(0,170fr)]">
+              <div className="grid w-full grid-cols-1 gap-0 sm:grid-cols-2 xl:grid-cols-6">
                 <FieldShell label="โครงสร้างองค์กร" required>
                   <SelectBox value={orgLabel} placeholder="เลือกโครงสร้างองค์กร" />
                 </FieldShell>
@@ -2085,7 +1934,7 @@ export default function OrganizationEmployeeDetailPage({
               </div>
 
               {/* Row 7: Social security */}
-              <div className="grid gap-x-2 gap-y-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[381.33125fr_381.3375fr_373.33125fr]">
                 <FieldShell label={<HelpLabel label="ประกันสังคม" />}>
                   <SelectBox name="socialSecurityCalc" value={emp.socialSecurity?.calculationType} placeholder="เลือกรูปแบบคำนวณ" />
                 </FieldShell>
@@ -2098,7 +1947,7 @@ export default function OrganizationEmployeeDetailPage({
               </div>
 
               {/* Row 8: Tax */}
-              <div className="grid gap-x-2 gap-y-3 sm:grid-cols-3">
+              <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-[378.6625fr_378.68125fr_378.65625fr]">
                 <FieldShell label={<HelpLabel label="ภาษี" />}>
                   <SelectBox name="taxCalc" value={emp.taxInformation?.calculationType} placeholder="เลือกรูปแบบคำนวณ" />
                 </FieldShell>
@@ -2111,7 +1960,7 @@ export default function OrganizationEmployeeDetailPage({
               </div>
 
               {/* Row 9: Dates & probation */}
-              <div className="mb-[2.4px] grid gap-x-2 gap-y-3 sm:grid-cols-2 xl:grid-cols-6">
+              <div className="grid w-full grid-cols-1 gap-0 sm:grid-cols-2 xl:grid-cols-[189.33125fr_189.3375fr_189.325fr_189.3375fr_189.3375fr_189.33125fr]">
                 <FieldShell label="วันที่เริ่มงาน" required>
                   <DateBox name="hireDate" value={emp.hireDate} />
                 </FieldShell>
@@ -2133,7 +1982,7 @@ export default function OrganizationEmployeeDetailPage({
               </div>
 
               {/* Row 10: Payment */}
-              <div className="mt-[5.4px] grid gap-x-2 gap-y-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,175fr)_minmax(0,289fr)_minmax(0,282fr)_minmax(0,175fr)_minmax(0,175fr)]">
+              <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 xl:grid-cols-5">
                 <FieldShell label="ช่องทางการชำระเงิน">
                   <SelectBox name="paymentChannel" value={emp.paymentChannel} placeholder="เลือกช่องทาง" />
                 </FieldShell>
@@ -2162,13 +2011,13 @@ export default function OrganizationEmployeeDetailPage({
               </FieldShell>
 
               {/* Save */}
-              <div className="pt-3">
+              <div className="pt-1 pb-[6px]">
                 <button
                   ref={saveButtonRef}
                   id="btn-save-employee-data"
                   type="submit"
                   disabled={saveState === "saving"}
-                  className="h-9 w-full rounded-[4px] bg-[#03ae03] px-4 text-sm font-semibold text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#029b02]"
+                  className="flex h-[36.65px] w-full items-center justify-center gap-2 rounded-lg bg-[#1474ee] px-4 text-sm font-medium leading-5 text-white shadow-[0_4px_12px_rgba(20,116,238,.24)] transition-colors hover:bg-[#0d65d8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5eaafa] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   บันทึก
                 </button>
@@ -2211,6 +2060,7 @@ export default function OrganizationEmployeeDetailPage({
             </CardContent>
           </Card>
         )}
+      </div>
       </div>
       <UpdateEmployeeConfirmationDialog
         open={pendingSavePayload !== null}

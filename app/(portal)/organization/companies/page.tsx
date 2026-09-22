@@ -183,7 +183,7 @@ export default function CompaniesPage() {
   };
 
   return (
-    <main className="min-h-[calc(100vh-4rem)] bg-[#f5f5f5] px-3 pb-3 pt-[2px] font-[HumansoftKanit,Kanit,sans-serif] text-[14px] font-normal leading-[22.001px] tracking-[-0.1px] text-black/[0.87]">
+    <main className="min-h-[calc(100vh-4rem)] bg-[#f5f5f5] px-3 pb-3 pt-[2px] font-sans text-[14px] font-normal leading-[22.001px] tracking-[-0.1px] text-black/[0.87]">
       <div className="mx-auto -translate-x-[55px] -mt-[17px] max-w-[1232px] px-7">
         <div className="flex flex-row">
           <div className="mr-4 flex w-[352.8px] shrink-0 overflow-hidden rounded-[10px]">

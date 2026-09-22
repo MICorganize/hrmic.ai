@@ -7,6 +7,7 @@ import { createPortal } from "react-dom";
 import {
   ArrowRight,
   Calendar,
+  Calculator,
   Check,
   ChevronsLeft,
   ChevronsRight,
@@ -18,6 +19,8 @@ import {
   FileText,
   History,
   List,
+  Pencil,
+  Power,
   RotateCcw,
   Search,
   Send,
@@ -29,6 +32,7 @@ import {
 import type { OrgNode } from "@/components/employee/EmployeeSelectPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ThaiDatePicker, ThaiDateTimePicker } from "@/components/ui/thai-date-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Table,
@@ -41,6 +45,12 @@ import {
 import { PayrollDashboardContent } from "@/components/payroll/PayrollDashboardContent";
 import { PAYROLL_TABS, PayrollTabsBar } from "@/components/payroll/PayrollTabsBar";
 import { FALLBACK_USER_IMAGE_ORIGIN, SUPPORT_ASSET_ORIGIN, USER_IMAGE_ORIGIN } from "@/lib/external-assets";
+import {
+  formatThaiDate as formatThaiDateLong,
+  formatThaiDateNumeric,
+  formatThaiMonthYear,
+  formatThaiYear,
+} from "@/lib/date/thai-date";
 import { formatPhone } from "@/lib/phone";
 import {
   EMPTY_PAYROLL_DASHBOARD_STATS,
@@ -243,8 +253,8 @@ function buildProfileColumns(p: EmployeeProfile): ProfileRow[][] {
       { label: "ค่าจ้าง", value: p.wage },
       { label: "กลุ่มประเภทพนักงาน", value: p.empGroup },
       { label: "ประเภทพนักงาน", value: p.empType },
-      { label: "วันที่เริ่มงาน", value: p.startDate },
-      { label: "วันที่บรรจุ", value: p.hireDate },
+      { label: "วันที่เริ่มงาน", value: formatThaiDateNumeric(p.startDate) },
+      { label: "วันที่บรรจุ", value: formatThaiDateNumeric(p.hireDate) },
     ],
     [
       { label: "ประกันสังคม", value: p.socialSecurity },
@@ -341,26 +351,26 @@ function PayrollMonthPicker({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="relative inline-flex h-[31.6px] w-full items-center justify-between rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 text-sm font-normal leading-[22px] tracking-[-0.1px] text-[rgba(0,0,0,0.65)] outline-none transition-colors hover:border-[#40a9ff] focus:border-[#40a9ff] focus:ring-1 focus:ring-[#40a9ff]"
+          className="relative inline-flex h-10 w-full items-center justify-between rounded-lg border border-[#dfe4e8] bg-white px-3 text-sm font-normal leading-5 text-[#34425c] outline-none ring-[#5eaafa] transition-colors hover:border-[#5eaafa] focus:ring-2"
           aria-label="เลือกเดือน"
         >
           {monthLabel}
           <Calendar className="size-4 text-slate-500" />
         </button>
       </PopoverTrigger>
-      <PopoverContent align="end" className="w-[280px] gap-0 rounded-[2px] p-0 font-[Kanit,sans-serif] shadow-[0_3px_6px_-4px_rgba(0,0,0,0.12),0_6px_16px_0_rgba(0,0,0,0.08),0_9px_28px_8px_rgba(0,0,0,0.05)]">
+      <PopoverContent align="end" className="w-[280px] gap-0 rounded-xl border-[#e5eaf2] p-0 font-sans shadow-[0_8px_24px_rgba(29,52,93,.12)]">
         <div className="flex h-10 items-center justify-between border-b border-[#f0f0f0] px-3">
           <button type="button" onClick={() => setViewYear((year) => year - 1)} title="ปีก่อนหน้า" aria-label="ปีก่อนหน้า" className="flex size-8 items-center justify-center text-black/65 transition-colors hover:text-[#1890ff]">
             <ChevronsLeft className="size-4" />
           </button>
           <button type="button" onClick={() => setViewYear(selectedYear)} title="เลือกปี" className="h-8 px-2 text-sm font-medium text-black/85 hover:text-[#1890ff]">
-            {viewYear}
+            {formatThaiYear(viewYear)}
           </button>
           <button type="button" onClick={() => setViewYear((year) => year + 1)} title="ปีถัดไป" aria-label="ปีถัดไป" className="flex size-8 items-center justify-center text-black/65 transition-colors hover:text-[#1890ff]">
             <ChevronsRight className="size-4" />
           </button>
         </div>
-        <div role="grid" aria-label={`เลือกเดือน ปี ${viewYear}`} className="grid grid-cols-3 gap-y-1 p-3">
+        <div role="grid" aria-label={`เลือกเดือน ปี ${formatThaiYear(viewYear)}`} className="grid grid-cols-3 gap-y-1 p-3">
           {MONTHS_TH_SHORT.map((label, monthIndex) => {
             const selected = viewYear === selectedYear && monthIndex === selectedMonth;
             return (
@@ -375,8 +385,8 @@ function PayrollMonthPicker({
                   setOpen(false);
                 }}
                 className={cn(
-                  "mx-auto flex h-8 w-16 items-center justify-center rounded-[2px] text-sm transition-colors",
-                  selected ? "bg-[#1890ff] text-white" : "text-black/65 hover:bg-[#e6f7ff] hover:text-[#1890ff]"
+                  "mx-auto flex h-8 w-16 items-center justify-center rounded-lg text-sm transition-colors",
+                  selected ? "bg-[#1474ee] text-white" : "text-[#4d5a6d] hover:bg-[#eaf4ff] hover:text-[#1474ee]"
                 )}
               >
                 {label}
@@ -417,22 +427,15 @@ function dateKey(value: Date) {
 }
 
 function formatThaiDate(dateValue: string) {
-  if (!dateValue) return "";
-  const [year, month, day] = dateValue.split("-").map(Number);
-  return `${String(day).padStart(2, "0")} ${MONTHS_TH[(month || 1) - 1] ?? ""} ${year}`;
+  return formatThaiDateLong(dateValue);
 }
 
 function formatPayrollPeriod(startDate: string, endDate: string) {
-  const compactDate = (value: string) => {
-    const [year = "", month = "", day = ""] = value.split("-");
-    return year && month && day ? `${day}/${month}/${year}` : "";
-  };
-  return `ตั้งแต่วันที่ ${compactDate(startDate)} จนถึงวันที่ ${compactDate(endDate)}`;
+  return `ตั้งแต่วันที่ ${formatThaiDateNumeric(startDate)} จนถึงวันที่ ${formatThaiDateNumeric(endDate)}`;
 }
 
 function formatCalculationDayDate(value: string) {
-  const [year = "", month = "", day = ""] = value.split("-");
-  return year && month && day ? `${day}/${month}/${year}` : "";
+  return formatThaiDateNumeric(value);
 }
 
 function CalculationConfirmationModal({
@@ -632,9 +635,8 @@ function SalaryPeriodSettingsModal({
 }
 
 function PageBanner({
+  pageTitle,
   monthLabel,
-  monthIndex,
-  year,
   monthValue,
   onMonthChange,
   showAccountingPeriodWarning,
@@ -642,9 +644,8 @@ function PageBanner({
   onOpenClosePeriod,
   initialPeriodSettingsOpen,
 }: {
+  pageTitle: string;
   monthLabel: string;
-  monthIndex: number;
-  year: number;
   monthValue: string;
   onMonthChange: (month: string) => void;
   showAccountingPeriodWarning: boolean;
@@ -652,6 +653,7 @@ function PageBanner({
   onOpenClosePeriod: () => void;
   initialPeriodSettingsOpen: boolean;
 }) {
+  const displayTitle = pageTitle === "Dashboard" ? "คำนวณเงินเดือน" : pageTitle;
   const [periodSettingsOpen, setPeriodSettingsOpen] = useState(initialPeriodSettingsOpen);
   const [period, setPeriod] = useState<SavedPayrollPeriod>(() => ({ ...monthRange(monthValue), isConfigured: false }));
 
@@ -697,44 +699,49 @@ function PageBanner({
   }
 
   return (
-    <section className="h-[7.5rem] bg-[#61a8ff] px-6 text-sm leading-[22px] tracking-[-0.1px] text-white">
-      <div className="flex h-full items-start justify-between pt-6">
+    <section className="px-4 py-3 text-sm leading-5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         {/* Breadcrumb + title */}
-        <div className="w-[240.875px] shrink-0">
-          <p className="flex items-center gap-0 text-sm leading-[22px] tracking-[-0.1px] text-white/70">
-            <span>การประมวลผลเงินเดือน</span>
-            <ChevronRight className="size-4" />
+        <div className="min-w-[220px] shrink-0">
+          <p className="flex items-center gap-1 text-xs font-normal leading-5 text-[#7b8798]">
+            <span>ประมวลผลเงินเดือน</span>
+            <ChevronRight className="size-3.5" />
             <span>คำนวณเงินเดือน</span>
           </p>
-          <h1 className="inline-block text-[24px] font-normal leading-[37.716px] tracking-[-0.1px] text-white">คำนวณเงินเดือน</h1>
+          <h1 className="text-xl font-semibold tracking-tight text-[#172348]">{displayTitle}</h1>
+          {pageTitle === "คำนวณเงินเดือนรายบุคคล" && (
+            <p className="mt-0.5 text-xs leading-5 text-[#6f7b90]">
+              เลือกพนักงาน ตรวจสอบข้อมูล และคำนวณเงินเดือนรายบุคคล
+            </p>
+          )}
         </div>
 
         {showAccountingPeriodWarning && (
           <AccountingPeriodWarning monthLabel={monthLabel} onOpenClosePeriod={onOpenClosePeriod} />
         )}
 
-        {/* Month picker + period (Element: stacked column, ~320px) */}
-        <div className="w-80 shrink-0 pt-[2.05px]">
+        {/* Month picker + period */}
+        <div className="w-full shrink-0 sm:w-80">
           <PayrollMonthPicker monthLabel={monthLabel} monthValue={monthValue} onMonthChange={onMonthChange} />
 
-          <div className="flex h-6 items-center justify-between">
-            <span className="flex min-w-0 flex-1 justify-center whitespace-nowrap text-sm leading-[22px] tracking-[-0.1px] text-white">
+          <div className="mt-1 flex h-6 items-center justify-between">
+            <span className="flex min-w-0 flex-1 justify-center whitespace-nowrap text-xs leading-5 text-[#6f7b90]">
               {formatPayrollPeriod(period.startDate, period.endDate)}
             </span>
             {!isAccountingPeriodClosed && (
               <button
                 type="button"
                 onClick={() => setPeriodSettingsOpen(true)}
-                className="size-6 shrink-0 rounded-full p-0 font-semibold text-white transition-colors hover:bg-white/20"
+                className="flex size-7 shrink-0 items-center justify-center rounded-lg p-0 text-[#718096] transition-colors hover:bg-[#eef5ff] hover:text-[#1474ee]"
                 aria-label="ตั้งค่างวด"
                 title="ตั้งค่างวด"
               >
-                <Settings className="size-5" />
+                <Settings className="size-4" />
               </button>
             )}
           </div>
           {isAccountingPeriodClosed && (
-            <div className="flex h-9 items-center justify-center bg-[rgba(0,80,180,0.18)] text-sm font-semibold leading-[22px] tracking-[-0.1px] text-[#ff402f]">
+            <div className="flex h-9 items-center justify-center rounded-lg border border-[#ffd0cc] bg-[#fff1f0] text-sm font-medium leading-5 text-[#d9363e]">
               ปิดงวดบัญชี
             </div>
           )}
@@ -764,10 +771,10 @@ function AccountingPeriodWarning({
 }) {
   return (
     <div
-      className="warning-container mx-px h-[68px] flex-1 overflow-hidden rounded-[4px]"
+      className="warning-container flex-1 overflow-hidden rounded-lg border border-[#f3dda0] bg-[#fff9df]"
       role="status"
     >
-      <div className="warning h-[68px] bg-[#fdff82] p-3 font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] tracking-[-0.1px] text-black">
+      <div className="warning px-3 py-2 text-xs font-normal leading-5 text-[#755c18]">
         <label>
           คุณกำลังคำนวณเงินเดือนของเดือน &quot;{monthLabel}&quot; หากคำนวณเงินเดือนเสร็จแล้ว กรุณาปิดงวดบัญชีด้วย ปิดงวดบัญชี{" "}
           <a
@@ -777,7 +784,7 @@ function AccountingPeriodWarning({
               event.preventDefault();
               onOpenClosePeriod();
             }}
-            className="cursor-pointer text-[#039be5] no-underline hover:text-[#039be5] hover:no-underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#039be5]"
+            className="cursor-pointer font-medium text-[#1474ee] no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5eaafa]"
           >
             คลิกที่นี่
           </a>
@@ -795,19 +802,19 @@ function CellEditIcon({ onClick, hidden = false }: { onClick: (event: React.Mous
     <button
       type="button"
       onClick={onClick}
-      className="absolute right-0 top-0.5 flex h-[13.6px] w-[13.6px] items-center justify-center p-0 text-[#61a8ff]"
+      className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-md p-0 text-[#1474ee] transition-colors hover:bg-[#eef5ff]"
       aria-label="แก้ไข"
     >
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="size-3 fill-current">
-        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.82-1.83z" />
-      </svg>
+      <Pencil aria-hidden="true" className="size-3.5" />
     </button>
   );
 }
 
 function dateInputValue(displayDate: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(displayDate)) return displayDate;
   const [day, month, year] = displayDate.split("/");
-  return `${year}-${month}-${day}`;
+  const normalizedYear = Number(year) >= 2400 ? Number(year) - 543 : Number(year);
+  return `${normalizedYear}-${month}-${day}`;
 }
 
 function overtimeMinutes(value?: string) {
@@ -1111,7 +1118,7 @@ function WorkingTimePopover({
             className="ant-popover-inner-content box-border min-h-[76px] max-h-[437.76px] overflow-auto px-6 py-6 leading-[26.6px]"
             style={{ width: "395.35px", height: `${innerPopoverHeight}px` }}
             role="tooltip"
-            aria-label={`เพิ่มเวลาทำงานวันที่ ${day.date}`}
+          aria-label={`เพิ่มเวลาทำงานวันที่ ${formatThaiDateNumeric(day.date)}`}
           >
       {entries.map((entry) => (
         <div
@@ -1206,7 +1213,7 @@ function OvertimeRequestDialog({
   const inputClass = "block h-[33.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-black/[0.65] outline-none transition-all duration-300 hover:border-[#40a9ff] focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
 
   return (
-    <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/[0.32]" role="dialog" aria-modal="true" aria-label={`ขอโอที วันที่ ${day.date}`}>
+    <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/[0.32]" role="dialog" aria-modal="true" aria-label={`ขอโอที วันที่ ${formatThaiDateNumeric(day.date)}`}>
       <section className="max-h-full w-full max-w-[1180px] overflow-auto rounded-[11px] bg-white font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-black/[0.65] shadow-[0_11px_15px_-7px_rgba(0,0,0,0.2),0_24px_38px_3px_rgba(0,0,0,0.14),0_9px_46px_8px_rgba(0,0,0,0.12)]">
         <header className="sticky top-0 z-10 h-[52.275px] bg-[#61a8ff] px-6 py-3 text-lg font-[700] leading-[28.287px] text-white">
           <div className="flex h-[28.275px] items-center justify-start">ขอโอที</div>
@@ -1215,20 +1222,20 @@ function OvertimeRequestDialog({
         <div className="relative flex h-[426.6375px] max-h-[426.64px] overflow-hidden">
           <div className="modal-left flex-1 overflow-auto px-9 py-5">
             <div className="my-1 h-[92.825px] w-full text-center text-lg font-normal leading-[28.287px]">
-              <p className="m-0 mb-1"><b className="font-[700]">{day.date}</b></p>
+              <p className="m-0 mb-1"><b className="font-[700]">{formatThaiDateNumeric(day.date)}</b></p>
               <p className="m-0 mb-1">สถานะ: {day.status ?? (day.type === "holiday" ? "วันหยุดนักขัตฤกษ์" : "วันทำงาน")}</p>
               <p className="m-0">กะการทำงาน: {day.shiftName ?? "WC001"} {day.shiftPeriods ?? "08:30 - 12:00 - 13:00 - 17:00"}</p>
             </div>
 
             <div className="modal-body p-9">
               <div className="flex h-[55.6px] gap-2">
-                <label className="block flex-1">วันที่ <span className="text-red-500">*</span><input data-testid="doc-ot-date-input" type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} className={inputClass} /></label>
+                <label className="block flex-1">วันที่ <span className="text-red-500">*</span><ThaiDatePicker data-testid="doc-ot-date-input" value={selectedDate} onChange={setSelectedDate} required aria-label="วันที่ขอโอที" className={inputClass} /></label>
                 <label className="block flex-1">ชื่อพนักงาน <span className="text-red-500">*</span><input data-testid="doc-ot-employee-input" disabled value={employeeDisplayName} className={cn(inputClass, "h-[31.6px] cursor-not-allowed bg-[#f5f5f5] text-black/[0.65]")} /></label>
                 <label className="block flex-1">ประเภทโอที <span className="text-red-500">*</span><select data-testid="doc-ot-type-select" value={otType} onChange={(event) => setOtType(event.target.value)} className="block h-8 w-full appearance-auto rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-black/[0.65] outline-none transition-all duration-300 hover:border-[#40a9ff] focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]"><option>โอทีล่วงเวลา (x1.0)</option><option>โอทีล่วงเวลา (x1.5)</option><option>โอทีวันหยุด (x2.0)</option><option>โอทีล่วงเวลาวันหยุด (x3.0)</option></select></label>
               </div>
               <div className="flex h-[55.6px] gap-2">
-                <label className="block flex-1">ตั้งแต่วันที่ <span className="text-red-500">*</span><input data-testid="doc-ot-start-input" type="datetime-local" value={start} onChange={(event) => setStart(event.target.value)} className={inputClass} /></label>
-                <label className="block flex-1">จนถึงวันที่ <span className="text-red-500">*</span><input data-testid="doc-ot-end-input" type="datetime-local" value={end} onChange={(event) => setEnd(event.target.value)} className={inputClass} /></label>
+                <label className="block flex-1">ตั้งแต่วันที่ <span className="text-red-500">*</span><ThaiDateTimePicker data-testid="doc-ot-start-input" value={start} onChange={setStart} required aria-label="วันเวลาเริ่มโอที" className={inputClass} /></label>
+                <label className="block flex-1">จนถึงวันที่ <span className="text-red-500">*</span><ThaiDateTimePicker data-testid="doc-ot-end-input" value={end} onChange={setEnd} required aria-label="วันเวลาสิ้นสุดโอที" className={inputClass} /></label>
               </div>
               <div className="flex h-[194px] gap-2">
                 <label className="block flex-1">รายละเอียด<textarea data-testid="doc-ot-desc-textarea" rows={7} value={description} onChange={(event) => setDescription(event.target.value)} className="mt-1 block h-[163.6px] w-full resize-none rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-black/[0.65] outline-none transition-all duration-300 hover:border-[#40a9ff] focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]" /></label>
@@ -1270,13 +1277,13 @@ function LeaveRequestDialog({
   const inputClass = "block h-[33.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-black/[0.65] outline-none transition-all duration-300 hover:border-[#40a9ff] focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]";
 
   return (
-    <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/[0.32]" role="dialog" aria-modal="true" aria-label={`ขอลางาน วันที่ ${day.date}`}>
+    <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/[0.32]" role="dialog" aria-modal="true" aria-label={`ขอลางาน วันที่ ${formatThaiDateNumeric(day.date)}`}>
       <section className="max-h-full w-full max-w-[1230px] overflow-auto rounded-[11px] bg-white font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-black/[0.65] shadow-[0_11px_15px_-7px_rgba(0,0,0,0.2),0_24px_38px_3px_rgba(0,0,0,0.14),0_9px_46px_8px_rgba(0,0,0,0.12)]">
         <header className="sticky top-0 z-10 h-[61.7125px] bg-[#61a8ff] px-6 py-3 text-white"><div className="flex items-center text-2xl font-normal leading-[37.7125px]">ขอลางาน</div></header>
         <div className="content flex h-[528.7px] overflow-hidden p-[10px]">
           <div className="left-col -mr-[10px] flex-1">
             <div className="h-[133.1px] w-full pt-[10px] text-center text-lg font-normal leading-[28.287px]">
-              <p className="m-0 mb-[3.33px]"><b className="font-[700]">{day.date}</b></p>
+              <p className="m-0 mb-[3.33px]"><b className="font-[700]">{formatThaiDateNumeric(day.date)}</b></p>
               <p className="m-0 mb-[3.33px]">สถานะ: {day.status ?? (day.type === "holiday" ? "วันหยุดนักขัตฤกษ์" : "วันทำงาน")}</p>
               <p className="m-0 mb-[3.33px]">กะการทำงาน: {day.shiftName ?? "WC001"} {day.shiftPeriods ?? "08:30 - 12:00 - 13:00 - 17:00"}</p>
               <p className="m-0">โควตาการลา: 0.00/3.00 วัน</p>
@@ -1288,8 +1295,8 @@ function LeaveRequestDialog({
                   <label className="block flex-1">ประเภทการลา <span className="text-red-500">*</span><select data-testid="doc-time-leave-type-select" value={leaveType} onChange={(event) => setLeaveType(event.target.value)} className="block h-8 w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] font-[Kanit,sans-serif] text-sm leading-[22.001px] text-black/[0.65] outline-none transition-all duration-300 hover:border-[#40a9ff] focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]"><option>ลากิจพิเศษ</option><option>ลาป่วย</option><option>ลาพักร้อน</option><option>ลาไม่รับค่าจ้าง</option></select></label>
                 </div>
                 <div className="flex h-[55.6px] gap-2">
-                  <label className="block flex-1">ตั้งแต่วันที่ <span className="text-red-500">*</span><input data-testid="doc-time-leave-start-input" type="datetime-local" value={start} onChange={(event) => setStart(event.target.value)} className={inputClass} /></label>
-                  <label className="block flex-1">จนถึงวันที่ <span className="text-red-500">*</span><input data-testid="doc-time-leave-end-input" type="datetime-local" value={end} onChange={(event) => setEnd(event.target.value)} className={inputClass} /></label>
+                <label className="block flex-1">ตั้งแต่วันที่ <span className="text-red-500">*</span><ThaiDateTimePicker data-testid="doc-time-leave-start-input" value={start} onChange={setStart} required aria-label="วันเวลาเริ่มลา" className={inputClass} /></label>
+                <label className="block flex-1">จนถึงวันที่ <span className="text-red-500">*</span><ThaiDateTimePicker data-testid="doc-time-leave-end-input" value={end} onChange={setEnd} required aria-label="วันเวลาสิ้นสุดลา" className={inputClass} /></label>
                 </div>
                 <div className="flex h-[194px] gap-2">
                   <label className="mt-1 block flex-1">รายละเอียด<textarea data-testid="doc-time-leave-desc-textarea" rows={7} value={description} onChange={(event) => setDescription(event.target.value)} className="mt-1 block h-[163.6px] w-full resize-none rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-black/[0.65] outline-none transition-all duration-300 hover:border-[#40a9ff] focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]" /></label>
@@ -1357,9 +1364,9 @@ function WorkTimeEditDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4" role="dialog" aria-modal="true" aria-label={`แก้ไขข้อมูลวันที่ ${day.date}`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4" role="dialog" aria-modal="true" aria-label={`แก้ไขข้อมูลวันที่ ${formatThaiDateNumeric(day.date)}`}>
       <div className="w-full max-w-xl rounded-lg bg-white p-6 shadow-xl">
-        <div className="mb-4 flex items-center justify-between"><h3 className="text-lg font-semibold">แก้ไขข้อมูลวันทำงาน {day.date}</h3><button type="button" onClick={onClose} aria-label="ปิด">×</button></div>
+        <div className="mb-4 flex items-center justify-between"><h3 className="text-lg font-semibold">แก้ไขข้อมูลวันทำงาน {formatThaiDateNumeric(day.date)}</h3><button type="button" onClick={onClose} aria-label="ปิด">×</button></div>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="text-sm">สถานะ<select value={status} onChange={(event) => setStatus(event.target.value as typeof status)} className="mt-1 h-9 w-full rounded border px-2"><option value="present">ทำงานปกติ</option><option value="late">มาสาย</option><option value="absent">ขาดงาน</option><option value="leave">ลา</option></select></label>
           <label className="text-sm">โอที (นาที)<input type="number" min="0" step="1" value={overtime} onChange={(event) => setOvertime(event.target.value)} className="mt-1 h-9 w-full rounded border px-2" /></label>
@@ -1376,7 +1383,7 @@ function WorkTimeEditDialog({
 }
 
 function WorkTimeTable({ rows, naDates, employeeId, employeeName, showCalculatedAttendance, isAccountingPeriodClosed, onSaved }: { rows: WorkDay[]; naDates: string[]; employeeId: string; employeeName: string; showCalculatedAttendance: boolean; isAccountingPeriodClosed: boolean; onSaved: (data: { rows?: WorkDay[]; naDates?: string[] }) => void }) {
-  const cellClass = "relative !p-2 !align-baseline border-b border-r border-[#d3d3d3] text-[#212121] last:border-r-0";
+  const cellClass = "relative !px-3 !py-2 !align-baseline border-b border-r border-[#edf0f4] text-[#34425c] last:border-r-0";
   const [editingDay, setEditingDay] = useState<WorkDay | null>(null);
   const [editingDayType, setEditingDayType] = useState<{ day: WorkDay; anchor: Pick<DOMRect, "left" | "top" | "width"> } | null>(null);
   const [editingShift, setEditingShift] = useState<{ day: WorkDay; anchor: Pick<DOMRect, "left" | "top" | "width"> } | null>(null);
@@ -1455,28 +1462,22 @@ function WorkTimeTable({ rows, naDates, employeeId, employeeName, showCalculated
   };
 
   return (
-    <div className="m-0 flex size-full flex-col overflow-hidden p-0">
+    <div className="flex size-full flex-col overflow-hidden p-4">
       {/* Download timetable button */}
-      <div className="my-1 flex flex-row items-center gap-1">
-        <div className="flex flex-1 items-center justify-end">
-          <div className="mr-[18px] flex flex-col">
+      <div className="mb-3 flex items-center justify-end">
           <button
             id="btn-normal-person-full-work-table-download-timetable"
             type="button"
-            className="time-table-button inline-flex h-[36px] w-[164px] items-center justify-center gap-1 whitespace-nowrap rounded-[5px] border border-black bg-white px-4 font-[Kanit,sans-serif] text-[15px] font-medium leading-[normal] text-black"
+            className="time-table-button inline-flex h-9 items-center justify-center gap-2 whitespace-nowrap rounded-lg border border-[#dfe4e8] bg-white px-4 text-sm font-medium text-[#34425c] transition-colors hover:border-[#b9c7d8] hover:bg-[#f7f9fc]"
           >
             <span className="whitespace-nowrap">ตารางเวลาทำงาน</span>
-            <svg aria-hidden="true" viewBox="0 0 13 16" className="size-6 shrink-0" fill="none">
-              <path d="M12.0594 3.06091L9.4375 0.439038C9.15625 0.157788 8.775 -0.00158691 8.37813 -0.00158691H2C1.17188 0.00153809 0.5 0.673413 0.5 1.50154V14.5015C0.5 15.3297 1.17188 16.0015 2 16.0015H11C11.8281 16.0015 12.5 15.3297 12.5 14.5015V4.12341C12.5 3.72654 12.3406 3.34216 12.0594 3.06091ZM10.8781 4.00154H8.5V1.62341L10.8781 4.00154ZM2 14.5015V1.50154H7V4.75154C7 5.16716 7.33437 5.50154 7.75 5.50154H11V14.5015H2ZM9.81875 10.0109C9.4375 9.63591 8.35 9.73904 7.80625 9.80779C7.26875 9.47966 6.90938 9.02654 6.65625 8.36091C6.77812 7.85779 6.97187 7.09216 6.825 6.61091C6.69375 5.79216 5.64375 5.87341 5.49375 6.42654C5.35625 6.92966 5.48125 7.62966 5.7125 8.52341C5.4 9.27029 4.93437 10.2734 4.60625 10.8484C3.98125 11.1703 3.1375 11.6672 3.0125 12.2922C2.90937 12.7859 3.825 14.0172 5.39062 11.3172C6.09062 11.0859 6.85312 10.8015 7.52812 10.689C8.11875 11.0078 8.80938 11.2203 9.27188 11.2203C10.0688 11.2203 10.1469 10.339 9.81875 10.0109ZM3.62812 12.4422C3.7875 12.014 4.39375 11.5203 4.57812 11.3484C3.98438 12.2953 3.62812 12.464 3.62812 12.4422ZM6.17812 6.48591C6.40937 6.48591 6.3875 7.48904 6.23438 7.76091C6.09688 7.32654 6.1 6.48591 6.17812 6.48591ZM5.41563 10.7547C5.71875 10.2265 5.97813 9.59841 6.1875 9.04529C6.44688 9.51716 6.77813 9.89529 7.12813 10.1547C6.47813 10.289 5.9125 10.564 5.41563 10.7547ZM9.52812 10.5984C9.52812 10.5984 9.37187 10.7859 8.3625 10.3547C9.45938 10.2734 9.64062 10.5234 9.52812 10.5984Z" fill="#FF402F" />
-            </svg>
+            <Download aria-hidden="true" className="size-4 shrink-0" />
           </button>
-          </div>
-        </div>
       </div>
 
       <div
         className={cn(
-          "max-h-[60vh] border border-[#d3d3d3]",
+          "max-h-[60vh] rounded-lg border border-[#e7eaf0] bg-white",
           editingDayType || editingOvertime || editingLeave ? "overflow-hidden" : "overflow-auto"
         )}
         onClick={() => {
@@ -1487,7 +1488,7 @@ function WorkTimeTable({ rows, naDates, employeeId, employeeName, showCalculated
           setEditingLeave(null);
         }}
       >
-        <table className="box-content min-w-[1533px] table-fixed border border-[#d3d3d3] border-separate border-spacing-0 text-sm leading-[22px]">
+        <table className="min-w-[1533px] table-fixed border-separate border-spacing-0 text-sm leading-5">
           <colgroup>
             <col className="w-[150px] min-w-[150px]" />
             <col className="w-[235px] min-w-[235px]" />
@@ -1497,7 +1498,7 @@ function WorkTimeTable({ rows, naDates, employeeId, employeeName, showCalculated
             <col className="w-[254px] min-w-[254px]" />
             <col className="w-[180px] min-w-[180px]" />
           </colgroup>
-          <TableHeader className="border-b-[1.6px] border-[#d3d3d3] [&_tr]:!border-[#d3d3d3]">
+          <TableHeader className="border-b border-[#e7eaf0] [&_th]:!border-[#e7eaf0] [&_th]:!bg-[#f7f9fc] [&_th]:!text-[#34425c] [&_tr]:!border-[#e7eaf0]">
             <TableRow className="hover:bg-transparent">
               <BlueTableHead className="sticky top-0 z-10 w-[150px] !p-4 text-center">วันที่</BlueTableHead>
               <BlueTableHead className="sticky top-0 z-10 w-[235px] !p-4 text-center">กะการทำงาน</BlueTableHead>
@@ -1509,15 +1510,15 @@ function WorkTimeTable({ rows, naDates, employeeId, employeeName, showCalculated
             </TableRow>
           </TableHeader>
           <TableBody>
-            <tr aria-hidden="true" className="h-[1.6px] border-0 bg-[#d3d3d3]">
-              <td colSpan={7} className="!h-[1.6px] !p-0 leading-none" />
+            <tr aria-hidden="true" className="h-px border-0 bg-[#e7eaf0]">
+              <td colSpan={7} className="!h-px !p-0 leading-none" />
             </tr>
             {rows.map((d) => {
               const variances = showCalculatedAttendance ? attendanceVariances(d) : [];
               return <TableRow
                 key={d.date}
                 className={cn(
-                  d.type === "holiday" ? "bg-[#e0e0e0] hover:bg-[#e0e0e0]" : "bg-transparent hover:bg-transparent"
+                  d.type === "holiday" ? "bg-[#fff9ef] hover:bg-[#fff5e5]" : "bg-white hover:bg-[#f7faff]"
                 )}
               >
                 <TableCell className={cellClass}>
@@ -1531,7 +1532,7 @@ function WorkTimeTable({ rows, naDates, employeeId, employeeName, showCalculated
                     setEditingDayType((current) => current?.day.date === d.date ? null : { day: d, anchor });
                   }} />
                   <p className="text-[13px] leading-[20.43px] text-[#212121]">
-                    {d.day} {d.date}<br />{d.status ?? (d.type === "work" ? "วันทำงาน" : "วันหยุดพนักงาน")}
+                      {d.day} {formatThaiDateNumeric(d.date)}<br />{d.status ?? (d.type === "work" ? "วันทำงาน" : "วันหยุดพนักงาน")}
                   </p>
                 </TableCell>
                 <TableCell className={cellClass}>
@@ -1613,7 +1614,7 @@ function WorkTimeTable({ rows, naDates, employeeId, employeeName, showCalculated
             {naDates.map((date) => (
               <TableRow key={date} className="bg-muted/40 hover:bg-muted/40">
                 <TableCell className="text-foreground">
-                  <span className="font-medium text-red-500">{date}</span>
+                  <span className="font-medium text-red-500">{formatThaiDateNumeric(date)}</span>
                   <br />
                   <span className="text-xs text-muted-foreground">ไม่มีสถานะวันทำงาน</span>
                 </TableCell>
@@ -1946,8 +1947,7 @@ function AdvanceWithdrawalContent() {
   const forecastAmount = 39992.17;
 
   const displayDate = (value: string) => {
-    const [year, month, day] = value.split("-");
-    return year && month && day ? `${day}/${month}/${year}` : value;
+    return formatThaiDateNumeric(value) || value;
   };
 
   const saveWithdrawal = () => {
@@ -1977,7 +1977,7 @@ function AdvanceWithdrawalContent() {
             <p className="text-base font-bold leading-[25.144px] text-black/[0.87]">คาดการณ์การเบิกล่วงหน้า</p>
           </div>
           <div className="flex flex-1 flex-col">
-            <AdvanceSummaryRow label="Calculated : 27/08/2026 09:40 น." value={forecastAmount} labelClassName="mr-3" />
+            <AdvanceSummaryRow label="Calculated : 27/08/2569 09:40 น." value={forecastAmount} labelClassName="mr-3" />
             <AdvanceSummaryRow label="เบิกไปแล้ว" value={withdrawnAmount} bordered />
             <AdvanceSummaryRow label="คงเหลือ" value={forecastAmount - withdrawnAmount} />
           </div>
@@ -1991,14 +1991,12 @@ function AdvanceWithdrawalContent() {
               <label className="flex min-w-0 flex-1 flex-col items-start text-[18px] font-normal leading-[28.287px] text-black/[0.87]">
                 วันที่
                 <span className="relative block">
-                  <input
-                    type="date"
+                  <ThaiDatePicker
                     value={date}
-                    onChange={(event) => setDate(event.target.value)}
+                    onChange={setDate}
                     aria-label="วันที่เบิกล่วงหน้า"
                     className="h-[31.6px] w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] pr-9 font-[Kanit,sans-serif] text-sm leading-[22px] text-black/[0.65] outline-none transition-colors hover:border-[#40a9ff] focus:border-[#40a9ff] focus:ring-1 focus:ring-[#40a9ff]"
                   />
-                  <Calendar aria-hidden="true" className="pointer-events-none absolute right-[11px] top-[7px] size-4 text-black/[0.45]" />
                 </span>
               </label>
               <label className="flex min-w-0 flex-1 flex-col items-start text-[18px] font-normal leading-[28.287px] text-black/[0.87]">
@@ -2513,26 +2511,26 @@ function SocialSecurityContent({ amount }: { amount: number }) {
 }
 
 const EDIT_HISTORY_ROWS = [
-  ["27/08/2026 09:40:36", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", "คำนวณเงินเดือน New"],
-  ["24/08/2026 17:47:40", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", "คำนวณเงินเดือน (รายบุคคล) New"],
-  ["24/08/2026 17:44:57", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", "คำนวณเงินเดือน New"],
-  ["24/08/2026 09:03:00", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", "คำนวณเงินเดือน New"],
-  ["24/08/2026 09:01:49", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", "คำนวณเงินเดือน (รายบุคคล) New"],
-  ["24/08/2026 09:01:42", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "31/08/2026 17:00:00"'],
-  ["24/08/2026 09:01:38", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "28/08/2026 17:00:00"'],
-  ["24/08/2026 09:01:35", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "27/08/2026 17:00:00"'],
-  ["24/08/2026 09:01:32", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "26/08/2026 17:00:00"'],
-  ["24/08/2026 09:01:31", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "25/08/2026 17:00:00"'],
-  ["24/08/2026 09:01:29", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "24/08/2026 17:00:00"'],
-  ["24/08/2026 09:01:24", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "21/08/2026 17:00:00"'],
-  ["24/08/2026 09:01:22", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "20/08/2026 17:00:00"'],
-  ["24/08/2026 09:01:20", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "19/08/2026 17:00:00"'],
-  ["24/08/2026 09:01:17", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "18/08/2026 17:00:00"'],
+  ["27/08/2569 09:40:36", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", "คำนวณเงินเดือน New"],
+  ["24/08/2569 17:47:40", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", "คำนวณเงินเดือน (รายบุคคล) New"],
+  ["24/08/2569 17:44:57", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", "คำนวณเงินเดือน New"],
+  ["24/08/2569 09:03:00", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", "คำนวณเงินเดือน New"],
+  ["24/08/2569 09:01:49", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", "คำนวณเงินเดือน (รายบุคคล) New"],
+  ["24/08/2569 09:01:42", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "31/08/2569 17:00:00"'],
+  ["24/08/2569 09:01:38", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "28/08/2569 17:00:00"'],
+  ["24/08/2569 09:01:35", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "27/08/2569 17:00:00"'],
+  ["24/08/2569 09:01:32", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "26/08/2569 17:00:00"'],
+  ["24/08/2569 09:01:31", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "25/08/2569 17:00:00"'],
+  ["24/08/2569 09:01:29", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "24/08/2569 17:00:00"'],
+  ["24/08/2569 09:01:24", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "21/08/2569 17:00:00"'],
+  ["24/08/2569 09:01:22", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "20/08/2569 17:00:00"'],
+  ["24/08/2569 09:01:20", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "19/08/2569 17:00:00"'],
+  ["24/08/2569 09:01:17", "อดิเรก ฉ่ำชื่น", "Adirek Chumchuen", 'เพิ่มเวลา "18/08/2569 17:00:00"'],
 ] as const;
 
 function EditHistoryContent({ history }: { history: PersonalPayrollData["history"] }) {
   const rows = history.map((item) => [
-    new Intl.DateTimeFormat("th-TH", { dateStyle: "short", timeStyle: "medium", timeZone: "Asia/Bangkok" }).format(new Date(item.date)),
+    new Intl.DateTimeFormat("th-TH-u-ca-buddhist-nu-latn", { dateStyle: "short", timeStyle: "medium", timeZone: "Asia/Bangkok" }).format(new Date(item.date)),
     item.editor,
     item.editor,
     item.note,
@@ -2931,6 +2929,7 @@ function PersonContent({ monthKey, isAccountingPeriodClosed }: { monthKey: strin
 
   return (
     <div
+      className="space-y-3"
       onClickCapture={(event) => {
         if (!isAccountingPeriodClosed) return;
         const target = event.target;
@@ -2953,34 +2952,35 @@ function PersonContent({ monthKey, isAccountingPeriodClosed }: { monthKey: strin
         }
       }}
     >
+      <section className="overflow-hidden rounded-xl border border-[#e7eaf0] bg-white shadow-[0_3px_12px_rgba(29,52,93,.07)]">
       {/* งวดเต็ม sub-tab */}
-      <div className="relative flex h-12 border-b-2 border-[#1890ff]">
+      <div className="flex min-h-11 items-stretch border-b border-[#edf0f4] bg-white px-4">
         <button
           type="button"
           role="tab"
           aria-selected="true"
           aria-controls="normal-person-full-panel"
-          className="relative flex h-12 w-40 items-center justify-center gap-0 text-sm font-semibold leading-[22px] text-[#1890ff]"
+          className="relative flex h-11 min-w-24 items-center justify-center gap-1 px-1 text-sm font-medium leading-5 text-[#1474ee]"
         >
           งวดเต็ม
-          <svg aria-hidden="true" viewBox="0 0 24 24" className="relative -left-[0.3px] size-6 shrink-0 fill-[#fbc02d] text-[#fbc02d] leading-6">
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4 shrink-0 fill-[#ff9f1c] text-[#ff9f1c]">
             <path d="M8 5v14l11-7z" />
           </svg>
-          <span className="absolute bottom-0 left-0 h-0.5 w-full bg-[#1890ff]" />
+          <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[#1474ee]" />
         </button>
       </div>
 
       {/* Toolbar row */}
-      <div id="normal-person-full-panel" role="tabpanel" aria-label="งวดเต็ม" className="relative top-[0.8px] flex min-h-[84.65px] flex-col p-6">
-      <div className="flex flex-1 flex-row gap-2">
+      <div id="normal-person-full-panel" role="tabpanel" aria-label="งวดเต็ม" className="p-4">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         {/* เลือกพนักงาน */}
-        <div className="flex items-start">
+        <div className="flex items-center">
           <Button
             data-payroll-employee-select-trigger
-            className="inline-flex h-[36.65px] w-[135.7625px] items-center justify-center gap-0 rounded-[4px] border-0 [border-style:none] bg-white px-4 text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-white"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border-0 bg-[#1474ee] px-4 text-sm font-medium text-white shadow-[0_4px_12px_rgba(20,116,238,.24)] transition-colors hover:bg-[#0d65d8]"
             onClick={() => setSidebarOpen(true)}
           >
-            <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" className="size-6 shrink-0" fill="currentColor">
+            <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" className="size-4 shrink-0" fill="currentColor">
               <path d="M3 18h18v-2H3v2Zm0-5h18v-2H3v2Zm0-7v2h18V6H3Z" />
             </svg>
             เลือกพนักงาน
@@ -2989,8 +2989,8 @@ function PersonContent({ monthKey, isAccountingPeriodClosed }: { monthKey: strin
 
         {/* คำนวณ / รีเซ็ต — available after an employee is selected */}
         {selectedCode && (
-          <div className="flex flex-1 items-end justify-end gap-0">
-            <div ref={calculationMenuRef} className="relative mr-1">
+          <div className="ml-auto flex items-center gap-2">
+            <div ref={calculationMenuRef} className="relative">
               <button
                 id="btn-normal-person-full-cal-menu"
                 ref={calculationTriggerRef}
@@ -3010,20 +3010,18 @@ function PersonContent({ monthKey, isAccountingPeriodClosed }: { monthKey: strin
                 aria-haspopup="menu"
                 aria-expanded={calculationMenuOpen}
                 aria-controls="btn-normal-person-full-cal-menu-panel"
-                className="group relative flex h-9 w-[100.5625px] items-center rounded-[4px] border-0 [border-style:none] bg-white px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-white disabled:cursor-default disabled:bg-black/[0.1] disabled:text-white disabled:shadow-[0_0_0_0_rgba(0,0,0,0.2),0_0_0_0_rgba(0,0,0,0.14),0_0_0_0_rgba(0,0,0,0.12)]"
+                className="group relative flex h-9 items-center gap-1 rounded-lg border-0 bg-[#1474ee] px-4 text-sm font-medium text-white shadow-[0_4px_12px_rgba(20,116,238,.2)] transition-colors hover:bg-[#0d65d8] disabled:cursor-not-allowed disabled:bg-[#b8c3d1] disabled:shadow-none"
               >
                 <span>คำนวณ</span>
-                <svg aria-hidden="true" viewBox="0 0 24 24" className="size-6 shrink-0 fill-current">
-                  <path d="M19 8l-4 4h3c0 1.65-1.35 3-3 3-.52 0-1.01-.14-1.43-.38l-1.46 1.46A4.96 4.96 0 0 0 15 17c2.76 0 5-2.24 5-5h3l-4-4zM6 12c0-1.65 1.35-3 3-3 .52 0 1.01.14 1.43.38l1.46-1.46A4.96 4.96 0 0 0 9 7c-2.76 0-5 2.24-5 5H1l4 4 4-4H6z" />
-                </svg>
+                <Calculator aria-hidden="true" className="size-4 shrink-0" />
                 <span aria-hidden="true" className="pointer-events-none absolute -top-2.5 right-0 hidden size-4 items-center justify-center rounded-full bg-[#ffa500] text-[16px] leading-5 text-white group-hover:flex">?</span>
               </button>
               {calculationMenuOpen && (
-                <div id="btn-normal-person-full-cal-menu-panel" role="menu" aria-label="ตัวเลือกการคำนวณ" onKeyDown={handleCalculationMenuKeyDown} className="mat-menu-content ng-tns-c99-79 absolute left-0 top-full z-[1000] h-[112px] w-[121.825px] overflow-hidden rounded-[4px] bg-white py-2 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.2),0_4px_5px_rgba(0,0,0,0.14),0_1px_10px_rgba(0,0,0,0.12)]">
-                  <button id="btn-normal-person-full-cal-menu-calday" ref={calculationDayItemRef} type="button" role="menuitem" tabIndex={0} aria-disabled={payrollSaving || isAccountingPeriodClosed} disabled={payrollSaving || isAccountingPeriodClosed} onClick={() => { setCalculationMenuOpen(false); calculationTriggerRef.current?.focus(); setCalculationDayDialogOpen(true); }} className="mat-focus-indicator mat-menu-item ng-tns-c99-79 block h-12 w-full px-4 text-left font-[Kanit,sans-serif] text-sm font-normal leading-[48px] text-black/[0.87] transition-colors hover:bg-black/[0.04] focus:bg-black/[0.04] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50">
+                <div id="btn-normal-person-full-cal-menu-panel" role="menu" aria-label="ตัวเลือกการคำนวณ" onKeyDown={handleCalculationMenuKeyDown} className="absolute left-0 top-[calc(100%+6px)] z-[1000] min-w-36 overflow-hidden rounded-lg border border-[#e5eaf2] bg-white py-1 shadow-[0_10px_28px_rgba(29,52,93,.18)]">
+                  <button id="btn-normal-person-full-cal-menu-calday" ref={calculationDayItemRef} type="button" role="menuitem" tabIndex={0} aria-disabled={payrollSaving || isAccountingPeriodClosed} disabled={payrollSaving || isAccountingPeriodClosed} onClick={() => { setCalculationMenuOpen(false); calculationTriggerRef.current?.focus(); setCalculationDayDialogOpen(true); }} className="block h-10 w-full px-3 text-left text-sm font-normal text-[#34425c] transition-colors hover:bg-[#eef5ff] focus:bg-[#eef5ff] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50">
                     คำนวณวันนี้
                   </button>
-                  <button id="btn-normal-person-full-cal-menu-calmonth" ref={calculationMonthItemRef} type="button" role="menuitem" tabIndex={0} aria-disabled={payrollSaving || isAccountingPeriodClosed} disabled={payrollSaving || isAccountingPeriodClosed} onClick={() => { setCalculationMenuOpen(false); calculationTriggerRef.current?.focus(); setCalculationMonthDialogOpen(true); }} className="mat-focus-indicator mat-menu-item ng-tns-c99-79 block h-12 w-full px-4 text-left font-[Kanit,sans-serif] text-sm font-normal leading-[48px] text-black/[0.87] transition-colors hover:bg-black/[0.04] focus:bg-black/[0.04] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50">
+                  <button id="btn-normal-person-full-cal-menu-calmonth" ref={calculationMonthItemRef} type="button" role="menuitem" tabIndex={0} aria-disabled={payrollSaving || isAccountingPeriodClosed} disabled={payrollSaving || isAccountingPeriodClosed} onClick={() => { setCalculationMenuOpen(false); calculationTriggerRef.current?.focus(); setCalculationMonthDialogOpen(true); }} className="block h-10 w-full px-3 text-left text-sm font-normal text-[#34425c] transition-colors hover:bg-[#eef5ff] focus:bg-[#eef5ff] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50">
                     คำนวณทั้งเดือน
                   </button>
                 </div>
@@ -3049,16 +3047,14 @@ function PersonContent({ monthKey, isAccountingPeriodClosed }: { monthKey: strin
                 aria-haspopup="menu"
                 aria-expanded={resetMenuOpen}
                 aria-controls="btn-normal-person-full-reset-menu-panel"
-                className="group relative flex h-9 items-center rounded-[4px] border-0 [border-style:none] bg-white px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-white disabled:cursor-default disabled:bg-black/[0.1] disabled:text-white disabled:shadow-[0_0_0_0_rgba(0,0,0,0.2),0_0_0_0_rgba(0,0,0,0.14),0_0_0_0_rgba(0,0,0,0.12)]"
+                className="group relative flex h-9 items-center gap-1 rounded-lg border border-[#dfe4e8] bg-white px-4 text-sm font-medium text-[#34425c] transition-colors hover:border-[#b9c7d8] hover:bg-[#f7f9fc] disabled:cursor-not-allowed disabled:bg-[#eef1f5] disabled:text-[#9aa5b4]"
               >
                 <span>รีเซ็ต</span>
-                <svg aria-hidden="true" viewBox="0 0 24 24" className="size-6 shrink-0 fill-current">
-                  <path d="M13 3c-4.97 0-9 4.03-9 9H1l4 4 4-4H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.95-2.05l-1.41 1.41A8.96 8.96 0 0 0 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9z" />
-                </svg>
+                <RotateCcw aria-hidden="true" className="size-4 shrink-0" />
                 <span aria-hidden="true" className="pointer-events-none absolute -top-2.5 right-0 hidden size-4 items-center justify-center rounded-full bg-[#ffa500] text-[16px] leading-5 text-white group-hover:flex">?</span>
               </button>
               {resetMenuOpen && (
-                <div id="btn-normal-person-full-reset-menu-panel" ref={resetMenuRef} role="menu" aria-label="ตัวเลือกการรีเซ็ต" onKeyDown={handleResetMenuKeyDown} className="mat-menu-content ng-tns-c99-80 absolute right-0 top-full z-[1000] h-[352px] min-w-[112px] w-max max-w-[280px] overflow-hidden rounded-[4px] bg-white py-2 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.2),0_4px_5px_rgba(0,0,0,0.14),0_1px_10px_rgba(0,0,0,0.12)]">
+                <div id="btn-normal-person-full-reset-menu-panel" ref={resetMenuRef} role="menu" aria-label="ตัวเลือกการรีเซ็ต" onKeyDown={handleResetMenuKeyDown} className="absolute right-0 top-[calc(100%+6px)] z-[1000] w-max min-w-56 max-w-[280px] overflow-hidden rounded-lg border border-[#e5eaf2] bg-white py-1 shadow-[0_10px_28px_rgba(29,52,93,.18)]">
                   {RESET_MENU_ITEMS.map((item) => (
                     <button
                       key={item.id}
@@ -3076,7 +3072,7 @@ function PersonContent({ monthKey, isAccountingPeriodClosed }: { monthKey: strin
                           setSubTab(PERSON_TABS[0]);
                         }
                       }}
-                      className="mat-focus-indicator mat-menu-item ng-tns-c99-80 block h-12 w-full px-4 text-left font-[Kanit,sans-serif] text-sm font-normal leading-[48px] text-black/[0.87] transition-colors hover:bg-black/[0.04] focus:bg-black/[0.04] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                      className="block h-10 w-full px-3 text-left text-sm font-normal text-[#34425c] transition-colors hover:bg-[#eef5ff] focus:bg-[#eef5ff] focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {item.label}
                     </button>
@@ -3087,6 +3083,8 @@ function PersonContent({ monthKey, isAccountingPeriodClosed }: { monthKey: strin
           </div>
         )}
       </div>
+      </div>
+      </section>
 
       <CalculationConfirmationModal
         open={calculationDayDialogOpen}
@@ -3120,12 +3118,12 @@ function PersonContent({ monthKey, isAccountingPeriodClosed }: { monthKey: strin
       {profile ? (
         <>
           {/* Employee info header */}
-          <section className="content-header my-2 flex overflow-hidden rounded-lg bg-white p-2 shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)]">
-            <div className="m-3 flex shrink-0 flex-col items-center justify-center">
+          <section className="content-header flex flex-col overflow-hidden rounded-xl border border-[#e7eaf0] bg-white p-4 shadow-[0_3px_12px_rgba(29,52,93,.07)] sm:flex-row">
+            <div className="flex shrink-0 items-center justify-center sm:mr-4">
               <img
                 src={`${USER_IMAGE_ORIGIN}/images/userPlaceHolder.png`}
-                alt="avatar"
-                className="size-24 rounded-full"
+                alt={`รูปโปรไฟล์ ${profile.name}`}
+                className="size-20 rounded-xl object-cover ring-1 ring-[#e7eaf0]"
                 onError={(e) => {
                   (e.target as HTMLImageElement).src =
                     `${FALLBACK_USER_IMAGE_ORIGIN}/images/userPlaceHolder.png`;
@@ -3133,30 +3131,30 @@ function PersonContent({ monthKey, isAccountingPeriodClosed }: { monthKey: strin
               />
             </div>
 
-            <div className="mx-3 flex min-w-0 flex-1 flex-col">
-              <div className="mx-2 flex flex-row">
-                <span className="text-[20px] font-bold leading-normal text-[rgba(0,0,0,0.87)]">
+            <div className="mt-3 flex min-w-0 flex-1 flex-col sm:mt-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-lg font-semibold leading-6 text-[#172348]">
                   {profile.code}: {profile.name} ()
                 </span>
                 <Link
                   href={selectedEmployeeId ? `/organization/organization-employee/${selectedEmployeeId}?from=payroll-personal` : "/organization/organization-employee"}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="ml-3 flex size-6 shrink-0 items-center justify-center text-[#039be5]"
+                  className="flex size-8 shrink-0 items-center justify-center rounded-lg text-[#1474ee] transition-colors hover:bg-[#eef5ff]"
                   aria-label={`เปิดข้อมูลพนักงาน ${profile.name}`}
                 >
-                  <svg aria-hidden="true" viewBox="0 0 24 24" className="size-6 fill-current">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4 fill-current">
                     <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a.996.996 0 0 0 0-1.41l-2.34-2.34a.996.996 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.82-1.83z" />
                   </svg>
                 </Link>
               </div>
 
-              <div className="flex flex-row">
+              <div className="mt-3 grid gap-x-6 gap-y-1 sm:grid-cols-2 xl:grid-cols-3">
                 {buildProfileColumns(profile).map((column, columnIndex) => (
-                  <div key={columnIndex} className="mx-2 flex flex-1 flex-col items-start justify-start">
+                  <div key={columnIndex} className="flex min-w-0 flex-col items-start justify-start">
                     {column.map((row) => (
-                      <div key={row.label} className="text-[14px] font-normal leading-normal text-[rgba(0,0,0,0.65)]">
-                        {row.label}: <span className="font-medium text-[rgba(0,0,0,0.87)]">{row.value}</span>
+                      <div key={row.label} className="w-full truncate text-sm font-normal leading-6 text-[#6f7b90]">
+                        {row.label}: <span className="font-medium text-[#34425c]">{row.value || "-"}</span>
                       </div>
                     ))}
                   </div>
@@ -3167,16 +3165,16 @@ function PersonContent({ monthKey, isAccountingPeriodClosed }: { monthKey: strin
 
           {/* Sub-tabs */}
           <section className={cn(
-            "content-body overflow-hidden rounded-lg bg-white shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)]",
-            subTab === "ยื่นเอกสาร" ? "mb-0 mt-2" : "my-2"
+            "content-body overflow-hidden rounded-xl border border-[#e7eaf0] bg-white shadow-[0_3px_12px_rgba(29,52,93,.07)]",
+            subTab === "ยื่นเอกสาร" && "mb-0"
           )}>
-            <div className="flex h-12 items-stretch overflow-hidden border-b border-black/[0.12] bg-white">
+            <div className="flex min-h-11 items-stretch overflow-hidden border-b border-[#edf0f4] bg-white px-1">
               <button
                 type="button"
                 aria-label="เลื่อนแท็บไปทางซ้าย"
                 disabled={!personTabPagination.before}
                 onClick={() => scrollPersonTabs("before")}
-                className="relative z-10 flex h-12 w-8 shrink-0 items-center justify-center bg-white text-black/[0.54] shadow-[0_2px_4px_-1px_rgba(0,0,0,0.2),0_4px_5px_rgba(0,0,0,0.14),0_1px_10px_rgba(0,0,0,0.12)] transition-colors hover:text-black/[0.87] disabled:cursor-default disabled:text-black/[0.26]"
+                className="relative z-10 flex h-11 w-8 shrink-0 items-center justify-center bg-white text-[#6f7b90] transition-colors hover:text-[#34425c] disabled:cursor-default disabled:text-[#c3cad4]"
               >
                 <span aria-hidden="true" className="size-2.5 rotate-[135deg] border-b-2 border-r-2 border-current" />
               </button>
@@ -3198,13 +3196,12 @@ function PersonContent({ monthKey, isAccountingPeriodClosed }: { monthKey: strin
                       aria-selected={active}
                       onClick={() => setSubTab(tab)}
                       className={cn(
-                        "group relative flex h-12 min-w-40 shrink-0 items-center justify-center px-6 text-sm font-semibold leading-normal transition-colors",
-                        active ? "text-[#1890ff]" : "text-black/[0.54] hover:text-black/[0.87]"
+                        "group relative flex h-11 min-w-40 shrink-0 items-center justify-center px-5 text-sm font-normal leading-5 transition-colors",
+                        active ? "font-medium text-[#1474ee]" : "text-[#6f7b90] hover:text-[#34425c]"
                       )}
                     >
                       <span className="tooltip-hover w-full">{tab}</span>
-                      <span aria-hidden="true" className="absolute right-2.5 top-0 hidden size-5 items-center justify-center rounded-full bg-[#ffa500] text-[16px] font-normal leading-5 text-white shadow-[0_2px_3px_rgba(0,0,0,0.5)] group-hover:flex">?</span>
-                      {active && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#1890ff]" />}
+                      {active && <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[#1474ee]" />}
                     </button>
                   );
                 })}
@@ -3214,7 +3211,7 @@ function PersonContent({ monthKey, isAccountingPeriodClosed }: { monthKey: strin
                 aria-label="เลื่อนแท็บไปทางขวา"
                 disabled={!personTabPagination.after}
                 onClick={() => scrollPersonTabs("after")}
-                className="relative z-10 flex h-12 w-8 shrink-0 items-center justify-center bg-white text-black/[0.54] shadow-[0_2px_4px_-1px_rgba(0,0,0,0.2),0_4px_5px_rgba(0,0,0,0.14),0_1px_10px_rgba(0,0,0,0.12)] transition-colors hover:text-black/[0.87] disabled:cursor-default disabled:text-black/[0.26]"
+                className="relative z-10 flex h-11 w-8 shrink-0 items-center justify-center bg-white text-[#6f7b90] transition-colors hover:text-[#34425c] disabled:cursor-default disabled:text-[#c3cad4]"
               >
                 <span aria-hidden="true" className="size-2.5 rotate-[-45deg] border-b-2 border-r-2 border-current" />
               </button>
@@ -3257,8 +3254,6 @@ function PersonContent({ monthKey, isAccountingPeriodClosed }: { monthKey: strin
           </section>
         </>
       ) : null}
-
-      </div>
 
       {sidebarOpen && (
         <EmployeeSelectPanel
@@ -3699,7 +3694,7 @@ function IndividualSettingsContent({ employeeId, monthKey }: { employeeId: strin
         </IndividualSettingsAccordion>
 
         <IndividualSettingsAccordion title="ภาษี" open={openSections.includes("tax")} onToggle={() => toggleSection("tax")}>
-          <div><div className="max-w-[760px] overflow-hidden border border-[rgba(0,0,0,0.65)] bg-white"><table className="w-full table-fixed bg-white text-sm text-[rgba(0,0,0,0.65)]"><thead className="text-white"><tr className="border border-[rgba(0,0,0,0.65)] bg-[#61a8ff] text-[rgba(0,0,0,0.65)]">{["ปี", "จำนวนเดือน", "มูลค่า", ""].map((label) => <IndividualTableHead tone="inverse" key={label}>{label}</IndividualTableHead>)}</tr></thead><tbody>{[["2026", "9 เดือน", "63,500"], ["2025", "1 เดือน", "60,000"], ["2024", "1 เดือน", "0"]].map((row) => <tr key={row[0]} className="border-t border-[#f0f0f0] bg-white">{row.map((cell) => <IndividualTableCell key={cell}>{cell}</IndividualTableCell>)}<IndividualTableCell><IndividualEditButton label={`แก้ไขภาษีปี ${row[0]}`} /><IndividualDeleteButton label={`ลบภาษีปี ${row[0]}`} /></IndividualTableCell></tr>)}</tbody></table></div></div>
+          <div><div className="max-w-[760px] overflow-hidden border border-[rgba(0,0,0,0.65)] bg-white"><table className="w-full table-fixed bg-white text-sm text-[rgba(0,0,0,0.65)]"><thead className="text-white"><tr className="border border-[rgba(0,0,0,0.65)] bg-[#61a8ff] text-[rgba(0,0,0,0.65)]">{["ปี", "จำนวนเดือน", "มูลค่า", ""].map((label) => <IndividualTableHead tone="inverse" key={label}>{label}</IndividualTableHead>)}</tr></thead><tbody>{[["2569", "9 เดือน", "63,500"], ["2568", "1 เดือน", "60,000"], ["2567", "1 เดือน", "0"]].map((row) => <tr key={row[0]} className="border-t border-[#f0f0f0] bg-white">{row.map((cell) => <IndividualTableCell key={cell}>{cell}</IndividualTableCell>)}<IndividualTableCell><IndividualEditButton label={`แก้ไขภาษีปี ${row[0]}`} /><IndividualDeleteButton label={`ลบภาษีปี ${row[0]}`} /></IndividualTableCell></tr>)}</tbody></table></div></div>
         </IndividualSettingsAccordion>
 
         <IndividualSettingsAccordion title="จัดการหนี้สินพนักงาน" open={openSections.includes("debt")} onToggle={() => toggleSection("debt")}>
@@ -4044,8 +4039,8 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
   const innerTabRef = useRef<HTMLDivElement>(null);
   const salaryMenuRef = useRef<HTMLDivElement>(null);
   const salaryMenuTriggerRef = useRef<HTMLButtonElement>(null);
-  const orgCellClass = "!h-[52.8px] !p-2 border-b border-r border-[#f0f0f0] bg-transparent align-middle [font-family:kanit] text-sm font-normal leading-[22.001px] tracking-[-0.1px] text-black/[0.65]";
-  const orgHeaderClass = "h-auto border-b border-r !border-[#f0f0f0] px-4 py-4 text-center [font-family:kanit] text-sm font-medium leading-[22.001px]";
+  const orgCellClass = "!h-12 !px-3 !py-2 border-b border-r border-[#edf0f4] bg-transparent align-middle text-sm font-normal leading-5 text-[#5f6d80]";
+  const orgHeaderClass = "h-auto border-b border-r !border-[#e7eaf0] !bg-[#f7f9fc] px-3 py-3 text-center text-sm font-medium leading-5 !text-[#34425c]";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -4124,7 +4119,7 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
 
   return (
     <div
-      className="space-y-0"
+      className="space-y-3"
       aria-readonly={isAccountingPeriodClosed}
       onClickCapture={(event) => {
         if (!isAccountingPeriodClosed) return;
@@ -4141,12 +4136,13 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
       }}
     >
       {isAccountingPeriodClosed && (
-        <div role="status" className="mx-6 mt-3 rounded border border-[#ffe58f] bg-[#fffbe6] px-4 py-2 text-sm text-[rgba(0,0,0,0.65)]">
+        <div role="status" className="rounded-xl border border-[#f3dda0] bg-[#fff9df] px-4 py-3 text-sm leading-5 text-[#755c18]">
           งวดบัญชีนี้ปิดแล้ว ข้อมูลการคำนวณและการแก้ไขเป็นแบบอ่านอย่างเดียว
         </div>
       )}
+      <section className="overflow-hidden rounded-xl border border-[#e7eaf0] bg-white shadow-[0_3px_12px_rgba(29,52,93,.07)]">
       {/* Sub-tabs: งวดเต็ม / รวมทุกงวด / เปรียบเทียบ */}
-      <div role="tablist" aria-label="รูปแบบการคำนวณเงินเดือนทั้งองค์กร" className="flex h-12 border-b border-black/[0.12] bg-white">
+      <div role="tablist" aria-label="รูปแบบการคำนวณเงินเดือนทั้งองค์กร" className="flex min-h-11 overflow-x-auto border-b border-[#edf0f4] bg-white px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {ORG_SUB_TABS.map((tab) => {
             const active = tab === subTab;
             const hasArrow = tab === "งวดเต็ม" || tab === "รวมทุกงวด";
@@ -4159,90 +4155,83 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
                 aria-controls={`normal-organization-${tab}`}
                 onClick={() => setSubTab(tab)}
                 className={cn(
-                  "group relative flex h-12 min-w-40 shrink-0 items-center justify-center px-6 font-[Kanit,sans-serif] text-sm font-semibold leading-[22px] transition-colors",
+                  "group relative flex h-11 min-w-32 shrink-0 items-center justify-center px-5 text-sm font-normal leading-5 transition-colors",
                   active
-                    ? "text-[#1890ff]"
-                    : "text-black/[0.54] hover:text-black/[0.87]"
+                    ? "font-medium text-[#1474ee]"
+                    : "text-[#6f7b90] hover:text-[#34425c]"
                 )}
               >
                 <span className="tooltip-hover flex items-center justify-center">
                   <span>{tab}</span>
                   {hasArrow && (
-                    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-6 shrink-0 fill-[#fbc02d] text-[#fbc02d]">
+                    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4 shrink-0 fill-[#ff9f1c] text-[#ff9f1c]">
                       <path d="M8 5v14l11-7z" />
                     </svg>
                   )}
                 </span>
-                {tab === "งวดเต็ม" && (
-                  <span aria-hidden="true" className="pointer-events-none absolute right-2.5 top-0 hidden size-5 items-center justify-center rounded-full bg-[#ffa500] text-[16px] font-normal leading-5 text-white shadow-[0_2px_3px_rgba(0,0,0,0.5)] group-hover:flex">?</span>
-                )}
-                {active && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#1890ff]" />}
+                {active && <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[#1474ee]" />}
               </button>
             );
           })}
       </div>
 
       {/* Filter + action toolbar */}
-      <div className="mx-6 mb-[22px] mt-6 flex flex-wrap items-start justify-between gap-2">
+      <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
         {/* Filters */}
-        <div className="flex flex-1 flex-wrap items-start gap-2">
+        <div className="flex flex-1 flex-wrap items-center gap-1.5">
           {[
-            { label: "โครงสร้างองค์กร", width: "w-[159.4125px]" },
-            { label: "ตำแหน่ง", width: "w-[109.225px]" },
-            { label: "ประเภทพนักงาน", width: "w-[153.4625px]" },
+            { label: "โครงสร้างองค์กร", width: "w-[128px]" },
+            { label: "ตำแหน่ง", width: "w-[96px]" },
+            { label: "ประเภทพนักงาน", width: "w-[128px]" },
           ].map((filter) => (
             <button
               key={filter.label}
               type="button"
-              className={cn("inline-flex h-10 items-center justify-between rounded-[20px] border-[0.8px] border-[#d9d9d9] bg-white px-4 font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-black/[0.65] shadow-[0_2px_0_rgba(0,0,0,0.016)] transition-colors hover:border-[#40a9ff] hover:bg-white", filter.width)}
+              className={cn("inline-flex h-8 items-center justify-between rounded-lg border border-[#dfe4e8] bg-white px-2.5 text-xs font-normal leading-[18px] text-[#5f6d80] transition-colors hover:border-[#aebdd0] hover:bg-[#f7f9fc]", filter.width)}
             >
               {filter.label}
-              <ChevronDown className="size-[14px] stroke-[2.5] text-black" />
+              <ChevronDown className="size-3 text-[#718096]" />
             </button>
           ))}
         </div>
 
         {/* Actions */}
-        <div className="flex flex-wrap items-end gap-1 self-end">
+        <div className="flex flex-wrap items-center gap-1.5">
           <button
             type="button"
-            className="group relative inline-flex h-9 items-center gap-0 rounded-[4px] border-0 bg-white px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-black/[0.87] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-white"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#dfe4e8] bg-white px-3 text-xs font-medium leading-[18px] text-[#34425c] transition-colors hover:border-[#b9c7d8] hover:bg-[#f7f9fc]"
           >
-            <span>สร้างรายชื่อ&nbsp;</span>
-            <List className="size-6" />
-            <span aria-hidden="true" className="pointer-events-none absolute -top-2.5 right-0 hidden size-4 items-center justify-center rounded-full bg-[#ffa500] text-[16px] font-normal leading-5 text-white group-hover:flex">?</span>
+            <span>สร้างรายชื่อ</span>
+            <List className="size-3.5" />
           </button>
           <button
             type="button"
-            className="group relative inline-flex h-9 items-center gap-0 rounded-[4px] border-0 bg-white px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-black/[0.87] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-white"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border-0 bg-[#1474ee] px-3 text-xs font-medium leading-[18px] text-white shadow-[0_4px_12px_rgba(20,116,238,.2)] transition-colors hover:bg-[#0d65d8]"
           >
-            <span>คำนวณ&nbsp;</span>
-            <svg aria-hidden="true" viewBox="0 0 24 24" className="size-6 shrink-0 fill-current">
-              <path d="M19 8l-4 4h3c0 1.65-1.35 3-3 3-.52 0-1.01-.14-1.43-.38l-1.46 1.46A4.96 4.96 0 0 0 15 17c2.76 0 5-2.24 5-5h3l-4-4zM6 12c0-1.65 1.35-3 3-3 .52 0 1.01.14 1.43.38l1.46-1.46A4.96 4.96 0 0 0 9 7c-2.76 0-5 2.24-5 5H1l4 4 4-4H6z" />
-            </svg>
-            <span aria-hidden="true" className="pointer-events-none absolute -top-2.5 right-0 hidden size-4 items-center justify-center rounded-full bg-[#ffa500] text-[16px] font-normal leading-5 text-white group-hover:flex">?</span>
+            <span>คำนวณ</span>
+            <Calculator aria-hidden="true" className="size-3.5 shrink-0" />
           </button>
           <button
             type="button"
-            className="group relative inline-flex h-9 items-center gap-0 rounded-[4px] border-0 bg-white px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-black/[0.87] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] hover:bg-white"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#dfe4e8] bg-white px-3 text-xs font-medium leading-[18px] text-[#34425c] transition-colors hover:border-[#b9c7d8] hover:bg-[#f7f9fc]"
           >
-            <span>รีเซ็ต&nbsp;</span>
-            <RotateCcw className="size-6" />
-            <span aria-hidden="true" className="pointer-events-none absolute -top-2.5 right-0 hidden size-4 items-center justify-center rounded-full bg-[#ffa500] text-[16px] font-normal leading-5 text-white group-hover:flex">?</span>
+            <span>รีเซ็ต</span>
+            <RotateCcw className="size-3.5" />
           </button>
         </div>
       </div>
+      </section>
 
-      <section className="content-body relative -top-[1.2px] mx-6 overflow-visible rounded-[5px] border border-[#cccccc] bg-white shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)]">
+      <section className="content-body overflow-visible rounded-xl border border-[#e7eaf0] bg-white shadow-[0_3px_12px_rgba(29,52,93,.07)]">
       {/* Inner tabs */}
-      <div className="flex h-12 items-stretch overflow-hidden border-b border-black/[0.12] bg-white">
+      <div className="flex min-h-11 items-stretch overflow-hidden border-b border-[#edf0f4] bg-white px-1">
         <button
           type="button"
           onClick={() => innerTabRef.current?.scrollBy({ left: -220, behavior: "smooth" })}
-          className="flex w-12 shrink-0 items-center justify-center bg-white text-black/[0.54] shadow-[2px_0_8px_rgba(0,0,0,0.12)] transition-colors hover:text-black/[0.87]"
+          className="flex h-11 w-8 shrink-0 items-center justify-center bg-white text-[#6f7b90] transition-colors hover:text-[#34425c]"
           aria-label="เลื่อนแท็บซ้าย"
         >
-          <ChevronLeft className="size-6" />
+          <ChevronLeft className="size-4" />
         </button>
         <div ref={innerTabRef} role="tablist" aria-label="ข้อมูลคำนวณเงินเดือนทั้งองค์กร" className="flex min-w-0 flex-1 items-center overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {ORG_INNER_TABS.map((tab) => {
@@ -4257,15 +4246,14 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
                 aria-controls={`normal-organization-${tab}`}
                 onClick={() => setInnerTab(tab)}
                 className={cn(
-                  "group relative flex h-12 min-w-40 shrink-0 items-center justify-center whitespace-nowrap px-6 font-[Kanit,sans-serif] text-sm font-semibold leading-[22px] transition-colors",
+                  "group relative flex h-11 w-[200px] min-w-[200px] shrink-0 items-center justify-center whitespace-nowrap px-5 text-sm font-normal leading-5 transition-colors",
                   active
-                    ? "text-[#1890ff]"
-                    : "text-black/[0.54] hover:text-black/[0.87]"
+                    ? "font-medium text-[#1474ee]"
+                    : "text-[#6f7b90] hover:text-[#34425c]"
                 )}
               >
                 <span>{label}</span>
-                <span aria-hidden="true" className="pointer-events-none absolute right-2.5 top-[5px] hidden size-5 items-center justify-center rounded-full bg-[#ffa500] text-[16px] font-normal leading-5 text-white shadow-[0_2px_3px_rgba(0,0,0,0.5)] group-hover:flex">?</span>
-                {active && <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#1890ff]" />}
+                {active && <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-[#1474ee]" />}
               </button>
             );
           })}
@@ -4273,43 +4261,41 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
         <button
           type="button"
           onClick={() => innerTabRef.current?.scrollBy({ left: 220, behavior: "smooth" })}
-          className="flex w-12 shrink-0 items-center justify-center bg-white text-black/[0.54] shadow-[-2px_0_8px_rgba(0,0,0,0.12)] transition-colors hover:text-black/[0.87]"
+          className="flex h-11 w-8 shrink-0 items-center justify-center bg-white text-[#6f7b90] transition-colors hover:text-[#34425c]"
           aria-label="เลื่อนแท็บขวา"
         >
-          <ChevronRight className="size-6" />
+          <ChevronRight className="size-4" />
         </button>
       </div>
 
       {/* Tab content */}
       {innerTab === "รายชื่อพนักงาน" ? (
-        <div id="normal-organization-employee" className="flex">
-          <div className="m-6 flex flex-1 flex-col">
+        <div id="normal-organization-employee">
+          <div className="flex flex-col p-4">
             {/* Toggle + เปิด/ปิดข้อมูลเงินเดือน */}
-            <div className="mb-2 flex items-center justify-end">
-              <div className="mr-3 flex h-[25.1375px] items-center justify-center font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-black/[0.87]">
+            <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center text-sm font-normal leading-5 text-[#34425c]">
                 <button
                   type="button"
                   role="switch"
                   aria-checked={calcEnabled}
                   onClick={() => setCalcEnabled((v) => !v)}
                   className={cn(
-                    "relative top-[0.74375px] mr-2 inline-block h-[22px] w-11 rounded-[100px] border-[0.8px] border-transparent p-0 transition-colors",
-                    calcEnabled ? "bg-[#1890ff]" : "bg-[#bfbfbf]"
+                    "relative mr-2 inline-block h-5 w-10 rounded-full border border-transparent p-0 transition-colors",
+                    calcEnabled ? "bg-[#1474ee]" : "bg-[#b8c3d1]"
                   )}
                 >
                   <span
                     className={cn(
-                      "absolute left-[1px] top-px size-[18px] rounded-[18px] bg-white shadow-[0_2px_4px_rgba(0,35,11,0.2)] transition-transform duration-[360ms] [transition-timing-function:cubic-bezier(0.78,0.14,0.15,0.86)]",
-                      calcEnabled && "translate-x-[24px]"
+                      "absolute left-px top-px size-4 rounded-full bg-white shadow-sm transition-transform",
+                      calcEnabled && "translate-x-5"
                     )}
                   />
                 </button>
-                <span className="mr-2 h-[22px] w-[237.65px] whitespace-nowrap">เปิด/ปิด การคำนวณเงินเดือนของพนักงาน</span>
-                <svg aria-hidden="true" viewBox="64 64 896 896" className="size-3 shrink-0 fill-black/[0.54] text-black/[0.54]">
-                  <path d="M512 64C264.6 64 64 264.6 64 512s200.6 448 448 448 448-200.6 448-448S759.4 64 512 64zm0 708c-22.1 0-40-17.9-40-40s17.9-40 40-40 40 17.9 40 40-17.9 40-40 40zm62.9-219.5a48.3 48.3 0 00-30.9 44.8V620c0 4.4-3.6 8-8 8h-48c-4.4 0-8-3.6-8-8v-21.5c0-23.1 6.7-45.9 19.9-64.9 12.9-18.6 30.9-32.8 52.1-40.9 34-13.1 56-41.6 56-72.7 0-44.1-43.1-80-96-80s-96 35.9-96 80v7.6c0 4.4-3.6 8-8 8h-48c-4.4 0-8-3.6-8-8V420c0-39.3 17.2-76 48.4-103.3C430.4 290.4 470 276 512 276s81.6 14.5 111.6 40.7C654.8 344 672 380.7 672 420c0 57.8-38.1 109.8-97.1 132.5z" />
-                </svg>
+                <span className="mr-1">เปิด/ปิด การคำนวณเงินเดือนของพนักงาน</span>
+                <CircleHelp aria-hidden="true" className="size-4 shrink-0 text-[#7b8798]" />
               </div>
-              <div ref={salaryMenuRef} className="relative h-9 w-[193.9875px]">
+              <div ref={salaryMenuRef} className="relative h-9 sm:w-auto">
                 <button
                   ref={salaryMenuTriggerRef}
                   type="button"
@@ -4323,35 +4309,29 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
                       setSalaryMenuOpen(true);
                     }
                   }}
-                  className="mat-focus-indicator mat-menu-trigger mat-raised-button mat-button-base ng-tns-c606-159 ng-star-inserted block h-9 w-full rounded-[4px] border-0 bg-white px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-9 text-black/[0.87] shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-black/[0.04] focus:outline-none"
+                  className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-[#dfe4e8] bg-white px-4 text-sm font-medium text-[#34425c] transition-colors hover:border-[#b9c7d8] hover:bg-[#f7f9fc] focus:outline-none focus:ring-2 focus:ring-[#5eaafa]"
                 >
-                  <span className="mat-button-wrapper inline">
-                    เปิด/ปิดข้อมูลเงินเดือน{" "}
-                    <svg aria-hidden="true" viewBox="0 0 24 24" className="relative top-[0.3625px] ml-[0.95px] inline-block size-6 align-middle fill-current">
-                      <path d="M13 3h-2v10h2V3zm4.83 2.17-1.42 1.42A7.93 7.93 0 0 1 20 12c0 4.41-3.59 8-8 8s-8-3.59-8-8c0-2.21.9-4.21 2.35-5.65L4.93 4.93A9.93 9.93 0 0 0 2 12c0 5.52 4.48 10 10 10s10-4.48 10-10c0-2.76-1.12-5.26-2.93-7.07z" />
-                    </svg>
-                  </span>
+                  <span>เปิด/ปิดข้อมูลเงินเดือน</span>
+                  <Power aria-hidden="true" className="size-4" />
                 </button>
                 {salaryMenuOpen && (
-                  <div id="normal-organization-salary-menu" role="menu" aria-label="เปิดหรือปิดข้อมูลเงินเดือน" className="mat-menu-panel ng-tns-c99-161 absolute bottom-0 left-0 z-[1000] h-28 w-[137.45px] overflow-hidden rounded-[4px] bg-white p-0 shadow-[0_2px_4px_-1px_rgba(0,0,0,0.2),0_4px_5px_rgba(0,0,0,0.14),0_1px_10px_rgba(0,0,0,0.12)]">
-                    <div className="mat-menu-content ng-tns-c99-161 py-2">
-                      <button type="button" role="menuitem" onClick={() => { setSalaryVisible(true); setSalaryMenuOpen(false); }} className="mat-focus-indicator mat-menu-item ng-tns-c99-161 block h-12 w-full px-4 text-left font-[Kanit,sans-serif] text-sm font-normal leading-[48px] text-black/[0.87] transition-colors hover:bg-black/[0.04] focus:bg-black/[0.04] focus:outline-none">
+                  <div id="normal-organization-salary-menu" role="menu" aria-label="เปิดหรือปิดข้อมูลเงินเดือน" className="absolute right-0 top-[calc(100%+6px)] z-[1000] min-w-52 overflow-hidden rounded-lg border border-[#e5eaf2] bg-white py-1 shadow-[0_10px_28px_rgba(29,52,93,.18)]">
+                      <button type="button" role="menuitem" onClick={() => { setSalaryVisible(true); setSalaryMenuOpen(false); }} className="block h-10 w-full px-3 text-left text-sm font-normal text-[#34425c] transition-colors hover:bg-[#eef5ff] focus:bg-[#eef5ff] focus:outline-none">
                         เปิดข้อมูลเงินเดือน
                       </button>
-                      <button type="button" role="menuitem" onClick={() => { setSalaryVisible(false); setSalaryMenuOpen(false); }} className="mat-focus-indicator mat-menu-item ng-tns-c99-161 block h-12 w-full px-4 text-left font-[Kanit,sans-serif] text-sm font-normal leading-[48px] text-black/[0.87] transition-colors hover:bg-black/[0.04] focus:bg-black/[0.04] focus:outline-none">
+                      <button type="button" role="menuitem" onClick={() => { setSalaryVisible(false); setSalaryMenuOpen(false); }} className="block h-10 w-full px-3 text-left text-sm font-normal text-[#34425c] transition-colors hover:bg-[#eef5ff] focus:bg-[#eef5ff] focus:outline-none">
                         ปิดข้อมูลเงินเดือน
                       </button>
-                    </div>
                   </div>
                 )}
               </div>
             </div>
 
             {/* Table */}
-            <div className="relative top-[0.8px] ml-[9px] overflow-hidden border border-[#f0f0f0] bg-white [&>div]:overflow-hidden">
-              <Table className="w-[calc(100%+0.8px)] min-w-[1100px] table-fixed border-separate border-spacing-0 rounded-t-[2px] text-sm leading-[22.001px]">
-              <TableHeader className="sticky top-0 z-10 bg-[#61a8ff]">
-                <TableRow className="h-[76.8px] hover:bg-transparent">
+            <div className="overflow-x-auto rounded-lg border border-[#e7eaf0] bg-white">
+              <Table className="min-w-[1100px] table-fixed border-separate border-spacing-0 text-sm leading-5">
+              <TableHeader className="sticky top-0 z-10 bg-[#f7f9fc]">
+                <TableRow className="h-12 hover:bg-transparent">
                   <BlueTableHead className={cn(orgHeaderClass, "w-[5%]")}>
                     <span className="inline-flex h-[22px] items-center">
                       <PayrollCheckbox
@@ -4365,7 +4345,7 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
                   <BlueTableHead className={cn(orgHeaderClass, "w-[8%]")}>รหัสพนักงาน</BlueTableHead>
                   <BlueTableHead className={cn(orgHeaderClass, "relative w-[16%]")}>
                     ชื่อพนักงาน
-                    <Search aria-hidden="true" className="absolute right-[7.8px] top-1/2 size-3 -translate-y-1/2 text-black/[0.54]" />
+                    <Search aria-hidden="true" className="absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-[#7b8798]" />
                   </BlueTableHead>
                   <BlueTableHead className={cn(orgHeaderClass, "w-[16%]")}>สำนักงานสาขา</BlueTableHead>
                   <BlueTableHead className={cn(orgHeaderClass, "w-[15%]")}>แผนก</BlueTableHead>
@@ -4377,13 +4357,13 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
               </TableHeader>
               <TableBody>
                 {employeesLoading ? (
-                  <TableRow className="h-[52.8px] border-0 bg-white hover:bg-white">
-                    <TableCell colSpan={10} className="text-center text-sm text-black/[0.65]">กำลังโหลดรายชื่อพนักงาน...</TableCell>
+                  <TableRow className="h-12 border-0 bg-white hover:bg-white">
+                    <TableCell colSpan={10} className="text-center text-sm text-[#6f7b90]">กำลังโหลดรายชื่อพนักงาน...</TableCell>
                   </TableRow>
                 ) : pageEmployees.map((e, i) => (
                   <TableRow
                     key={e.code}
-                    className={cn("h-[52.8px] border-0 hover:bg-inherit", (employeePageStart + i) % 2 === 0 ? "bg-[#f2fafe]" : "bg-white")}
+                    className={cn("h-12 border-0 transition-colors hover:bg-[#f7faff]", (employeePageStart + i) % 2 === 0 ? "bg-[#fbfcfe]" : "bg-white")}
                   >
                     <TableCell className={cn(orgCellClass, "text-center")}>
                       <span className="inline-flex h-[22px] items-center">
@@ -4407,11 +4387,11 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
                     <TableCell className={cn(orgCellClass, "text-center")}>
                       <button
                         type="button"
-                        className="flex size-8 items-center justify-center rounded-full bg-[#eb8794] text-white transition-colors hover:bg-[#df7380]"
+                        className="flex size-8 items-center justify-center rounded-lg border border-[#ffd5d9] bg-[#fff5f6] text-[#d95363] transition-colors hover:bg-[#ffecef]"
                         aria-label={`ลบ ${e.name} ออกจากรายชื่อ`}
                         title="ลบออกจากรายชื่อ"
                       >
-                        <Trash2 className="size-3" />
+                        <Trash2 className="size-3.5" />
                       </button>
                     </TableCell>
                   </TableRow>
@@ -4421,12 +4401,12 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
             </div>
 
             {/* Pagination */}
-            <nav className="mt-2 flex items-center justify-end gap-1.5" aria-label="แบ่งหน้ารายชื่อพนักงาน">
+            <nav className="mt-3 flex flex-wrap items-center justify-end gap-1.5" aria-label="แบ่งหน้ารายชื่อพนักงาน">
               <button
                 type="button"
                 disabled={employeePage === 1}
                 onClick={() => changeEmployeePage(employeePage - 1)}
-                className="flex size-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors enabled:hover:border-[#2196f3] enabled:hover:text-[#2196f3] disabled:cursor-not-allowed disabled:text-muted-foreground/50"
+                className="flex size-8 items-center justify-center rounded-lg border border-[#dfe4e8] text-[#6f7b90] transition-colors enabled:hover:border-[#1474ee] enabled:hover:text-[#1474ee] disabled:cursor-not-allowed disabled:text-[#c3cad4]"
                 aria-label="หน้าก่อนหน้า"
               >
                 <ChevronLeft className="size-4" />
@@ -4438,10 +4418,10 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
                   aria-current={page === employeePage ? "page" : undefined}
                   onClick={() => changeEmployeePage(page)}
                   className={cn(
-                    "size-8 rounded-sm border bg-white text-sm font-medium transition-colors",
+                    "size-8 rounded-lg border bg-white text-sm font-medium transition-colors",
                     page === employeePage
-                      ? "border-[#2196f3] text-[#2196f3] shadow-sm"
-                      : "border-border text-muted-foreground hover:border-[#2196f3] hover:text-[#2196f3]"
+                      ? "border-[#1474ee] bg-[#eef5ff] text-[#1474ee]"
+                      : "border-[#dfe4e8] text-[#6f7b90] hover:border-[#1474ee] hover:text-[#1474ee]"
                   )}
                 >
                   {page}
@@ -4451,7 +4431,7 @@ function OrganizationContent({ isAccountingPeriodClosed }: { isAccountingPeriodC
                 type="button"
                 disabled={employeePage === employeePageCount}
                 onClick={() => changeEmployeePage(employeePage + 1)}
-                className="flex size-8 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors enabled:hover:border-[#2196f3] enabled:hover:text-[#2196f3] disabled:cursor-not-allowed disabled:text-muted-foreground/50"
+                className="flex size-8 items-center justify-center rounded-lg border border-[#dfe4e8] text-[#6f7b90] transition-colors enabled:hover:border-[#1474ee] enabled:hover:text-[#1474ee] disabled:cursor-not-allowed disabled:text-[#c3cad4]"
                 aria-label="หน้าถัดไป"
               >
                 <ChevronRight className="size-4" />
@@ -4546,9 +4526,9 @@ const CLOSE_PERIOD_GROUPS: { heading: string; reports: ClosePeriodReport[] }[] =
 
 function ReportDownloadButton({ type, disabled = false }: { type: ReportAction; disabled?: boolean }) {
   const colors: Record<ReportAction, string> = {
-    PDF: "border-[#db9a9a] text-[#e87878] enabled:hover:bg-[#fff7f7]",
-    Excel: "border-[#8bbd95] text-[#56a66b] enabled:hover:bg-[#f4fcf6]",
-    Text: "border-[#76b6e6] text-[#3599e6] enabled:hover:bg-[#f3faff]",
+    PDF: "border-[#f0c5c5] text-[#d85f5f] enabled:hover:border-[#e6a7a7] enabled:hover:bg-[#fff7f7]",
+    Excel: "border-[#b9d9c0] text-[#3e9560] enabled:hover:border-[#91c49d] enabled:hover:bg-[#f4fcf6]",
+    Text: "border-[#b7d8f0] text-[#2786ce] enabled:hover:border-[#8bc1e8] enabled:hover:bg-[#f3faff]",
   };
 
   return (
@@ -4556,11 +4536,11 @@ function ReportDownloadButton({ type, disabled = false }: { type: ReportAction; 
       type="button"
       disabled={disabled}
       className={cn(
-        "inline-flex h-9 items-center gap-1.5 rounded-lg border bg-white px-2 text-sm font-semibold leading-9 shadow-[0_1px_2px_rgba(10,13,18,0.05)] transition-colors disabled:cursor-not-allowed disabled:border-transparent disabled:bg-[#e5e5e5] disabled:text-[#a9a9a9]",
+        "inline-flex h-8 items-center gap-1.5 rounded-lg border bg-white px-2.5 text-xs font-semibold shadow-[0_1px_2px_rgba(10,13,18,0.04)] transition-colors disabled:cursor-not-allowed disabled:border-[#e7eaf0] disabled:bg-[#f3f5f8] disabled:text-[#a3acb9]",
         colors[type]
       )}
     >
-      <Download className="size-4" />
+      <Download className="size-3.5" />
       {type}
     </button>
   );
@@ -4576,8 +4556,7 @@ type ClosePeriodState = {
 
 function formatClosePeriodDate(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return "-";
-  const [year, month, day] = value.split("-").map(Number);
-  return `${String(day).padStart(2, "0")} ${MONTHS_TH[month - 1]} ${year}`;
+  return formatThaiDateLong(value);
 }
 
 const EMPTY_CLOSE_PERIOD_STATE: ClosePeriodState = {
@@ -4606,63 +4585,50 @@ function ClosePeriodConfirmationModal({
   if (!action) return null;
 
   const isClosing = action === "close";
-  if (!isClosing) {
-    return createPortal(
-      <div className="swal2-container fixed inset-0 z-[1300] flex items-center justify-center overflow-y-auto bg-black/[0.4] p-[8.75px]" role="dialog" aria-modal="true" aria-labelledby="close-period-confirmation-title">
-        <div aria-describedby="close-period-confirmation-content" className="swal2-popup swal2-modal message-alert swal2-icon-warning swal2-show flex w-[330px] flex-col justify-center rounded-[5px] bg-white p-[12.5px] font-[Kanit,sans-serif] text-[10px] font-normal leading-[15.715px] tracking-[-0.1px] text-black/[0.87]" tabIndex={-1} aria-live="assertive">
-          <div className="swal2-header flex flex-col items-center px-[18px]">
-            <div className="swal2-icon swal2-warning swal2-icon-show mb-[18.75px] mt-[12.5px] flex size-[50px] box-content items-center justify-center rounded-full border-[2.4px] border-[#facea8] font-normal text-[#f8bb86]">
-              <div className="swal2-icon-content flex text-[37.5px] font-normal leading-[50px]">!</div>
-            </div>
-            <h2 id="close-period-confirmation-title" className="swal2-title message-title mb-[7.5px] flex p-0 text-center font-[Kanit,sans-serif] text-[18.75px] font-semibold leading-[29.4656px] tracking-[-0.1px] text-[#595959]">
-              <span className="text-[16px] leading-[25.144px]">ยืนยัน</span>
-            </h2>
-          </div>
-          <div className="swal2-content message-content block px-[18px] text-center text-[11.25px] font-normal text-[#545454]">
-            <div id="close-period-confirmation-content" className="swal2-html-container block min-h-0 p-0 text-center text-[11.25px] font-normal text-[#545454]">
-              <p className="m-0 text-[12px] font-normal leading-[18.4px]">ต้องการบันทึกวันที่จ่าย</p>
-              {error && <p role="alert" className="mt-2 text-[11.25px] leading-4 text-[#d9363e]">{error}</p>}
-            </div>
-          </div>
-          <div className="swal2-actions mt-[12.5px] flex h-[32.1125px] w-full items-center justify-center px-4">
-            <button type="button" onClick={onConfirm} disabled={busy} className="swal2-confirm message-button swal2-styled m-[3.32031px] h-[25.4875px] rounded-[2.65625px] border-0 bg-[#2778c4] px-[11.6875px] py-[6.64062px] font-[Kanit,sans-serif] text-[10.625px] font-medium leading-[12.2188px] tracking-normal text-white transition-colors hover:bg-[#2778c4] focus:outline-none disabled:cursor-wait disabled:opacity-70">
-              {busy ? "กรุณารอสักครู่..." : "ยืนยัน"}
-            </button>
-            <button type="button" onClick={onCancel} disabled={busy} className="swal2-cancel message-button swal2-styled m-[3.32031px] h-[25.4875px] rounded-[2.65625px] border-0 bg-[#757575] px-[11.6875px] py-[6.64062px] font-[Kanit,sans-serif] text-[10.625px] font-medium leading-[12.2188px] tracking-normal text-white transition-colors hover:bg-[#757575] focus:outline-none disabled:cursor-not-allowed disabled:opacity-70">ยกเลิก</button>
-          </div>
-        </div>
-      </div>,
-      document.body
-    );
-  }
-
   return createPortal(
-    <div className="swal2-container fixed inset-0 z-[1300] flex items-center justify-center overflow-y-auto bg-black/[0.4] p-[8.75px]" role="dialog" aria-modal="true" aria-describedby="close-period-confirmation-content">
-      <div className="swal2-popup swal2-modal swal2-icon-warning swal2-show flex w-[330px] flex-col justify-center rounded-[5px] bg-white p-[12.5px] font-[Kanit,sans-serif] text-[10px] font-normal leading-[15.715px] tracking-[-0.1px] text-black/[0.87]" tabIndex={-1} aria-live="assertive">
-        <div className="swal2-header flex flex-col items-center px-[18px]">
-          <div className="swal2-icon swal2-warning swal2-icon-show mb-[18.75px] mt-[12.5px] flex size-[50px] box-content items-center justify-center rounded-full border-[2.4px] border-[#facea8] font-normal text-[#f8bb86]">
-            <div className="swal2-icon-content flex text-[37.5px] font-normal leading-[50px]">!</div>
+    <div className="fixed inset-0 z-[1300] flex items-center justify-center overflow-y-auto bg-[#101828]/45 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true" aria-labelledby="close-period-confirmation-title" aria-describedby="close-period-confirmation-content">
+      <div className="w-full max-w-[440px] overflow-hidden rounded-2xl border border-white/70 bg-white shadow-[0_24px_64px_rgba(23,35,72,.22)]" tabIndex={-1} aria-live="assertive">
+        <div className="flex items-start gap-3 border-b border-[#edf0f4] px-5 py-4">
+          <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#fff7e6] text-[#e79a18]">
+            <CircleHelp className="size-5" strokeWidth={1.8} />
+          </div>
+          <div className="min-w-0">
+            <h2 id="close-period-confirmation-title" className="text-base font-semibold leading-6 text-[#172348]">
+              {isClosing ? "ยืนยันการปิดงวดบัญชี" : "ยืนยันการบันทึกวันที่จ่าย"}
+            </h2>
+            <p className="mt-0.5 text-sm leading-5 text-[#6f7b90]">
+              {isClosing ? "โปรดตรวจสอบข้อมูลให้ครบถ้วนก่อนดำเนินการ" : "ระบบจะบันทึกวันที่สำหรับงวดบัญชีนี้"}
+            </p>
           </div>
         </div>
-        <div className="swal2-content block px-[18px] text-center text-[11.25px] font-normal text-[#545454]">
-          <div id="close-period-confirmation-content" className="swal2-html-container block min-h-0 p-0 text-left text-[12px] font-normal leading-[18.4px] text-[#545454]">
-            <p className="m-0">ระบบจะทำการปิดงวดบัญชี คำนวณเงินเดือน</p>
-            <p className="m-0 font-medium">**ทำให้ไม่สามารถคำนวณเงินเดือน ในเดือนนี้ได้</p>
-            <p className="m-0">ถ้ามีงวดแยก จะปิดงวดแยกอัตโนมัติ</p>
-            <p className="mb-0 mt-[7.5px]">กรุณาตรวจสอบรายการดังนี้ก่อนปิดงวด</p>
-            <ul className="m-0 list-disc pl-[18px]">
-              <li>การอนุมัติเอกสารต่างๆ</li>
-              <li>เวลาการทำงาน</li>
-              <li>ผลการคำนวณเงินเดือน</li>
-            </ul>
-            {error && <p role="alert" className="mb-0 mt-[7.5px] text-[#d9363e]">{error}</p>}
-          </div>
+        <div id="close-period-confirmation-content" className="px-5 py-4 text-sm leading-6 text-[#4d5a6d]">
+          {isClosing ? (
+            <>
+              <div className="rounded-xl border border-[#f3dda0] bg-[#fff9df] px-3.5 py-3 text-[#755c18]">
+                เมื่อปิดงวดแล้ว จะไม่สามารถคำนวณเงินเดือนในเดือนนี้ได้ และงวดแยกจะถูกปิดโดยอัตโนมัติ
+              </div>
+              <p className="mt-4 font-medium text-[#34425c]">รายการที่ควรตรวจสอบก่อนปิดงวด</p>
+              <ul className="mt-2 grid gap-2 pl-0">
+                {["การอนุมัติเอกสารต่าง ๆ", "เวลาการทำงาน", "ผลการคำนวณเงินเดือน"].map((item) => (
+                  <li key={item} className="flex items-center gap-2">
+                    <Check className="size-4 text-[#20a56a]" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p>ต้องการบันทึกวันที่จ่ายและวันที่จ่ายภาษีที่ระบุไว้ใช่หรือไม่</p>
+          )}
+          {error && <p role="alert" className="mt-3 rounded-lg bg-[#fff1f0] px-3 py-2 text-sm leading-5 text-[#d9363e]">{error}</p>}
         </div>
-        <div className="swal2-actions mt-[12.5px] flex h-[32.1125px] w-full items-center justify-center px-4">
-          <button type="button" onClick={onConfirm} disabled={busy} className="swal2-confirm message-button swal2-styled m-[3.32031px] h-[25.4875px] rounded-[2.65625px] border-0 bg-[#2778c4] px-[11.6875px] py-[6.64062px] font-[Kanit,sans-serif] text-[10.625px] font-medium leading-[12.2188px] tracking-normal text-white transition-colors hover:bg-[#2778c4] focus:outline-none disabled:cursor-wait disabled:opacity-70">
-            {busy ? "กรุณารอสักครู่..." : "ยืนยัน"}
-          </button>
-          <button type="button" onClick={onCancel} disabled={busy} className="swal2-cancel message-button swal2-styled m-[3.32031px] h-[25.4875px] rounded-[2.65625px] border-0 bg-[#757575] px-[11.6875px] py-[6.64062px] font-[Kanit,sans-serif] text-[10.625px] font-medium leading-[12.2188px] tracking-normal text-white transition-colors hover:bg-[#757575] focus:outline-none disabled:cursor-not-allowed disabled:opacity-70">ยกเลิก</button>
+        <div className="flex flex-col-reverse gap-2 border-t border-[#edf0f4] bg-[#fafbfc] px-5 py-4 sm:flex-row sm:justify-end">
+          <Button type="button" variant="outline" size="lg" onClick={onCancel} disabled={busy} className="border-[#dfe4ec] bg-white px-4 text-[#4d5a6d]">
+            ยกเลิก
+          </Button>
+          <Button type="button" size="lg" onClick={onConfirm} disabled={busy} className={cn("px-4 text-white", isClosing ? "bg-[#1474ee] hover:bg-[#0f65d4]" : "bg-[#20a56a] hover:bg-[#198c59]")}>
+            {busy ? "กรุณารอสักครู่..." : isClosing ? "ยืนยันการปิดงวด" : "ยืนยันการบันทึก"}
+          </Button>
         </div>
       </div>
     </div>,
@@ -4790,133 +4756,155 @@ function ClosePeriodContent({
   const reportCount = closePeriodState.employeeCount ? `${closePeriodState.employeeCount} คน` : "";
 
   return (
-    <div className="space-y-[22px] px-2 pt-2">
-      <Card className="shadow-sm">
-        {closePeriodState.isClosed ? (
-          <CardContent className="card-data-container flex h-[88px] w-full flex-row items-end px-6 py-6">
-            <div className="flex flex-1 flex-col items-start justify-center">
-              <div className="m-1 flex flex-col items-center justify-center">
-                <button
-                  type="button"
-                  className="put-in-button inline-flex h-8 items-center gap-2 rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] py-1 font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-black/[0.65] shadow-[0_2px_0_rgba(0,0,0,0.016)] hover:bg-white"
-                >
-                  <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="size-6" focusable="false">
-                    <path fill="currentColor" d="M9.99967 14.3266L12.7563 11.5708L12.1663 10.9808L10.4163 12.7308V8.81415H9.58301V12.7308L7.83301 10.9808L7.24301 11.5708L9.99967 14.3266ZM4.16634 6.50665V15.3208C4.16634 15.4703 4.2144 15.593 4.31051 15.6891C4.40662 15.7853 4.52967 15.8333 4.67967 15.8333H15.3205C15.47 15.8333 15.5927 15.7853 15.6888 15.6891C15.785 15.593 15.833 15.4703 15.833 15.3208V6.50665H4.16634ZM4.80801 16.6666C4.43467 16.6666 4.09551 16.5141 3.79051 16.2091C3.48551 15.9041 3.33301 15.5653 3.33301 15.1925V6.23831C3.33301 6.07609 3.35884 5.92331 3.41051 5.77998C3.46217 5.63665 3.53995 5.5047 3.64384 5.38415L4.94217 3.82581C5.06273 3.66304 5.21356 3.54026 5.39467 3.45748C5.57579 3.3747 5.76995 3.33331 5.97717 3.33331H13.9905C14.1972 3.33331 14.3938 3.3747 14.5805 3.45748C14.7672 3.54026 14.9208 3.66276 15.0413 3.82498L16.3555 5.41665C16.4594 5.5372 16.5372 5.67192 16.5888 5.82081C16.6405 5.96915 16.6663 6.1247 16.6663 6.28748V15.1916C16.6663 15.5644 16.5138 15.9033 16.2088 16.2083C15.9038 16.5133 15.565 16.6658 15.1922 16.6658L4.80801 16.6666ZM4.48301 5.67331H15.4997L14.3913 4.34165C14.3375 4.28831 14.2758 4.24581 14.2063 4.21415C14.1369 4.18248 14.0647 4.16665 13.9897 4.16665H5.99301C5.91856 4.16665 5.84634 4.18276 5.77634 4.21498C5.70634 4.2472 5.64523 4.28998 5.59301 4.34331L4.48301 5.67331Z" />
-                  </svg>
-                  <span>เก็บเข้าแฟ้ม</span>
-                </button>
+    <div className="space-y-3">
+      <Card className="overflow-hidden rounded-xl border border-[#e7eaf0] bg-white shadow-[0_3px_12px_rgba(29,52,93,.07)]">
+        <CardContent className="p-0">
+          <div className="flex flex-col gap-3 border-b border-[#edf0f4] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#eef5ff] text-[#1474ee]">
+                <Calendar className="size-5" strokeWidth={1.8} />
+              </div>
+              <div>
+                <h2 className="text-sm font-semibold leading-5 text-[#172348]">กำหนดวันจ่ายและสถานะงวดบัญชี</h2>
+                <p className="mt-0.5 text-xs leading-5 text-[#6f7b90]">ตรวจสอบวันที่ให้เรียบร้อยก่อนปิดงวดเงินเดือน</p>
               </div>
             </div>
-            <div className="flex flex-1 flex-col items-end justify-center" />
-            <div className="card-input-body flex flex-1 flex-col items-end justify-center">
-              <div className="flex items-start gap-2.5">
-                <div className="flex flex-col gap-1">
-                  <div className="date-label box-border flex h-8 w-[220px] flex-none items-center rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-[#f5f5f5] px-[11px] py-1 text-start font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] tracking-[-0.1px] text-black/[0.87]">
-                    <label>วันที่จ่าย: {formatClosePeriodDate(closePeriodState.paymentDate)}</label>
-                  </div>
-                </div>
-                <div className="date-label box-border flex h-8 w-[220px] flex-none items-center rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-[#f5f5f5] px-[11px] py-1 text-start font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] tracking-[-0.1px] text-black/[0.87]">
-                  <label>วันที่จ่ายภาษี: {formatClosePeriodDate(closePeriodState.taxPaymentDate)}</label>
-                </div>
-                <button
+            <span className={cn(
+              "inline-flex h-7 w-fit items-center rounded-full border px-2.5 text-xs font-medium",
+              closePeriodState.isClosed
+                ? "border-[#b9e6cf] bg-[#effaf4] text-[#198754]"
+                : "border-[#f3dda0] bg-[#fff9df] text-[#8a6813]"
+            )}>
+              {closePeriodState.isClosed ? "ปิดงวดแล้ว" : "งวดกำลังเปิด"}
+            </span>
+          </div>
+
+          {closePeriodState.isClosed ? (
+            <div className="grid gap-3 p-4 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
+              <div className="rounded-xl border border-[#e7eaf0] bg-[#f8fafd] px-3.5 py-3">
+                <p className="text-xs text-[#7b8798]">วันที่จ่าย</p>
+                <p className="mt-1 text-sm font-medium text-[#34425c]">{formatClosePeriodDate(closePeriodState.paymentDate)}</p>
+              </div>
+              <div className="rounded-xl border border-[#e7eaf0] bg-[#f8fafd] px-3.5 py-3">
+                <p className="text-xs text-[#7b8798]">วันที่จ่ายภาษี</p>
+                <p className="mt-1 text-sm font-medium text-[#34425c]">{formatClosePeriodDate(closePeriodState.taxPaymentDate)}</p>
+              </div>
+              <div className="flex flex-wrap gap-2 lg:justify-end">
+                <Button type="button" variant="outline" size="lg" className="border-[#dfe4ec] bg-white px-3 text-[#4d5a6d]">
+                  <Download className="size-4" />
+                  เก็บเข้าแฟ้ม
+                </Button>
+                <Button
                   type="button"
+                  variant="outline"
+                  size="lg"
                   disabled={isLoading}
                   onClick={() => void unlockPeriod()}
-                  className="unlock-btn flex h-8 flex-col items-center justify-center gap-[10px] whitespace-nowrap rounded-[4px] border-[0.8px] border-[#1890ff] bg-white px-[15px] py-1 text-center font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-[#1890ff] shadow-[0_2px_0_rgba(0,0,0,0.016)] hover:bg-white"
+                  className="border-[#b7d8f0] bg-white px-3 text-[#1474ee] hover:bg-[#eef5ff] hover:text-[#0f65d4]"
                 >
-                  {isLoading ? "กรุณารอสักครู่..." : "ปลดล็อก"}
-                </button>
+                  <RotateCcw className="size-4" />
+                  {isLoading ? "กรุณารอสักครู่..." : "ปลดล็อกงวด"}
+                </Button>
               </div>
             </div>
-          </CardContent>
-        ) : (
-        <CardContent className="flex min-h-[6.5rem] flex-wrap items-end justify-between gap-4 px-[23px] pb-[25px] pt-5">
-          <div className="flex flex-wrap items-end gap-2.5">
-            <label className="grid gap-0 text-sm font-normal leading-[22px] text-[rgba(0,0,0,0.87)]">
-              วันที่จ่าย
-              <input
-                type="date"
-                value={payDate}
-                onChange={(event) => setPayDate(event.target.value)}
-                className="h-[34px] w-[180px] rounded border border-[#d9d9d9] bg-white px-[11px] py-1 text-sm font-normal leading-[22px] text-[rgba(0,0,0,0.65)] outline-none focus:border-[#61a8ff]"
-              />
-            </label>
-            <label className="grid gap-0 text-sm font-normal leading-[22px] text-[rgba(0,0,0,0.87)]">
-              วันที่จ่ายภาษี
-              <input
-                type="date"
-                min="2026-08-01"
-                max="2026-09-17"
-                value={taxDate}
-                onChange={(event) => setTaxDate(event.target.value)}
-                className="h-[34px] w-[180px] rounded border border-[#d9d9d9] bg-white px-[11px] py-1 text-sm font-normal leading-[22px] text-[rgba(0,0,0,0.65)] outline-none focus:border-[#61a8ff]"
-              />
-            </label>
-            <button type="button" disabled={isLoading || closePeriodState.isClosed} onClick={() => { setError(""); setDialogAction("save"); }} className="h-[34px] rounded bg-[#03ae03] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#029902] disabled:cursor-not-allowed disabled:opacity-60">
-              บันทึก
-            </button>
-          </div>
-            <button type="button" disabled={isLoading || closePeriodState.isClosed} onClick={() => { setError(""); setDialogAction("close"); }} className="h-[34px] rounded bg-[#2299ff] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#1687df] disabled:cursor-not-allowed disabled:opacity-60">
-            ปิดงวดบัญชี
-          </button>
+          ) : (
+            <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+              <div className="grid gap-3 sm:grid-cols-2 xl:max-w-[620px]">
+                <label className="grid gap-1.5 text-sm font-medium leading-5 text-[#34425c]">
+                  วันที่จ่าย
+                  <ThaiDatePicker
+                    value={payDate}
+                    onChange={setPayDate}
+                    className="h-10 w-full rounded-lg border border-[#dfe4ec] bg-white px-3 text-sm font-normal text-[#34425c] outline-none transition-shadow focus:border-[#7db5f6] focus:ring-2 focus:ring-[#dcecff]"
+                  />
+                </label>
+                <label className="grid gap-1.5 text-sm font-medium leading-5 text-[#34425c]">
+                  วันที่จ่ายภาษี
+                  <ThaiDatePicker
+                    min="2026-08-01"
+                    max="2026-09-17"
+                    value={taxDate}
+                    onChange={setTaxDate}
+                    className="h-10 w-full rounded-lg border border-[#dfe4ec] bg-white px-3 text-sm font-normal text-[#34425c] outline-none transition-shadow focus:border-[#7db5f6] focus:ring-2 focus:ring-[#dcecff]"
+                  />
+                </label>
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row lg:justify-end">
+                <Button type="button" variant="outline" size="lg" disabled={isLoading || closePeriodState.isClosed} onClick={() => { setError(""); setDialogAction("save"); }} className="border-[#a7d8bd] bg-white px-4 text-[#198754] hover:bg-[#effaf4] hover:text-[#157347]">
+                  <Check className="size-4" />
+                  บันทึกวันที่
+                </Button>
+                <Button type="button" size="lg" disabled={isLoading || closePeriodState.isClosed} onClick={() => { setError(""); setDialogAction("close"); }} className="bg-[#1474ee] px-4 text-white shadow-[0_3px_8px_rgba(20,116,238,.2)] hover:bg-[#0f65d4]">
+                  <Power className="size-4" />
+                  ปิดงวดบัญชี
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
-        )}
       </Card>
 
-      <Card className="shadow-sm">
-        <CardContent className="pb-5 pl-[23px] pr-[21px] pt-[31px]">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <Card className="overflow-hidden rounded-xl border border-[#e7eaf0] bg-white shadow-[0_3px_12px_rgba(29,52,93,.07)]">
+        <CardContent className="p-0">
+          <div className="border-b border-[#edf0f4] px-4 py-3">
+            <h2 className="text-sm font-semibold leading-5 text-[#172348]">รายงานและเอกสารงวดบัญชี</h2>
+            <p className="mt-0.5 text-xs leading-5 text-[#6f7b90]">เลือกขอบเขตข้อมูลสำหรับค้นหาและดาวน์โหลดเอกสาร</p>
+          </div>
+
+          <div className="p-4">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {[
               { label: "โครงสร้างองค์กร", multiple: true },
               { label: "กลุ่มพนักงาน" },
               { label: "ประเภทพนักงาน", multiple: true },
               { label: "ช่องทางการชำระเงิน" },
             ].map((filter) => (
-              <label key={filter.label} className="grid gap-0 text-sm font-normal leading-[22px] text-[rgba(0,0,0,0.87)]">
+              <label key={filter.label} className="grid gap-1.5 text-sm font-medium leading-5 text-[#34425c]">
                 {filter.label}
                 <button
                   type="button"
-                  className="relative h-8 w-full rounded-sm border border-[#d9d9d9] bg-white px-[11px] py-1 text-left text-sm font-normal leading-[22px] text-[rgba(0,0,0,0.45)] outline-none transition-colors hover:border-[#61a8ff] focus-visible:border-[#61a8ff]"
+                  className="relative h-10 w-full rounded-lg border border-[#dfe4ec] bg-white px-3 text-left text-sm font-normal text-[#6f7b90] outline-none transition-shadow hover:border-[#b8c6d8] focus-visible:border-[#7db5f6] focus-visible:ring-2 focus-visible:ring-[#dcecff]"
                 >
                   ทั้งหมด
                   {filter.multiple ? (
-                    <span className="absolute right-2.5 top-1/2 flex size-4 -translate-y-1/2 items-center justify-center rounded-full bg-[#b8b8b8] text-[11px] leading-none text-white" aria-hidden="true">×</span>
+                    <span className="absolute right-3 top-1/2 flex size-4 -translate-y-1/2 items-center justify-center rounded-full bg-[#aab4c3] text-[11px] leading-none text-white" aria-hidden="true">×</span>
                   ) : (
-                    <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[#8c98aa]" />
                   )}
                 </button>
               </label>
             ))}
           </div>
 
-          <div className="mt-[13px] flex h-9 flex-wrap items-stretch justify-between gap-3">
-            <p className="ml-[3px] flex items-center text-xs leading-[18.858px] text-[#e97777]">กรุณากดปุ่มนำไปใช้หลังจากเลือกตัวกรองข้อมูล (Filter)</p>
-            <button type="button" disabled={isLoading} onClick={() => void search()} className="relative -left-px h-9 rounded bg-[#2299ff] px-4 text-sm font-semibold leading-9 text-white shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#1687df] disabled:cursor-wait disabled:opacity-70">
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs leading-5 text-[#9b6c1a]">กรุณากดค้นหาหลังจากเลือกตัวกรองข้อมูล</p>
+            <Button type="button" size="lg" disabled={isLoading} onClick={() => void search()} className="bg-[#1474ee] px-4 text-white hover:bg-[#0f65d4]">
+              <Search className="size-4" />
               {isLoading ? "กรุณารอสักครู่..." : "ค้นหา"}
-            </button>
+            </Button>
           </div>
 
-          {error && !dialogAction && <p role="alert" className="mt-2 text-sm text-[#d9363e]">{error}</p>}
+          {error && !dialogAction && <p role="alert" className="mt-3 rounded-lg border border-[#ffd0cc] bg-[#fff1f0] px-3 py-2 text-sm text-[#d9363e]">{error}</p>}
 
-          <div className="mt-[21px] -ml-[13px] mr-[-12px] w-[calc(100%+23px)] overflow-hidden rounded-sm border border-[#e5e9ed]">
-            <Table className="table-fixed text-sm leading-[22px]">
+          <div className="mt-4 overflow-hidden rounded-xl border border-[#e5eaf2]">
+            <Table className="min-w-[820px] table-fixed text-sm leading-5">
               <colgroup>
                 <col className="w-[38%]" />
                 <col className="w-[30%]" />
                 <col className="w-[32%]" />
               </colgroup>
               <TableHeader className="[&_tr]:border-0">
-                <TableRow className="bg-[#e7eff8] hover:bg-[#e7eff8]">
-                  <TableHead className="h-[58px] px-4 text-center text-base font-medium normal-case tracking-normal text-black">รายงาน</TableHead>
-                  <TableHead className="h-[58px] px-4 text-center text-base font-medium normal-case tracking-normal text-black">จำนวนพนักงาน</TableHead>
-                  <TableHead className="h-[58px] px-4 text-center text-base font-medium normal-case tracking-normal text-black" />
+                <TableRow className="bg-[#f3f6fb] hover:bg-[#f3f6fb]">
+                  <TableHead className="h-11 px-4 text-left text-xs font-semibold normal-case tracking-normal text-[#4d5a6d]">รายงาน</TableHead>
+                  <TableHead className="h-11 px-4 text-center text-xs font-semibold normal-case tracking-normal text-[#4d5a6d]">จำนวนพนักงาน</TableHead>
+                  <TableHead className="h-11 px-4 text-right text-xs font-semibold normal-case tracking-normal text-[#4d5a6d]">ดาวน์โหลด / ดำเนินการ</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {CLOSE_PERIOD_GROUPS.map((group) => (
                   <Fragment key={group.heading}>
-                    <TableRow className="h-[47px] border-0 bg-[#cfe3fb] hover:bg-[#cfe3fb]">
-                      <TableCell colSpan={3} className="h-[47px] border-b border-[#d8e6f7] px-4 py-0 align-middle text-[15px] font-medium leading-[23.5725px] text-[rgba(0,0,0,0.75)]">
+                    <TableRow className="border-0 bg-[#eef5ff] hover:bg-[#eef5ff]">
+                      <TableCell colSpan={3} className="h-10 border-b border-[#dce9f8] px-4 py-0 align-middle text-sm font-semibold text-[#315981]">
                         {group.heading}
                       </TableCell>
                     </TableRow>
@@ -4925,32 +4913,32 @@ function ClosePeriodContent({
                       const note = closePeriodState.isClosed ? undefined : report.note;
                       const count = report.count ? reportCount : undefined;
                       return (
-                      <TableRow key={report.title} className="h-[67px] bg-white hover:bg-white">
+                      <TableRow key={report.title} className="bg-white hover:bg-[#fbfcfe]">
                         <TableCell className={cn(
-                          "h-[67px] border-b border-[#f0f0f0] px-2 align-middle text-base font-medium leading-5 text-[rgba(0,0,0,0.65)]",
-                          report.integration === "accrevo" ? "pb-3 pt-[7px]" : "py-3"
+                          "h-[64px] border-b border-[#edf0f4] px-4 align-middle text-sm font-medium leading-5 text-[#34425c]",
+                          report.integration === "accrevo" ? "pb-3 pt-2" : "py-3"
                         )}>
                           {report.integration ? (
                             <img
                               src={`${SUPPORT_ASSET_ORIGIN}/assets/images/logos/partner/${report.integration === "peak" ? "PEAK_LOGO-1.png" : "accrevo-1.png"}`}
                               alt={report.title}
-                              className={report.integration === "peak" ? "relative -top-px h-10 w-[135px] object-contain" : "h-[29px] w-[83px] object-contain"}
+                              className={report.integration === "peak" ? "h-9 w-[122px] object-contain object-left" : "h-7 w-[80px] object-contain object-left"}
                             />
                           ) : (
-                            <span className={cn("relative inline-block", note ? "-top-0.5" : "-top-1")}>{report.title}</span>
+                            <span>{report.title}</span>
                           )}
-                          {note && <span className="block text-xs font-normal leading-[18.858px] text-[#e97777]">{note}</span>}
+                          {note && <span className="mt-0.5 block text-xs font-normal leading-5 text-[#d06c6c]">{note}</span>}
                         </TableCell>
-                        <TableCell className="h-[67px] border-b border-[#f0f0f0] px-2 py-3 text-center align-middle text-base font-medium leading-5 text-[rgba(0,0,0,0.65)]"><span className="relative -top-1">{count}</span></TableCell>
-                        <TableCell className="h-[67px] border-b border-[#f0f0f0] px-2 py-3 align-middle">
+                        <TableCell className="h-[64px] border-b border-[#edf0f4] px-4 py-3 text-center align-middle text-sm font-semibold text-[#34425c]">{count || "—"}</TableCell>
+                        <TableCell className="h-[64px] border-b border-[#edf0f4] px-4 py-3 align-middle">
                           {report.integration ? (
                             <div className="flex justify-end gap-2">
-                              <button type="button" disabled className="inline-flex h-9 items-center gap-1 rounded-lg bg-[#e5e5e5] px-3 text-sm text-[#a9a9a9]">
-                                <Send className="size-4" /> Send
-                              </button>
-                              <button type="button" className="inline-flex h-9 items-center gap-1 rounded-lg border border-[#70b8ec] bg-white px-3 text-sm font-medium text-[#2997e7]">
-                                <History className="size-4" /> การดำเนินงาน
-                              </button>
+                              <Button type="button" size="lg" disabled className="bg-[#f3f5f8] px-3 text-[#a3acb9]">
+                                <Send className="size-3.5" /> Send
+                              </Button>
+                              <Button type="button" variant="outline" size="lg" className="border-[#b7d8f0] bg-white px-3 text-[#2786ce] hover:bg-[#f3faff] hover:text-[#1f76b6]">
+                                <History className="size-3.5" /> การดำเนินงาน
+                              </Button>
                             </div>
                           ) : (
                             <div className="flex justify-end gap-2">
@@ -4967,6 +4955,7 @@ function ClosePeriodContent({
                 ))}
               </TableBody>
             </Table>
+          </div>
           </div>
         </CardContent>
       </Card>
@@ -5004,7 +4993,7 @@ const GENERAL_PAYROLL_SETTINGS = [
 ];
 
 const GENERAL_LEAVE_SETTINGS = [
-  "รอบโควตาการลาประจำปี ตั้งแต่วันที่ 01 มกราคม 2026 จนถึงวันที่ 31 ธันวาคม 2026",
+  "รอบโควตาการลาประจำปี ตั้งแต่วันที่ 01 มกราคม 2569 จนถึงวันที่ 31 ธันวาคม 2569",
   "จำนวนชั่วโมงการทำงานสำหรับการคำนวณโควตาการลาเท่ากับ 8 ชั่วโมง",
 ];
 
@@ -5336,6 +5325,7 @@ export default function PayrollCalculationClient({
 
   useEffect(() => {
     const controller = new AbortController();
+    let disposed = false;
 
     async function loadClosePeriodState() {
       try {
@@ -5345,10 +5335,10 @@ export default function PayrollCalculationClient({
         });
         if (!response.ok) throw new Error("Close-period request failed");
         const state = (await response.json()) as ClosePeriodState;
-        setIsAccountingPeriodClosed(state.isClosed);
+        if (!disposed) setIsAccountingPeriodClosed(state.isClosed);
       } catch (error) {
-        if ((error as { name?: string }).name !== "AbortError") {
-          console.error("Unable to load close-period state:", error);
+        if (!disposed && !controller.signal.aborted) {
+          console.warn("Unable to refresh close-period state; keeping the current value.", error);
         }
       }
     }
@@ -5363,6 +5353,7 @@ export default function PayrollCalculationClient({
     document.addEventListener("visibilitychange", refreshWhenReturningToPage);
     window.addEventListener("storage", syncFromAnotherTab);
     return () => {
+      disposed = true;
       controller.abort();
       window.removeEventListener("focus", refreshWhenReturningToPage);
       document.removeEventListener("visibilitychange", refreshWhenReturningToPage);
@@ -5377,49 +5368,43 @@ export default function PayrollCalculationClient({
     }
   };
 
-  const monthLabel = `${MONTHS_TH[monthIndex]} ${year}`;
+  const monthLabel = formatThaiMonthYear(monthKey);
   return (
-    <div>
-      <PageBanner
-        monthLabel={monthLabel}
-        monthIndex={monthIndex}
-        year={year}
-        monthValue={monthKey}
-        showAccountingPeriodWarning={!isAccountingPeriodClosed}
-        isAccountingPeriodClosed={isAccountingPeriodClosed}
-        onOpenClosePeriod={() => setActiveTab("ปิดงวดบัญชี")}
-        initialPeriodSettingsOpen={initialPeriodSettingsOpen}
-        onMonthChange={(month) => {
-          const [selectedYear, selectedMonthIndex] = month.split("-").map(Number);
-          if (selectedYear && selectedMonthIndex) setSelectedMonth(new Date(selectedYear, selectedMonthIndex - 1, 1));
-        }}
-      />
+    <div className="min-h-[calc(100vh-70px)] bg-[#f3f6fb] font-sans">
+      <div className="mx-auto max-w-[1600px] p-3 sm:p-4">
+        <section className="mb-3 overflow-hidden rounded-xl border border-[#e5eaf2] bg-white shadow-[0_3px_12px_rgba(29,52,93,.07)]">
+          <PageBanner
+            pageTitle={activeTab}
+            monthLabel={monthLabel}
+            monthValue={monthKey}
+            showAccountingPeriodWarning={!isAccountingPeriodClosed}
+            isAccountingPeriodClosed={isAccountingPeriodClosed}
+            onOpenClosePeriod={() => setActiveTab("ปิดงวดบัญชี")}
+            initialPeriodSettingsOpen={initialPeriodSettingsOpen}
+            onMonthChange={(month) => {
+              const [selectedYear, selectedMonthIndex] = month.split("-").map(Number);
+              if (selectedYear && selectedMonthIndex) setSelectedMonth(new Date(selectedYear, selectedMonthIndex - 1, 1));
+            }}
+          />
 
-      <PayrollTabsBar activeTab={activeTab} onChange={setActiveTab} />
+          <PayrollTabsBar activeTab={activeTab} onChange={setActiveTab} />
+        </section>
 
-      <div
-        className={cn(
-          "min-h-[calc(100vh-10rem)] bg-[#eef6fd] pb-8",
-          activeTab === "Dashboard" ||
-          activeTab === "คำนวณเงินเดือนรายบุคคล" ||
-          activeTab === "คำนวณเงินเดือนทั้งองค์กร"
-            ? "p-0"
-            : "px-4 pt-3 sm:px-6 lg:px-6"
-        )}
-      >
-        {activeTab === "Dashboard" && <PayrollDashboardContent stats={dashboardStats} monthLabel={monthLabel} isAccountingPeriodClosed={isAccountingPeriodClosed} />}
-        {activeTab === "คำนวณเงินเดือนรายบุคคล" && <PersonContent monthKey={monthKey} isAccountingPeriodClosed={isAccountingPeriodClosed} />}
-        {activeTab === "คำนวณเงินเดือนทั้งองค์กร" && <OrganizationContent isAccountingPeriodClosed={isAccountingPeriodClosed} />}
-        {activeTab === "ปิดงวดบัญชี" && (
-          <div id="close-period-accounting">
-            <ClosePeriodContent
-              monthKey={monthKey}
-              onClosePeriod={applyClosePeriodState}
-              onPeriodClosed={() => setActiveTab("Dashboard")}
-            />
-          </div>
-        )}
-        {activeTab === "สรุปตั้งค่าทั้งองค์กร" && <OrganizationSettingsSummary />}
+        <div className="min-h-[calc(100vh-12rem)] pb-3">
+          {activeTab === "Dashboard" && <PayrollDashboardContent stats={dashboardStats} monthLabel={monthLabel} isAccountingPeriodClosed={isAccountingPeriodClosed} />}
+          {activeTab === "คำนวณเงินเดือนรายบุคคล" && <PersonContent monthKey={monthKey} isAccountingPeriodClosed={isAccountingPeriodClosed} />}
+          {activeTab === "คำนวณเงินเดือนทั้งองค์กร" && <OrganizationContent isAccountingPeriodClosed={isAccountingPeriodClosed} />}
+          {activeTab === "ปิดงวดบัญชี" && (
+            <div id="close-period-accounting">
+              <ClosePeriodContent
+                monthKey={monthKey}
+                onClosePeriod={applyClosePeriodState}
+                onPeriodClosed={() => setActiveTab("Dashboard")}
+              />
+            </div>
+          )}
+          {activeTab === "สรุปตั้งค่าทั้งองค์กร" && <OrganizationSettingsSummary />}
+        </div>
       </div>
     </div>
   );

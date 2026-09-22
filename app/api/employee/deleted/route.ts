@@ -26,9 +26,7 @@ export type DeletedEmployeeListResponse = {
 const RETENTION_DAYS = 45;
 
 function formatDate(date: Date): string {
-  const d = String(date.getUTCDate()).padStart(2, "0");
-  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
-  return `${d}/${m}/${date.getUTCFullYear()}`;
+  return date.toISOString();
 }
 
 export async function GET(request: Request) {

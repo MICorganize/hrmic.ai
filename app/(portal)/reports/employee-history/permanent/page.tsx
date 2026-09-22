@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, ChevronDown, ChevronRight, FileText, Grid3x3 } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Grid3x3 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ThaiDateRangePicker } from "@/components/ui/thai-date-picker";
 
 const ORG_STRUCTURES = ["ทั้งหมด", "สำนักงานใหญ่", "สาขา 1"];
 const POSITIONS = ["ทั้งหมด", "พนักงานปฏิบัติการ", "หัวหน้างาน", "ผู้จัดการ"];
@@ -24,6 +25,7 @@ function EmptyState() {
 export default function ReportEmployeePermanentPage() {
   const [organization, setOrganization] = useState("ทั้งหมด");
   const [position, setPosition] = useState("ทั้งหมด");
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
 
   return (
     <div>
@@ -33,7 +35,7 @@ export default function ReportEmployeePermanentPage() {
           <div className="flex h-[59px] items-center px-3"><p className="text-xl font-medium text-[#555]">ค้นหา</p></div>
           <CardContent className="px-4 pb-4 pt-4">
             <div className="-ml-px grid grid-cols-1 gap-x-2 md:grid-cols-[564px_564px]"><Field label="โครงสร้างองค์กร"><SelectBox value={organization} options={ORG_STRUCTURES} onChange={setOrganization} /></Field><Field label="ตำแหน่ง"><SelectBox value={position} options={POSITIONS} onChange={setPosition} /></Field></div>
-            <div className="-ml-px mt-0 grid grid-cols-1 gap-x-2 md:grid-cols-[564px_564px]"><Field label="วันที่เริ่มต้น - วันที่สิ้นสุด"><button type="button" className="flex h-8 w-full items-center rounded-[3px] border border-[#d9d9d9] bg-white px-2.5 text-sm text-[#bfbfbf] shadow-sm"><span>วันเริ่มต้น</span><span className="mx-auto text-[#999]">→</span><span>วันสิ้นสุด</span><CalendarDays className="ml-auto size-4 text-[#8c8c8c]" /></button></Field><div /></div>
+            <div className="-ml-px mt-0 grid grid-cols-1 gap-x-2 md:grid-cols-[564px_564px]"><Field label="วันที่เริ่มต้น - วันที่สิ้นสุด"><ThaiDateRangePicker value={dateRange} onChange={setDateRange} placeholder="วันเริ่มต้น → วันสิ้นสุด" /></Field><div /></div>
             <div className="relative left-0.5 mt-[27px] flex justify-end gap-2"><Button disabled className="h-9 w-[86px] rounded-[3px] bg-[#485166] px-3.5 text-sm shadow-sm disabled:bg-[#485166] disabled:text-white disabled:opacity-100">PDF<FileText className="size-4" /></Button><Button disabled className="h-9 w-[90px] rounded-[3px] bg-[#43b14b] px-3.5 text-sm shadow-sm disabled:bg-[#a5d6a7] disabled:text-white disabled:opacity-100">Excel<Grid3x3 className="size-4" /></Button><Button className="h-9 w-[65px] rounded-[3px] bg-[#1890ff] px-3.5 text-sm shadow-sm hover:bg-[#1890ff]/90">ค้นหา</Button></div>
           </CardContent>
         </Card>

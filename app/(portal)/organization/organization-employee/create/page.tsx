@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { addDays, addMonths, addYears, differenceInCalendarDays, format, parse, startOfDay } from "date-fns";
+import { addDays, addMonths, addYears, differenceInCalendarDays, startOfDay } from "date-fns";
 import { th } from "date-fns/locale/th";
 import {
   Calendar as CalendarIcon,
@@ -12,8 +12,6 @@ import {
   ChevronRight,
   CircleHelp,
   Loader2,
-  Plus,
-  Trash2,
 } from "lucide-react";
 
 import { Calendar } from "@/components/ui/calendar";
@@ -24,6 +22,15 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { formatPhone } from "@/lib/phone";
+import {
+  BUDDHIST_YEAR_OFFSET,
+  formatThaiDateNumeric,
+  formatThaiMonthYear,
+  parseIsoDate,
+  THAI_MONTHS,
+  THAI_MONTHS_SHORT,
+  toIsoDate,
+} from "@/lib/date/thai-date";
 import { cn } from "@/lib/utils";
 
 const TABS = [
@@ -157,8 +164,8 @@ function FieldShell({
   className?: string;
 }) {
   return (
-    <div className={cn("p-1", className)}>
-      <label className="block font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-[rgba(0,0,0,0.65)]">
+    <div className={cn("px-1.5 py-[5px]", className)}>
+      <label className="mb-1 block text-sm font-normal leading-5 text-[#4b5870]">
         {label}
         {required && <span className="text-[#ff0000]"> *</span>}
       </label>
@@ -220,8 +227,8 @@ function TextInput({
       placeholder={undefined}
       disabled={disabled}
       className={cn(
-      "h-8 w-full rounded-[4px] border border-[#d9d9d9] bg-white px-[11px] py-1 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none placeholder:text-muted-foreground/60 focus:border-[#2299ff]",
-        disabled && "cursor-not-allowed bg-[#f5f5f5] text-[rgba(0,0,0,0.65)]",
+        "h-8 w-full rounded-lg border border-[#dfe4e8] bg-white px-3 text-sm font-normal leading-5 text-[#34425c] shadow-none outline-none transition-colors placeholder:text-[#9aa5b5] focus:border-[#5eaafa] focus:ring-2 focus:ring-[#5eaafa]/20",
+        disabled && "cursor-not-allowed bg-[#f5f7fa] text-[#7b8798]",
         className
       )}
     />
@@ -250,9 +257,9 @@ function SelectInput({
         defaultValue={defaultValue ?? ""}
         disabled={disabled}
         className={cn(
-          "h-8 w-full appearance-none rounded-[4px] border border-[#d9d9d9] bg-white px-[11px] pr-8 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none focus:border-[#2299ff]",
+          "h-8 w-full appearance-none rounded-lg border border-[#dfe4e8] bg-white px-3 pr-8 text-sm font-normal leading-5 text-[#34425c] shadow-none outline-none transition-colors focus:border-[#5eaafa] focus:ring-2 focus:ring-[#5eaafa]/20",
           defaultValue ? "text-foreground" : "text-muted-foreground/60",
-          disabled && "cursor-not-allowed bg-[#f5f5f5] text-[rgba(0,0,0,0.25)]"
+          disabled && "cursor-not-allowed bg-[#f5f7fa] text-[#9aa5b5]"
         )}
       >
         {!defaultValue && <option value="">{placeholder ? "" : "เลือก"}</option>}
@@ -299,9 +306,9 @@ function EmployeeTypeSelectInput({
         disabled={loading || availableTypes.length === 0}
         required
         className={cn(
-          "h-8 w-full appearance-none rounded-[4px] border border-[#d9d9d9] bg-card px-[11px] pr-8 font-[Kanit,sans-serif] text-sm leading-[22.001px] shadow-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "h-8 w-full appearance-none rounded-lg border border-[#dfe4e8] bg-white px-3 pr-8 text-sm font-normal leading-5 shadow-none transition-colors focus:border-[#5eaafa] focus:outline-none focus:ring-2 focus:ring-[#5eaafa]/20",
           value ? "text-foreground" : "text-muted-foreground/60",
-          "disabled:cursor-not-allowed disabled:bg-[#f5f5f5] disabled:text-[rgba(0,0,0,0.25)]"
+          "disabled:cursor-not-allowed disabled:bg-[#f5f7fa] disabled:text-[#9aa5b5]"
         )}
       >
         <option value="">
@@ -333,7 +340,10 @@ function OrganizationSelectInput({
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(companies.map((company) => company.id)));
 
   useEffect(() => {
-    setExpanded((current) => new Set([...current, ...companies.map((company) => company.id)]));
+    const timer = window.setTimeout(() => {
+      setExpanded((current) => new Set([...current, ...companies.map((company) => company.id)]));
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [companies]);
 
   const findNode = (nodes: OrganizationNode[]): OrganizationNode | undefined => {
@@ -411,7 +421,7 @@ function OrganizationSelectInput({
         <button
           type="button"
           disabled={loading || companies.length === 0}
-          className="flex h-8 w-full items-center justify-between rounded-[4px] border border-[#d9d9d9] bg-card px-3 text-left text-sm leading-[22px] text-foreground shadow-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+          className="flex h-8 w-full items-center justify-between rounded-lg border border-[#dfe4e8] bg-white px-3 text-left text-sm font-normal leading-5 text-[#34425c] shadow-none transition-colors focus:border-[#5eaafa] focus:outline-none focus:ring-2 focus:ring-[#5eaafa]/20 disabled:cursor-not-allowed disabled:bg-[#f5f7fa] disabled:text-[#9aa5b5]"
         >
           <span className={cn("truncate", !selectedNode && "text-muted-foreground/60")}>
             {loading
@@ -447,7 +457,10 @@ function PositionSelectInput({
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(positions.map((position) => position.id)));
 
   useEffect(() => {
-    setExpanded((current) => new Set([...current, ...positions.map((position) => position.id)]));
+    const timer = window.setTimeout(() => {
+      setExpanded((current) => new Set([...current, ...positions.map((position) => position.id)]));
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [positions]);
 
   const findNode = (nodes: PositionNode[]): PositionNode | undefined => {
@@ -518,7 +531,7 @@ function PositionSelectInput({
         <button
           type="button"
           disabled={loading || positions.length === 0}
-          className="flex h-8 w-full items-center justify-between rounded-[4px] border border-[#d9d9d9] bg-card px-3 text-left text-sm leading-[22px] text-foreground shadow-none transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+          className="flex h-8 w-full items-center justify-between rounded-lg border border-[#dfe4e8] bg-white px-3 text-left text-sm font-normal leading-5 text-[#34425c] shadow-none transition-colors focus:border-[#5eaafa] focus:outline-none focus:ring-2 focus:ring-[#5eaafa]/20 disabled:cursor-not-allowed disabled:bg-[#f5f7fa] disabled:text-[#9aa5b5]"
         >
           <span className={cn("truncate", !selectedNode && "text-muted-foreground/60")}>
             {loading ? "กำลังโหลดโครงสร้างตำแหน่ง..." : selectedNode ? `${selectedNode.code}: ${selectedNode.name}` : "เลือกตำแหน่ง"}
@@ -564,32 +577,24 @@ function DateInput({
 }) {
   const [open, setOpen] = useState(false);
 
-  // Parse defaultValue (MM/dd/yyyy) to Date if provided
-  const initialDate = (() => {
-    if (!defaultValue) return undefined;
-    try {
-      return parse(defaultValue, "MM/dd/yyyy", new Date());
-    } catch {
-      return undefined;
-    }
-  })();
+  const initialDate = parseIsoDate(defaultValue);
 
   const [selected, setSelected] = useState<Date | undefined>(initialDate);
   const resolvedSelectedDate = selectedDate ?? selected;
 
-  const displayText = resolvedSelectedDate ? format(resolvedSelectedDate, "dd/MM/yyyy") : "";
+  const displayText = resolvedSelectedDate ? formatThaiDateNumeric(resolvedSelectedDate) : "";
 
   return (
     <div className={cn("relative", className)}>
-      <input type="hidden" name={name} value={resolvedSelectedDate ? format(resolvedSelectedDate, "MM/dd/yyyy") : ""} />
+      <input type="hidden" name={name} value={resolvedSelectedDate ? toIsoDate(resolvedSelectedDate) : ""} />
       <Popover open={open} onOpenChange={disabled ? undefined : setOpen}>
         <PopoverTrigger asChild>
           <button
             type="button"
             disabled={disabled}
             className={cn(
-              "flex h-8 w-full items-center justify-between rounded-[4px] border border-[#d9d9d9] bg-white px-[11px] pr-9 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none focus:border-[#2299ff]",
-              disabled && "cursor-not-allowed bg-[#f5f5f5] text-[rgba(0,0,0,0.65)]",
+          "flex h-8 w-full items-center justify-between rounded-lg border border-[#dfe4e8] bg-white px-3 pr-9 text-sm font-normal leading-5 text-[#34425c] shadow-none outline-none transition-colors focus:border-[#5eaafa] focus:ring-2 focus:ring-[#5eaafa]/20",
+          disabled && "cursor-not-allowed bg-[#f5f7fa] text-[#7b8798]",
               !selected && "text-muted-foreground/60"
             )}
           >
@@ -626,6 +631,170 @@ function DateInput({
   );
 }
 
+const THAI_WEEKDAYS = ["จ", "อ", "พ", "พฤ", "ศ", "ส", "อา"];
+
+type BirthDateCalendarView = "day" | "month" | "year";
+
+function DetailedDateInput({
+  name,
+  onDateChange,
+  selectedDate,
+  disableFuture = false,
+}: {
+  name: string;
+  onDateChange?: (date: Date | undefined) => void;
+  selectedDate?: Date;
+  disableFuture?: boolean;
+}) {
+  const today = startOfDay(new Date());
+  const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<Date | undefined>();
+  const resolvedSelected = selectedDate ?? selected;
+  const [view, setView] = useState<BirthDateCalendarView>("day");
+  const [visibleMonth, setVisibleMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+  const [yearRangeStart, setYearRangeStart] = useState(() => today.getFullYear() + BUDDHIST_YEAR_OFFSET - 9);
+
+  const visibleYear = visibleMonth.getFullYear();
+  const visibleMonthIndex = visibleMonth.getMonth();
+  const buddhistYear = visibleYear + BUDDHIST_YEAR_OFFSET;
+  const currentMonthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const isCurrentOrFutureMonth = visibleMonth.getTime() >= currentMonthStart.getTime();
+  const daysInMonth = new Date(visibleYear, visibleMonthIndex + 1, 0).getDate();
+  const firstDayOffset = (new Date(visibleYear, visibleMonthIndex, 1).getDay() + 6) % 7;
+  const dayCells = Array.from({ length: firstDayOffset + daysInMonth }, (_, index) =>
+    index < firstDayOffset ? null : index - firstDayOffset + 1
+  );
+
+  const changeOpen = (nextOpen: boolean) => {
+    setOpen(nextOpen);
+    if (nextOpen) {
+      const anchorDate = resolvedSelected ?? today;
+      setVisibleMonth(new Date(anchorDate.getFullYear(), anchorDate.getMonth(), 1));
+      setYearRangeStart(anchorDate.getFullYear() + BUDDHIST_YEAR_OFFSET - 9);
+      setView("day");
+    }
+  };
+
+  const moveCalendar = (direction: -1 | 1) => {
+    if (view === "day") {
+      setVisibleMonth((current) => addMonths(current, direction));
+      return;
+    }
+    if (view === "month") {
+      setVisibleMonth((current) => new Date(current.getFullYear() + direction, current.getMonth(), 1));
+      return;
+    }
+    setYearRangeStart((current) => current + direction * 12);
+  };
+
+  const selectDay = (day: number) => {
+    const date = new Date(visibleYear, visibleMonthIndex, day);
+    if (disableFuture && date > today) return;
+    setSelected(date);
+    onDateChange?.(date);
+    setOpen(false);
+  };
+
+  const selectMonth = (monthIndex: number) => {
+    const isFutureMonth = disableFuture && visibleYear === today.getFullYear() && monthIndex > today.getMonth();
+    if (disableFuture && (visibleYear > today.getFullYear() || isFutureMonth)) return;
+    setVisibleMonth(new Date(visibleYear, monthIndex, 1));
+    setView("day");
+  };
+
+  const selectYear = (yearBE: number) => {
+    const year = yearBE - BUDDHIST_YEAR_OFFSET;
+    if (disableFuture && year > today.getFullYear()) return;
+    const month = disableFuture && year === today.getFullYear() ? Math.min(visibleMonthIndex, today.getMonth()) : visibleMonthIndex;
+    setVisibleMonth(new Date(year, month, 1));
+    setView("month");
+  };
+
+  const selectedText = resolvedSelected ? formatThaiDateNumeric(resolvedSelected) : "";
+
+  return (
+    <div className="relative">
+      <input type="hidden" name={name} value={resolvedSelected ? toIsoDate(resolvedSelected) : ""} />
+      <Popover open={open} onOpenChange={changeOpen}>
+        <PopoverTrigger asChild>
+          <button
+            type="button"
+            className="flex h-8 w-full items-center justify-between rounded-lg border border-[#dfe4e8] bg-white px-3 pr-9 text-left text-sm font-normal leading-5 text-[#34425c] shadow-none outline-none transition-colors focus:border-[#5eaafa] focus:ring-2 focus:ring-[#5eaafa]/20 data-[state=open]:border-[#5eaafa] data-[state=open]:ring-2 data-[state=open]:ring-[#5eaafa]/20"
+          >
+            <span className={cn("truncate", !resolvedSelected && "text-muted-foreground/60")}>{selectedText || "กรุณาเลือก"}</span>
+            <CalendarIcon className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground/60" />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          align="start"
+          sideOffset={6}
+          className="w-[276px] gap-0 overflow-hidden rounded-lg bg-white p-0 shadow-[0_4px_18px_rgba(28,37,54,0.16)] ring-1 ring-black/5"
+        >
+          <div className="flex h-12 items-center justify-between border-b border-[#f0f0f0] px-2">
+            <button type="button" onClick={() => moveCalendar(-1)} aria-label={view === "year" ? "ช่วงปีก่อนหน้า" : view === "month" ? "ปีก่อนหน้า" : "เดือนก่อนหน้า"} className="flex size-8 items-center justify-center rounded-md text-[#858b94] transition-colors hover:bg-[#eef7ff] hover:text-[#5eaafa]">
+              <ChevronLeft className="size-5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (view === "day") setView("month");
+                else if (view === "month") {
+                  setYearRangeStart(buddhistYear - 9);
+                  setView("year");
+                }
+              }}
+              className={cn("rounded px-2 py-1 text-sm font-semibold text-[#30343b]", view !== "year" && "hover:bg-[#eef7ff] hover:text-[#5eaafa]")}
+            >
+              {view === "day" ? `${THAI_MONTHS[visibleMonthIndex]} ${buddhistYear}` : view === "month" ? buddhistYear : `${yearRangeStart} - ${yearRangeStart + 11}`}
+            </button>
+            <button type="button" disabled={disableFuture && view !== "year" && (view === "month" ? visibleYear >= today.getFullYear() : isCurrentOrFutureMonth)} onClick={() => moveCalendar(1)} aria-label={view === "year" ? "ช่วงปีถัดไป" : view === "month" ? "ปีถัดไป" : "เดือนถัดไป"} className="flex size-8 items-center justify-center rounded-md text-[#858b94] transition-colors hover:bg-[#eef7ff] hover:text-[#5eaafa] disabled:cursor-not-allowed disabled:text-[#d4d6da] disabled:hover:bg-transparent">
+              <ChevronRight className="size-5" />
+            </button>
+          </div>
+
+          {view === "day" && (
+            <div className="px-3 pb-3 pt-2">
+              <div className="grid grid-cols-7">
+                {THAI_WEEKDAYS.map((weekday) => <span key={weekday} className="flex h-8 items-center justify-center text-xs font-normal text-[#8b9098]">{weekday}</span>)}
+                {dayCells.map((day, index) => {
+                  if (day === null) return <span key={`empty-${index}`} className="size-8" />;
+                  const date = new Date(visibleYear, visibleMonthIndex, day);
+                  const isFuture = disableFuture && date > today;
+                  const isToday = date.getTime() === today.getTime();
+                  const isSelected = resolvedSelected?.getTime() === date.getTime();
+                  return (
+                    <button key={day} type="button" disabled={isFuture} onClick={() => selectDay(day)} className={cn("mx-auto flex size-8 items-center justify-center rounded-md text-sm font-normal text-[#464b53] transition-colors hover:bg-[#eef7ff] hover:text-[#5eaafa]", isToday && !isSelected && "font-semibold text-[#5eaafa]", isSelected && "bg-[#5eaafa] text-white hover:bg-[#4a9be9] hover:text-white", isFuture && "cursor-not-allowed text-[#c9ccd1] hover:bg-transparent hover:text-[#c9ccd1]")}>{day}</button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {view === "month" && (
+            <div className="grid min-h-[202px] grid-cols-4 gap-x-1 gap-y-3 px-4 py-5">
+              {THAI_MONTHS_SHORT.map((month, monthIndex) => {
+                const isFuture = disableFuture && (visibleYear > today.getFullYear() || (visibleYear === today.getFullYear() && monthIndex > today.getMonth()));
+                const isActive = resolvedSelected?.getFullYear() === visibleYear && resolvedSelected.getMonth() === monthIndex;
+                return <button key={month} type="button" disabled={isFuture} onClick={() => selectMonth(monthIndex)} className={cn("rounded-md text-sm text-[#4b5058] transition-colors hover:bg-[#eef7ff] hover:text-[#5eaafa]", isActive && "bg-[#5eaafa] text-white hover:bg-[#4a9be9] hover:text-white", isFuture && "cursor-not-allowed bg-[#fafafa] text-[#c9ccd1] hover:bg-[#fafafa] hover:text-[#c9ccd1]")}>{month}</button>;
+              })}
+            </div>
+          )}
+
+          {view === "year" && (
+            <div className="grid min-h-[202px] grid-cols-4 gap-x-1 gap-y-3 px-4 py-5">
+              {Array.from({ length: 12 }, (_, index) => yearRangeStart + index).map((yearBE) => {
+                  const isFuture = disableFuture && yearBE - BUDDHIST_YEAR_OFFSET > today.getFullYear();
+                  const isActive = resolvedSelected ? resolvedSelected.getFullYear() + BUDDHIST_YEAR_OFFSET === yearBE : false;
+                return <button key={yearBE} type="button" disabled={isFuture} onClick={() => selectYear(yearBE)} className={cn("rounded-md text-sm text-[#4b5058] transition-colors hover:bg-[#eef7ff] hover:text-[#5eaafa]", isActive && "bg-[#5eaafa] text-white hover:bg-[#4a9be9] hover:text-white", isFuture && "cursor-not-allowed bg-[#fafafa] text-[#c9ccd1] hover:bg-[#fafafa] hover:text-[#c9ccd1]")}>{yearBE}</button>;
+              })}
+            </div>
+          )}
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
+
 function MonthPickerInput({
   placeholder = "เลือกเดือน",
   defaultValue,
@@ -639,14 +808,7 @@ function MonthPickerInput({
   className?: string;
   name?: string;
 }) {
-  const initialDate = (() => {
-    if (!defaultValue) return undefined;
-    try {
-      return parse(defaultValue, "MM/dd/yyyy", new Date());
-    } catch {
-      return undefined;
-    }
-  })();
+  const initialDate = parseIsoDate(defaultValue);
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Date | undefined>(initialDate);
   const [visibleYear, setVisibleYear] = useState((initialDate ?? new Date()).getFullYear());
@@ -658,7 +820,7 @@ function MonthPickerInput({
 
   return (
     <div className={cn("relative", className)}>
-      <input type="hidden" name={name} value={selected ? format(selected, "MM/dd/yyyy") : ""} />
+      <input type="hidden" name={name} value={selected ? `${selected.getFullYear()}-${String(selected.getMonth() + 1).padStart(2, "0")}` : ""} />
       <Popover
         open={open}
         onOpenChange={disabled ? undefined : (nextOpen) => {
@@ -671,12 +833,12 @@ function MonthPickerInput({
             type="button"
             disabled={disabled}
             className={cn(
-              "flex h-8 w-full items-center justify-between rounded-[4px] border border-[#d9d9d9] bg-white px-[11px] pr-9 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none focus:border-[#2299ff]",
-              disabled && "cursor-not-allowed bg-[#f5f5f5] text-[rgba(0,0,0,0.65)]",
+          "flex h-8 w-full items-center justify-between rounded-lg border border-[#dfe4e8] bg-white px-3 pr-9 text-sm font-normal leading-5 text-[#34425c] shadow-none outline-none transition-colors focus:border-[#5eaafa] focus:ring-2 focus:ring-[#5eaafa]/20",
+          disabled && "cursor-not-allowed bg-[#f5f7fa] text-[#7b8798]",
               !selected && "text-muted-foreground/60"
             )}
           >
-            <span className="truncate whitespace-pre">{selected ? format(selected, "MMMM  yyyy", { locale: th }) : placeholder}</span>
+            <span className="truncate whitespace-pre">{selected ? formatThaiMonthYear(selected) : placeholder}</span>
             <CalendarIcon className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           </button>
         </PopoverTrigger>
@@ -697,8 +859,8 @@ function MonthPickerInput({
               >
                 {"<<"}
               </button>
-              <span className="text-center font-[Kanit,sans-serif] text-sm font-medium text-[rgba(0,0,0,0.85)]">
-                {visibleYear}
+          <span className="text-center text-sm font-semibold text-[#172348]">
+                {visibleYear + BUDDHIST_YEAR_OFFSET}
               </span>
               <button
                 type="button"
@@ -721,11 +883,11 @@ function MonthPickerInput({
                     aria-pressed={isSelected}
                     onClick={() => chooseMonth(month)}
                     className={cn(
-                      "h-8 rounded-[4px] font-[Kanit,sans-serif] text-sm transition-colors hover:bg-[#e6f7ff]",
+                "h-8 rounded-lg text-sm font-normal transition-colors hover:bg-[#e6f7ff]",
                       isSelected ? "bg-[#1890ff] text-white hover:bg-[#1890ff]" : "text-[rgba(0,0,0,0.65)]"
                     )}
                   >
-                    {format(monthDate, "MMM", { locale: th })}
+                    {THAI_MONTHS_SHORT[month]}
                   </button>
                 );
               })}
@@ -742,16 +904,19 @@ function RadioGroup({
   value,
   onChange,
   className,
+  compact,
 }: {
   options: string[];
   value: string;
   onChange: (value: string) => void;
   className?: string;
+  compact?: boolean;
 }) {
   return (
     <div
       className={cn(
-        "flex w-full flex-wrap items-center gap-x-2",
+        "flex w-full items-center",
+        compact ? "flex-nowrap gap-x-2" : "flex-wrap gap-x-2",
         className
       )}
     >
@@ -760,7 +925,7 @@ function RadioGroup({
           key={opt}
           type="button"
           onClick={() => onChange(opt)}
-          className="flex h-[22px] shrink-0 items-center gap-0 font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-[rgba(0,0,0,0.65)]"
+          className="flex h-6 shrink-0 items-center gap-2 text-sm font-normal leading-5 text-[#4b5870]"
         >
           <span
             className={cn(
@@ -770,8 +935,8 @@ function RadioGroup({
           >
             {opt === value && <span className="size-2 rounded-full bg-[#1890ff]" />}
           </span>
-          <span className={cn("truncate px-2 tracking-[-0.1px]", opt === "ไม่ระบุ" && "pr-[13.075px]")}>
-            {opt === "ไม่ระบุ" ? " ไม่ระบุ " : opt}
+          <span className={cn("truncate tracking-[-0.1px]", compact ? "pr-0" : "pr-2", !compact && opt === "ไม่ระบุ" && "pr-[13.075px]")}>
+            {compact ? opt : opt === "ไม่ระบุ" ? " ไม่ระบุ " : opt}
           </span>
         </button>
       ))}
@@ -807,7 +972,7 @@ function Toggle({
           )}
         />
       </button>
-      <span className="text-sm font-semibold leading-[22px] text-foreground">{label}</span>
+      <span className="text-sm font-medium leading-5 text-[#34425c]">{label}</span>
     </div>
   );
 }
@@ -819,11 +984,13 @@ export default function OrganizationEmployeeCreatePage({
   onComplete,
   employeeCount,
   employeeLimit,
+  embedded = false,
 }: {
   onCancel?: () => void;
   onComplete?: () => void;
   employeeCount?: number | null;
   employeeLimit?: number | null;
+  embedded?: boolean;
 }) {
   const router = useRouter();
   const currentEmployeeCount = employeeCount ?? 1;
@@ -996,9 +1163,13 @@ export default function OrganizationEmployeeCreatePage({
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!employeeCode.trim()) {
-      setCodeDuplicate(false);
-      setExistingEmployee(null);
-      return;
+      debounceRef.current = setTimeout(() => {
+        setCodeDuplicate(false);
+        setExistingEmployee(null);
+      }, 0);
+      return () => {
+        if (debounceRef.current) clearTimeout(debounceRef.current);
+      };
     }
     debounceRef.current = setTimeout(async () => {
       try {
@@ -1128,17 +1299,17 @@ export default function OrganizationEmployeeCreatePage({
   }
 
   return (
-    <div data-employee-create-page className="w-full overflow-x-hidden">
+    <div data-employee-create-page className="min-h-[calc(100vh-70px)] w-full overflow-x-hidden bg-[#f3f6fb] font-sans">
 {/* Header follows the employee-data page header used by HRMic. */}
-      <section className="relative flex h-40 items-center justify-between overflow-hidden border-b border-white/20 bg-[#61a8ff] p-6 tracking-[-0.1px] text-white">
+      {!embedded && <section className="mx-3 mt-3 flex min-h-24 flex-col gap-4 rounded-xl border border-[#e7eaf0] bg-white p-4 shadow-[0_3px_12px_rgba(29,52,93,.07)] sm:mx-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 flex-col items-start">
-          <div className="hidden items-center text-sm leading-[22.001px] text-white/70 md:flex">
+          <div className="hidden items-center text-xs font-normal leading-5 text-[#7b8798] md:flex">
             <span>ข้อมูลองค์กร</span>
             <ChevronRight className="size-4" />
             <span>ข้อมูลพนักงาน</span>
           </div>
           <div className="flex items-center">
-            <h1 className="w-fit pr-[30px] text-2xl font-normal leading-[37.716px] text-white">ข้อมูลพนักงาน</h1>
+            <h1 className="w-fit text-xl font-semibold leading-7 tracking-tight text-[#172348]">ข้อมูลพนักงาน</h1>
             <button
               type="button"
               className="hidden"
@@ -1149,11 +1320,11 @@ export default function OrganizationEmployeeCreatePage({
           </div>
         </div>
 
-        <div className="mx-16 hidden flex-1 flex-col items-center justify-center md:flex">
-          <div className="h-2 w-full overflow-hidden rounded-[4px] bg-[#c5c6cb]">
-            <div className="h-full bg-[#ffa000] transition-all" style={{ width: `${progressPct}%` }} />
+        <div className="hidden max-w-xl flex-1 flex-col items-center justify-center px-8 md:flex">
+          <div className="h-2 w-full overflow-hidden rounded-full bg-[#edf1f6]">
+            <div className="h-full rounded-full bg-[#ff9418] transition-all" style={{ width: `${progressPct}%` }} />
           </div>
-          <label className="w-full text-right text-sm font-normal leading-[22.001px] text-white">
+          <label className="mt-1 w-full text-right text-xs font-normal leading-5 text-[#6f7b90]">
             {currentEmployeeCount}/{configuredEmployeeLimit} คน
           </label>
         </div>
@@ -1162,23 +1333,31 @@ export default function OrganizationEmployeeCreatePage({
           <button
             type="button"
             onClick={onCancel}
-            className="mt-4 hidden h-[36.65px] shrink-0 items-center justify-center rounded-[4px] bg-white px-4 text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0px_3px_1px_-2px_rgba(0,0,0,0.2),0px_2px_2px_0px_rgba(0,0,0,0.14),0px_1px_5px_0px_rgba(0,0,0,0.12)] transition-colors hover:bg-slate-100 md:inline-flex"
+            className="hidden h-9 shrink-0 items-center justify-center rounded-lg border border-[#dfe4e8] bg-white px-4 text-sm font-medium leading-5 text-[#34425c] transition-colors hover:border-[#b9c7d8] hover:bg-[#f7f9fc] md:inline-flex"
           >
             ยกเลิก
           </button>
         ) : (
           <Link
             href="/organization/organization-employee/dashboard"
-            className="mt-4 hidden h-[36.65px] shrink-0 items-center justify-center rounded-[4px] bg-white px-4 text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0px_3px_1px_-2px_rgba(0,0,0,0.2),0px_2px_2px_0px_rgba(0,0,0,0.14),0px_1px_5px_0px_rgba(0,0,0,0.12)] transition-colors hover:bg-slate-100 md:inline-flex"
+            className="hidden h-9 shrink-0 items-center justify-center rounded-lg border border-[#dfe4e8] bg-white px-4 text-sm font-medium leading-5 text-[#34425c] transition-colors hover:border-[#b9c7d8] hover:bg-[#f7f9fc] md:inline-flex"
           >
             ยกเลิก
           </Link>
         )}
-      </section>
+      </section>}
 
-      <div className="relative z-10 mt-0 space-y-0 p-2 sm:p-3 lg:-mt-[25px] lg:w-[calc(100%+14.4px)] lg:p-4">
+      <div className={cn(
+        "relative z-10 space-y-0",
+        embedded ? "w-full p-0" : "p-3 sm:p-4",
+      )}>
         {/* Sub-navigation tabs */}
-              <div className="relative overflow-hidden rounded-t-[5px] rounded-b-none border-0 border-b border-black/[0.12] bg-card shadow-none">
+              <div className={cn(
+                "relative overflow-hidden border-0 border-b bg-card",
+                embedded
+                  ? "rounded-t-xl border-[#edf0f5] shadow-[0_3px_12px_rgba(29,52,93,0.07)]"
+                  : "rounded-t-xl rounded-b-none border-[#e7eaf0] shadow-[0_3px_12px_rgba(29,52,93,.07)]",
+              )}>
                 <div
                   ref={tabViewportRef}
                   className="overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
@@ -1200,9 +1379,11 @@ export default function OrganizationEmployeeCreatePage({
                 disabled={disabled}
                 style={{ width: TAB_WIDTHS[tab] }}
                 className={cn(
-                  "h-12 shrink-0 whitespace-nowrap border-b-2 px-4 font-[Kanit,sans-serif] text-sm font-semibold leading-[22.001px] tracking-[-0.1px] transition-colors",
+                  "h-11 shrink-0 whitespace-nowrap border-b-2 px-4 text-sm font-medium leading-5 transition-colors",
                   active
-                    ? "border-[#3c4252] text-[rgba(0,0,0,0.87)]"
+                    ? embedded
+                      ? "border-[#1474ee] text-[#126fd5]"
+                      : "border-[#1474ee] text-[#126fd5]"
                     : disabled
                       ? "border-transparent text-[rgba(0,0,0,0.38)] opacity-60"
                       : "border-transparent text-[rgba(0,0,0,0.87)] opacity-60 hover:text-foreground"
@@ -1248,9 +1429,14 @@ export default function OrganizationEmployeeCreatePage({
 
       {/* Form content */}
       {activeTab === "ข้อมูลพื้นฐาน" ? (
-        <Card className="rounded-b-[5px] rounded-t-none border-0 shadow-none xl:min-h-[1184.85px]">
+        <Card className={cn(
+          "rounded-t-none xl:min-h-[1184.85px]",
+          embedded
+            ? "rounded-b-xl border border-t-0 border-[#e7eaf0] shadow-[0_3px_12px_rgba(29,52,93,0.07)]"
+            : "rounded-b-xl border border-t-0 border-[#e7eaf0] shadow-[0_3px_12px_rgba(29,52,93,.07)]",
+        )}>
           <CardContent className="p-0">
-          <form id="employee-create-form" onSubmit={handleSubmit} autoComplete="off" className="w-full space-y-0 px-3 pt-3 text-sm leading-[22px] sm:px-4 sm:pt-4 lg:mx-6 lg:w-[calc(100%-48px)] lg:px-0">
+          <form id="employee-create-form" onSubmit={handleSubmit} autoComplete="off" className="w-full space-y-0 px-3 pt-3 text-sm font-normal leading-5 sm:px-4 sm:pt-4 lg:mx-6 lg:w-[calc(100%-48px)] lg:px-0">
             {/* Row 1 */}
             <div className="grid w-full grid-cols-1 gap-0 sm:grid-cols-2 xl:grid-cols-[190.2125fr_190.2125fr_190.2125fr_187.578125fr_187.578125fr_190.20625fr]">
               <FieldShell label="รหัสพนักงาน">
@@ -1263,7 +1449,7 @@ export default function OrganizationEmployeeCreatePage({
                       value={employeeCode}
                       onChange={(e) => setEmployeeCode(e.target.value)}
                       className={cn(
-                        "h-8 w-full rounded-[4px] border border-[#d9d9d9] bg-white px-[11px] py-1 font-[Kanit,sans-serif] text-sm leading-[22.001px] text-[rgba(0,0,0,0.65)] shadow-none outline-none placeholder:text-muted-foreground/60 focus:border-[#2299ff]",
+                        "h-8 w-full rounded-lg border border-[#dfe4e8] bg-white px-3 text-sm font-normal leading-5 text-[#34425c] shadow-none outline-none transition-colors placeholder:text-[#9aa5b5] focus:border-[#5eaafa] focus:ring-2 focus:ring-[#5eaafa]/20",
                         codeDuplicate
                           ? "border-[0.5px] border-red-500 focus:border-red-500 focus-visible:ring-red-500"
                           : "border-[#d9d9d9]"
@@ -1276,7 +1462,7 @@ export default function OrganizationEmployeeCreatePage({
                 <TextInput name="fingerprintCode" placeholder="รหัสลายนิ้วมือ" />
               </FieldShell>
               <FieldShell label="เพศ">
-                <RadioGroup className="max-w-[140px]" options={["ชาย", "หญิง", "ไม่ระบุ"]} value={gender} onChange={setGender} />
+                <RadioGroup compact options={["ชาย", "หญิง", "ไม่ระบุ"]} value={gender} onChange={setGender} />
               </FieldShell>
               <FieldShell label="สัญชาติ" className="xl:col-span-2">
                 <RadioGroup
@@ -1336,12 +1522,12 @@ export default function OrganizationEmployeeCreatePage({
             </div>
 
             {/* Row 4 */}
-            <div className="grid grid-cols-1 gap-0 pb-2 sm:grid-cols-2 xl:grid-cols-[25%_12.4%_12.6%_25%_25%]">
+            <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 xl:grid-cols-[25%_12.4%_12.6%_25%_25%]">
               <FieldShell label="สถานะ">
                 <SelectInput name="maritalStatus" options={["โสด", "สมรส", "หย่าร้าง", "หม้าย"]} defaultValue="โสด" />
               </FieldShell>
-              <FieldShell label="วันเกิด">
-                <DateInput name="birthDate" onDateChange={setBirthDate} />
+              <FieldShell label="วันเกิด" required>
+                <DetailedDateInput name="birthDate" onDateChange={setBirthDate} disableFuture />
               </FieldShell>
               <FieldShell label="อายุ">
           <TextInput value={calculateAge(birthDate) ?? ""} placeholder="อายุ" disabled className="pl-[9px]" />
@@ -1445,22 +1631,22 @@ export default function OrganizationEmployeeCreatePage({
             </div>
 
             {/* Row 9: Dates & probation */}
-            <div className="grid w-full grid-cols-1 gap-0 sm:grid-cols-2 xl:min-h-[63.6px] xl:grid-cols-[189.33125fr_189.3375fr_189.325fr_189.3375fr_189.3375fr_189.33125fr]">
+            <div className="grid w-full grid-cols-1 gap-0 sm:grid-cols-2 xl:grid-cols-[189.33125fr_189.3375fr_189.325fr_189.3375fr_189.3375fr_189.33125fr]">
               <FieldShell label="วันที่เริ่มงาน" required>
-                <DateInput
+                <DetailedDateInput
                   name="hireDate"
                   selectedDate={hireDate}
                   onDateChange={(date) => date && setHireDate(date)}
                 />
               </FieldShell>
               <FieldShell label="วันที่บรรจุ">
-                <DateInput name="confirmationDate" />
+                <DetailedDateInput name="confirmationDate" />
               </FieldShell>
               <FieldShell label="วันที่หมดสัญญาจ้าง">
-                <DateInput name="contractEndDate" />
+                <DetailedDateInput name="contractEndDate" />
               </FieldShell>
               <FieldShell label="ปีที่เกษียณ">
-                <DateInput name="retirementDate" placeholder="เลือกวันที่" />
+                <DetailedDateInput name="retirementDate" />
               </FieldShell>
               <FieldShell label="ระยะเวลาทดลองงาน">
                 <TextInput
@@ -1496,84 +1682,29 @@ export default function OrganizationEmployeeCreatePage({
               </FieldShell>
             </div>
 
-            {/* Row 11: Description */}              <FieldShell label="รายละเอียด" className="xl:h-[61.6px]">
+            {/* Row 11: Description */}              <FieldShell label="รายละเอียด">
                 <TextInput name="description" placeholder="รายละเอียด" />
               </FieldShell>
 
-            {/* Row 12: Hashtag */}              <FieldShell label="Hashtag" className="xl:h-[61.6px]">
+            {/* Row 12: Hashtag */}              <FieldShell label="Hashtag">
                 <TextInput name="hashtag" placeholder="input # to mention tag" />
               </FieldShell>
           </form>
 
           <div className="px-3 sm:px-4 lg:mx-6 lg:px-0">
-            {/* On-boarding */}
-            <section className="h-auto p-1 lg:h-[187.6px]">
-              <p className="h-[22px] text-sm leading-[22px] text-foreground">On-boarding</p>
-              <div className="h-auto lg:h-[156.8px]">
-                <div className="flex h-10 items-center justify-between">
-                  <p className="text-sm leading-[22px] text-foreground">คอร์สเรียนที่มอบหมาย</p>
-                  <button
-                    type="button"
-                    className="mt-[4.5px] inline-flex h-[26px] w-[123.36px] self-start items-center gap-1 text-sm text-[#008cff] transition-colors hover:text-[#0073d4]"
-                  >
-                    <Plus className="size-4" />
-                    เพิ่มคอร์สเรียน
-                  </button>
-                </div>
-                <div className="overflow-x-auto border border-border lg:h-[116.8px] lg:overflow-visible lg:border-0">
-                  <table className="min-w-[44rem] w-full table-fixed text-sm leading-[22px] lg:min-w-0">
-                    <colgroup>
-                      <col className="w-[40%]" />
-                      <col className="w-[17%]" />
-                      <col className="w-[17%]" />
-                      <col className="w-[17%]" />
-                      <col className="w-[9%]" />
-                    </colgroup>
-                    <thead>
-                      <tr className="h-[54.8px] text-center text-foreground">
-                        <th className="p-0 font-normal">ชื่อคอร์ส</th>
-                        <th className="p-0 font-normal">สถานะ</th>
-                        <th className="p-0 font-normal">วันที่เริ่ม</th>
-                        <th className="p-0 font-normal">วันที่จบ</th>
-                        <th className="p-0 font-normal" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr className="h-[62px] border-t border-border bg-card">
-<td className="px-5 text-foreground">การเข้าใช้งาน Application HRMic สำหรับพนักงานใหม่</td>
-                        <td className="text-center">
-                          <span className="inline-flex items-center gap-[5px] text-emerald-600">
-                            <span className="size-2 rounded-full bg-emerald-500" />
-                            Publish
-                          </span>
-                        </td>
-                        <td className="text-center"><CalendarIcon className="mx-auto size-3 text-muted-foreground" /></td>
-                        <td className="text-center"><CalendarIcon className="mx-auto size-3 text-muted-foreground" /></td>
-                        <td className="text-center">
-                          <button type="button" className="relative -top-[2.7px] mx-auto flex size-8 items-center justify-center rounded-full bg-[#eb8794] text-white" aria-label="ลบคอร์ส">
-                            <Trash2 className="size-3.5" />
-                          </button>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </section>
-
             {/* Payroll round and warning */}
-            <div className="mt-4 h-auto lg:h-[120.45px]">
+            <div className="h-auto lg:h-[120.45px]">
               <div className="h-[34.45px] pt-3">
                 <Toggle checked={payrollRound} onChange={setPayrollRound} label="สร้างรายชื่อในรอบคำนวณเงินเดือน" />
               </div>
-              <p className="mt-[5px] text-sm leading-[22px] text-foreground">
+              <p className="mt-1.5 text-sm font-normal leading-5 text-[#4b5870]">
                 ระบบจะสร้างรายชื่อพนักงานในรอบเดือนที่ตรงกับวันที่เริ่มงาน และหากมีการเปิดหลายรอบเดือน ระบบจะสร้างรายชื่อตั้งแต่รอบเดือนที่พนักงานเริ่มงาน ไปจนถึงรอบเดือนสุดท้ายที่ถูกเปิดอยู่ในปัจจุบัน
               </p>
-              <div className="relative mt-[5px] min-h-[42px] pr-0 text-sm leading-[21px] text-foreground lg:pr-24">
+              <div className="relative mt-1.5 min-h-[42px] pr-0 text-sm font-normal leading-5 text-[#4b5870] lg:pr-28">
                 <span>⚠️ หมายเหตุ: หากต้องการสร้างรายชื่อในรูปแบบการคำนวณแบ่งงวดจ่าย (Split) กรุณาไปที่ ตั้งค่า → ตั้งค่าทั่วไป → รอบการคำนวณเงินเดือน แล้วเลือก &quot;แบ่งงวดจ่าย&quot; ก่อนทำการบันทึก</span>
                 <button
                   type="button"
-                  className="mt-1 inline-flex w-[92.1px] whitespace-nowrap text-sm font-semibold leading-[16.1px] text-[#008cff] hover:underline lg:absolute lg:right-0 lg:top-[13px] lg:mt-0"
+                  className="mt-1 inline-flex whitespace-nowrap text-sm font-medium leading-5 text-[#1474ee] hover:underline lg:absolute lg:right-0 lg:top-3 lg:mt-0"
                 >
                   ▶ ไปที่หน้าตั้งค่า
                 </button>
@@ -1592,7 +1723,7 @@ export default function OrganizationEmployeeCreatePage({
                 type="submit"
                 form="employee-create-form"
                 disabled={saving || codeDuplicate}
-                className="flex h-9 w-full items-center justify-center gap-2 rounded-[4px] bg-[#03ae03] text-sm font-semibold leading-9 text-white shadow-sm transition-colors hover:bg-[#029702] disabled:cursor-not-allowed disabled:opacity-60"
+                className="flex h-[36.65px] w-full items-center justify-center gap-2 rounded-lg bg-[#1474ee] text-sm font-medium leading-5 text-white shadow-[0_4px_12px_rgba(20,116,238,.24)] transition-colors hover:bg-[#0d65d8] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving && <Loader2 className="size-4 animate-spin" />}
                 {saving ? "กำลังบันทึก..." : "บันทึก"}

@@ -27,6 +27,29 @@ if (process.env.NODE_ENV !== "production") {
 
 const { inFlightReads, memoryReads, memoryVersions } = readCacheState;
 
+// A long-lived instance must not grow its local layer without bound now that
+// per-user authorization snapshots are cached alongside read models. Expired
+// entries are dropped first, then the oldest insertions, and the cap stays far
+// above the working set of an actively used tenant.
+const MEMORY_READ_LIMIT = 10_000;
+
+function rememberMemoryRead(key: string, value: unknown, expiresAt: number) {
+  memoryReads.set(key, { value, expiresAt });
+  if (memoryReads.size <= MEMORY_READ_LIMIT) return;
+
+  const now = Date.now();
+  for (const [candidateKey, entry] of memoryReads) {
+    if (entry.expiresAt <= now) memoryReads.delete(candidateKey);
+  }
+
+  let excess = memoryReads.size - MEMORY_READ_LIMIT;
+  for (const candidateKey of memoryReads.keys()) {
+    if (excess <= 0) break;
+    memoryReads.delete(candidateKey);
+    excess -= 1;
+  }
+}
+
 function logCacheTiming(namespace: string, layer: "memory" | "redis" | "coalesced" | "database", startedAt: number) {
   if (process.env.PERFORMANCE_LOGGING !== "true") return;
   console.info(JSON.stringify({ event: "read_cache", namespace, layer, durationMs: Number((performance.now() - startedAt).toFixed(1)) }));
@@ -93,7 +116,7 @@ export async function readThroughCache<T>(key: string, ttlSeconds: number, load:
     try {
       const cached = await redis.get<T>(key);
       if (cached !== null) {
-        memoryReads.set(key, { value: cached, expiresAt: Date.now() + ttlSeconds * 1_000 });
+        rememberMemoryRead(key, cached, Date.now() + ttlSeconds * 1_000);
         logCacheTiming("read-through", "redis", startedAt);
         return cached;
       }
@@ -120,7 +143,7 @@ export async function readThroughCache<T>(key: string, ttlSeconds: number, load:
       // Keep a process-local copy as well.  Local development and deployments
       // without Redis still get the same short-lived read-through behavior,
       // while the cache key remains tenant-scoped and opaque.
-      memoryReads.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1_000 });
+      rememberMemoryRead(key, value, Date.now() + ttlSeconds * 1_000);
       if (redis) {
         try {
           await redis.set(key, value, { ex: ttlSeconds });
@@ -142,7 +165,7 @@ export async function readThroughCache<T>(key: string, ttlSeconds: number, load:
 /** Stores a completed read model in the same local/Redis layers used by
  * readThroughCache. Callers must supply an already-authoritative value. */
 export async function writeReadCache<T>(key: string, ttlSeconds: number, value: T) {
-  memoryReads.set(key, { value, expiresAt: Date.now() + ttlSeconds * 1_000 });
+  rememberMemoryRead(key, value, Date.now() + ttlSeconds * 1_000);
   if (!redis) return;
 
   try {
@@ -184,7 +207,7 @@ export async function readThroughVersionedCache<T>(
       const [storedVersion, cached] = await pipeline.exec<[number | null, VersionedCacheValue<T> | null]>();
       version = String(storedVersion ?? 0);
       if (cached?.version === version) {
-        memoryReads.set(key, { value: cached, expiresAt: now + ttlSeconds * 1_000 });
+        rememberMemoryRead(key, cached, now + ttlSeconds * 1_000);
         logCacheTiming(namespace, "redis", startedAt);
         return cached.value;
       }
@@ -218,7 +241,7 @@ export async function readThroughVersionedCache<T>(
       const value = await load();
       logCacheTiming(namespace, "database", startedAt);
       const cached: VersionedCacheValue<T> = { version, value };
-      memoryReads.set(key, { value: cached, expiresAt: Date.now() + ttlSeconds * 1_000 });
+      rememberMemoryRead(key, cached, Date.now() + ttlSeconds * 1_000);
       if (redis) {
         try {
           await redis.set(key, cached, { ex: ttlSeconds });

@@ -30,7 +30,7 @@ function DocumentManagementPage({ documentType }: { documentType: "leave" | "ove
   return (
     <div className="h-[calc(100vh-4rem)] overflow-hidden bg-[#e7eff8]">
       <section className="flex min-h-40 items-start justify-between gap-5 bg-[#61a8ff] px-6 pb-6 pt-12 text-white">
-        <div><div className="flex items-center gap-1 text-sm text-white/90"><span>การประมวลผลเงินเดือน</span><ChevronRight className="size-4" /><span>จัดการเอกสาร</span></div><h1 className="mt-1 text-[26px] font-bold leading-tight">{documentTitle}</h1></div>
+        <div><div className="flex items-center gap-1 text-sm text-white/90"><span>ประมวลผลเงินเดือน</span><ChevronRight className="size-4" /><span>จัดการเอกสาร</span></div><h1 className="mt-1 text-[26px] font-bold leading-tight">{documentTitle}</h1></div>
         <button type="button" onClick={() => setRequestOpen(true)} className="mt-3 inline-flex h-10 items-center rounded-md bg-white px-4 text-sm font-semibold text-[#4e4e4e] shadow-md hover:bg-slate-50">{requestLabel}</button>
       </section>
       <section className="px-8 py-8">
@@ -38,7 +38,7 @@ function DocumentManagementPage({ documentType }: { documentType: "leave" | "ove
         <form onSubmit={(event) => { event.preventDefault(); setSearched(true); }} className={isCompactDocument ? "rounded-b-lg bg-white px-4 pb-4 pt-[14px] shadow-[0_1px_3px_rgba(58,81,106,0.18)]" : "rounded-b-lg bg-white px-4 pb-[27px] pt-5 shadow-[0_1px_3px_rgba(58,81,106,0.18)]"}>
           <h2 className={isCompactDocument ? "mb-[25px] text-[22px] font-medium text-[#2f353a]" : "mb-7 text-[22px] font-medium text-[#2f353a]"}>ค้นหา</h2>
           <div className="grid grid-cols-1 gap-x-2 gap-y-2 md:grid-cols-4"><Field label="โครงสร้างองค์กร" placeholder="โครงสร้างองค์กร" /><Field label="ตำแหน่ง" placeholder="ตำแหน่ง" /><Field label="พนักงาน" placeholder="พนักงาน" /><Field label="Hashtag" placeholder="#Hashtag" /></div>
-          <div className={isCompactDocument ? "mt-[5px] grid grid-cols-1 gap-x-2 gap-y-2 md:grid-cols-4" : "mt-[7px] grid grid-cols-1 gap-x-2 gap-y-2 md:grid-cols-5"}>{!isCompactDocument && <SelectField label="ประเภทการลา" value="ทั้งหมด" />}<SelectField label="ปี" value="2026" /><Field label="ตั้งแต่วันที่ - จนถึงวันที่"><span className="relative mt-1 block"><input placeholder="วันเริ่มต้น     →     วันสิ้นสุด" className="h-8 w-full rounded border border-[#d8d8d8] bg-white px-3 pr-9 text-sm font-normal outline-none placeholder:text-[#c8c8c8]" /><CalendarDays className="pointer-events-none absolute right-2 top-1/2 size-4 -translate-y-1/2 text-[#6b737a]" /></span></Field><SelectField label="สถานะพนักงาน" value="เฉพาะที่ Active" /><SelectField label="สถานะการอนุมัติ" value="รออนุมัติ" /></div>
+          <div className={isCompactDocument ? "mt-[5px] grid grid-cols-1 gap-x-2 gap-y-2 md:grid-cols-4" : "mt-[7px] grid grid-cols-1 gap-x-2 gap-y-2 md:grid-cols-5"}>{!isCompactDocument && <SelectField label="ประเภทการลา" value="ทั้งหมด" />}<SelectField label="ปี" value="2569" /><Field label="ตั้งแต่วันที่ - จนถึงวันที่"><span className="relative mt-1 block"><input placeholder="วันเริ่มต้น     →     วันสิ้นสุด" className="h-8 w-full rounded border border-[#d8d8d8] bg-white px-3 pr-9 text-sm font-normal outline-none placeholder:text-[#c8c8c8]" /><CalendarDays className="pointer-events-none absolute right-2 top-1/2 size-4 -translate-y-1/2 text-[#6b737a]" /></span></Field><SelectField label="สถานะพนักงาน" value="เฉพาะที่ Active" /><SelectField label="สถานะการอนุมัติ" value="รออนุมัติ" /></div>
           <div className={isCompactDocument ? "mt-2 flex justify-end" : "mt-[14px] flex justify-end"}><button type="submit" className="inline-flex h-[38px] items-center rounded bg-[#168fe9] px-5 text-sm font-semibold text-white shadow-sm hover:bg-[#087fd8]"><Search className="mr-1.5 size-4" />ค้นหา</button></div>
         </form>
         <div className="relative mt-9 overflow-hidden rounded-md bg-white shadow-[0_1px_3px_rgba(58,81,106,0.2)]">
@@ -75,7 +75,7 @@ function AdvanceManagementPage() {
     <div className="h-[calc(100vh-4rem)] overflow-hidden bg-[#e7eff8]">
       <section className="flex min-h-40 items-start justify-between gap-5 bg-[#61a8ff] px-6 pb-6 pt-12 text-white">
         <div>
-          <div className="flex items-center gap-1 text-sm text-white/90"><span>การประมวลผลเงินเดือน</span><ChevronRight className="size-4" /><span>เงินเบิกล่วงหน้า</span></div>
+          <div className="flex items-center gap-1 text-sm text-white/90"><span>ประมวลผลเงินเดือน</span><ChevronRight className="size-4" /><span>เงินเบิกล่วงหน้า</span></div>
           <h1 className="mt-1 text-[26px] font-bold leading-tight">เงินเบิกล่วงหน้า</h1>
         </div>
         <button type="button" onClick={() => setRequestOpen(true)} className="mt-3 inline-flex h-10 items-center rounded-md bg-white px-4 text-sm font-semibold text-[#4e4e4e] shadow-md hover:bg-slate-50">ขอเงินเบิกล่วงหน้า</button>
@@ -86,7 +86,7 @@ function AdvanceManagementPage() {
         <form onSubmit={(event) => { event.preventDefault(); setSearched(true); }} className="rounded-b-lg bg-white px-2 pb-[14px] pt-[14px] shadow-[0_1px_3px_rgba(58,81,106,0.18)]">
           <h2 className="mb-[25px] text-[22px] font-medium text-[#2f353a]">ค้นหา</h2>
           <div className="grid grid-cols-1 gap-x-2 gap-y-2 md:grid-cols-4"><Field label="โครงสร้างองค์กร" placeholder="โครงสร้างองค์กร" /><Field label="ตำแหน่ง" placeholder="ตำแหน่ง" /><Field label="พนักงาน" placeholder="พนักงาน" /><Field label="Hashtag" placeholder="#Hashtag" /></div>
-          <div className="mt-1.5 grid grid-cols-1 gap-x-2 gap-y-2 md:grid-cols-3"><SelectField label="ปี" value="2026" /><SelectField label="เดือน" value="สิงหาคม" /><SelectField label="สถานะ" value="รออนุมัติ" /></div>
+          <div className="mt-1.5 grid grid-cols-1 gap-x-2 gap-y-2 md:grid-cols-3"><SelectField label="ปี" value="2569" /><SelectField label="เดือน" value="สิงหาคม" /><SelectField label="สถานะ" value="รออนุมัติ" /></div>
           <div className="mt-[14px] flex justify-end"><button type="submit" className="inline-flex h-9 items-center rounded bg-[#168fe9] px-4 text-sm font-semibold text-white shadow-sm hover:bg-[#087fd8]"><Search className="mr-1.5 size-4" />ค้นหา</button></div>
         </form>
 

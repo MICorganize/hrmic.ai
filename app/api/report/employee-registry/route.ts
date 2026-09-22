@@ -3,6 +3,7 @@ import type { AddressType, EmploymentType, Prisma, Status } from "@/generated/pr
 
 import { getActiveCompany } from "@/lib/active-company";
 import { prisma } from "@/lib/prisma";
+import { formatThaiDateNumeric } from "@/lib/date/thai-date";
 
 /* ---------------------------------- Maps ---------------------------------- */
 
@@ -49,10 +50,7 @@ const TITLE_EN: Record<string, string> = {
 
 /** Formats a DATE (stored at UTC midnight) as dd/mm/yyyy; null → "". */
 function fmtDate(date: Date | null | undefined): string {
-  if (!date) return "";
-  const d = String(date.getUTCDate()).padStart(2, "0");
-  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
-  return `${d}/${m}/${date.getUTCFullYear()}`;
+  return formatThaiDateNumeric(date);
 }
 
 /** Whole months/days between two dates using UTC components. */

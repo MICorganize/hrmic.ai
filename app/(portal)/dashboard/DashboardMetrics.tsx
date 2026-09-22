@@ -1,43 +1,101 @@
-import { CalendarDays } from "lucide-react";
+import type { ComponentType, ReactNode } from "react";
+import {
+  ChevronDown,
+  CircleUserRound,
+  ContactRound,
+  UserCheck,
+  UserRound,
+  Users,
+  VenusAndMars,
+} from "lucide-react";
 
 import type { DashboardEmployeeSummary } from "@/lib/employee/summary";
 import { cn } from "@/lib/utils";
 
-function DateControl({ children = "ส.ค. 2026" }: { children?: React.ReactNode }) {
-  return <button type="button" className="inline-flex h-8 w-[80px] items-center justify-between gap-2 rounded border border-[#dfe4e8] bg-white px-2 text-sm font-medium leading-[22.001px] text-[#66717c]"><span className="truncate">{children}</span><CalendarDays className="size-3.5 shrink-0" strokeWidth={1.5} /></button>;
+type Icon = ComponentType<{ className?: string; strokeWidth?: number }>;
+
+function Card({ children, className }: { children: ReactNode; className?: string }) {
+  return <section className={cn("overflow-hidden rounded-xl border border-[#e7eaf0] bg-white shadow-[0_3px_12px_rgba(29,52,93,.07)]", className)}>{children}</section>;
 }
 
-function Card({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <section className={cn("overflow-hidden rounded-lg border border-[#e5e9ed] bg-white text-sm font-medium leading-[22.001px] shadow-[0_1px_2px_rgba(0,0,0,0.14)]", className)}>{children}</section>;
+function PanelHeader({ title, children }: { title: string; children?: ReactNode }) {
+  return <div className="flex h-[51px] items-center justify-between border-b border-[#e8ebf1] px-4"><h2 className="text-sm font-semibold text-[#172348]">{title}</h2>{children}</div>;
 }
 
-function EmployeeAge({ summary }: { summary: DashboardEmployeeSummary }) {
-  const ages = ["มากกว่า 60 ปี", "46 - 60 ปี", "31 - 45 ปี", "21 - 30 ปี", "15 - 20 ปี", "ไม่ระบุวันเกิด"];
-  return <Card className="h-[188px] p-[15.2px]"><div className="flex items-center justify-between"><h2 className="text-base font-bold leading-[25.144px] text-[#414852]">จำนวนพนักงาน/ช่วงอายุ</h2><DateControl /></div><div className="mt-3 grid grid-cols-[158px_1fr] gap-3"><div className="grid grid-cols-3 text-center"><div><p className="text-[29px] leading-none text-[#8ec5fc]">♂</p><b className="text-xl text-[#63aff1]">{summary.byGender.male}</b></div><div><p className="text-[29px] leading-none text-[#ef9fbd]">♀</p><b className="text-xl text-[#de789f]">{summary.byGender.female}</b></div><div><p className="text-[29px] leading-none text-[#999]">⚥</p><b className="text-xl text-[#777]">{summary.byGender.other}</b></div><p className="col-span-3 mt-3 text-[20px] font-semibold text-[#4d555e]">รวม <span className="text-[#61aef1]">{summary.total}</span> คน</p></div><div><div className="mb-2 flex justify-end gap-4 text-xs text-[#555d66]"><span className="inline-flex items-center gap-1"><i className="size-3 rounded-full bg-[#0b9df4]" />เพศชาย</span><span className="inline-flex items-center gap-1"><i className="size-3 rounded-full bg-[#f77b84]" />เพศหญิง</span><span className="inline-flex items-center gap-1"><i className="size-3 rounded-full bg-[#818181]" />ไม่ระบุ</span></div><div className="grid grid-cols-[65px_1fr] text-xs"><div className="flex h-[107px] flex-col justify-between text-right text-[#606973]">{ages.map((age) => <span key={age}>{age}</span>)}</div><div className="relative ml-2 h-[107px] border-l border-[#e3e7eb]" style={{ backgroundImage: "repeating-linear-gradient(90deg, transparent 0, transparent 25%, #e8ebed 25.5%, transparent 26%)" }}><div className="absolute left-0 top-[30px] h-2 w-full bg-[#0b99ed]" /><span className="absolute -bottom-4 left-0 text-[11px] text-[#777]">0</span><span className="absolute -bottom-4 right-0 text-[11px] text-[#777]">0.6</span></div></div></div></div></Card>;
+function DateControl({ children = "ส.ค. 2569" }: { children?: ReactNode }) {
+  return <button type="button" className="inline-flex h-7 items-center justify-between gap-1.5 rounded-md border border-[#dfe4ec] bg-white px-2 text-xs text-[#546177]"><span>{children}</span><ChevronDown className="size-3" /></button>;
 }
 
-function Donut({ color, items, total }: { color: string; items: { name: string; value: string; dot: string }[]; total: number }) {
-  return <div className="flex items-center gap-3"><div className="relative size-[108px] shrink-0 rounded-full" style={{ background: `conic-gradient(${color} 0 360deg, #dcedfb 0)` }}><div className="absolute inset-[15px] grid place-items-center rounded-full bg-white text-[16px] font-semibold text-[#353b42]">{total} คน</div></div><div className="min-w-0 space-y-0.5 text-[13px] leading-4 text-[#515963]">{items.map((item) => <p key={item.name} className="flex items-center gap-1"><i className="size-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.dot }} /><span>{item.name}</span><span className="ml-auto">{item.value}</span></p>)}</div></div>;
+function Sparkline() {
+  return <svg viewBox="0 0 140 45" className="h-11 w-full" preserveAspectRatio="none" aria-hidden="true"><polyline points="0,38 14,29 27,34 42,23 57,31 72,18 88,24 104,12 120,17 138,6" fill="none" stroke="rgba(255,255,255,.92)" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" /></svg>;
 }
 
-function SummaryCard({ title, type, summary }: { title: string; type: "employee" | "nationality"; summary: DashboardEmployeeSummary }) {
-  const employee = [{ name: "พนักงานรายเดือน", value: `${summary.byEmploymentType.permanent ?? 0} คน`, dot: "#9fd6f9" }, { name: "พนักงานเหมาจ่าย", value: `${summary.byEmploymentType.contract ?? 0} คน`, dot: "#0d5ca8" }, { name: "พนักงานรายวัน", value: `${summary.byEmploymentType.dailyWage ?? 0} คน`, dot: "#f7a44d" }, { name: "พนักงานพาร์ตไทม์", value: `${summary.byEmploymentType.partTime ?? 0} คน`, dot: "#e9d66b" }];
-  const nationality = summary.byNationality.length ? summary.byNationality.slice(0, 3).map((item, index) => ({ name: item.nationality, value: `${item.count} คน`, dot: ["#159cf0", "#ff9d22", "#83d2f4"][index] })) : [{ name: "ไม่มีข้อมูล", value: "0 คน", dot: "#159cf0" }];
-  return <Card className="h-[188px] p-[15.2px]"><div className="mb-2 flex items-center justify-between"><h2 className="text-base font-bold leading-[25.144px] text-[#414852]">{title}</h2><DateControl /></div><Donut color={type === "employee" ? "#9fd6f9" : "#159cf0"} total={summary.total} items={type === "employee" ? employee : nationality} /></Card>;
+function KpiCard({ label, value, helper, icon: Icon, gradient }: { label: string; value: string; helper: string; icon: Icon; gradient: string }) {
+  return <section className={cn("relative min-h-[124px] overflow-hidden rounded-xl bg-gradient-to-br p-4 text-white shadow-[0_6px_16px_rgba(20,40,80,.18)]", gradient)}><Icon className="absolute right-3 top-3 size-9 text-white/70" strokeWidth={1.7} /><p className="pr-9 text-sm font-medium text-white/90">{label}</p><p className="mt-2 text-xl font-semibold tracking-tight">{value}</p><p className="mt-1 text-[10px] font-medium text-white/90">{helper}</p><div className="absolute inset-x-3 bottom-1 opacity-90"><Sparkline /></div></section>;
 }
 
-function SmallChartCard() {
-  return <Card className="h-[388px] p-[15.2px]"><div className="flex items-start justify-between"><h2 className="text-base font-bold leading-[25.144px] text-[#414852]">เข้าใหม่/ลาออก</h2><DateControl>2026</DateControl></div><div className="mt-16 flex h-44 items-end justify-center gap-6"><div className="h-20 w-12 rounded-t bg-[#129cf0]" /><div className="h-3 w-12 rounded-t bg-[#ff7900]" /></div><div className="flex justify-center gap-5 text-sm text-[#69737e]"><span className="inline-flex items-center gap-1"><i className="size-3 bg-[#129cf0]" />เข้าใหม่</span><span className="inline-flex items-center gap-1"><i className="size-3 bg-[#ff7900]" />ลาออก</span></div></Card>;
+function donutGradient(rows: ReadonlyArray<{ value: number; color: string }>, total: number) {
+  if (total <= 0) return "conic-gradient(#e9eef5 0 100%)";
+  let cursor = 0;
+  const stops = rows.map((row) => {
+    const start = cursor;
+    cursor += (row.value / total) * 100;
+    return `${row.color} ${start}% ${Math.min(cursor, 100)}%`;
+  });
+  if (cursor < 100) stops.push(`#e9eef5 ${cursor}% 100%`);
+  return `conic-gradient(${stops.join(", ")})`;
 }
 
-function SummaryLine({ label, value }: { label: string; value: string }) {
-  return <div className="flex items-center justify-between border-b border-[#edf0f3] py-2 text-[13px] leading-[19px] text-[#56616b] last:border-0"><span>{label}</span><strong className="font-medium text-[#4b545d]">{value}</strong></div>;
+function EmployeeOverview({ summary }: { summary: DashboardEmployeeSummary }) {
+  const values = [summary.byGender.male, summary.byGender.female, summary.byGender.other];
+  const max = Math.max(...values, 1);
+  const rows = [
+    ["เพศชาย", summary.byGender.male, "#1474ee"],
+    ["เพศหญิง", summary.byGender.female, "#ed2473"],
+    ["ไม่ระบุ", summary.byGender.other, "#8156e9"],
+  ] as const;
+  return <Card><PanelHeader title="จำนวนพนักงาน / เพศ"><DateControl /></PanelHeader><div className="grid min-h-[200px] grid-cols-[150px_1fr] items-center gap-5 p-4"><div className="relative mx-auto size-[132px] rounded-full" style={{ background: donutGradient(rows.map(([, value, color]) => ({ value, color })), summary.total) }}><div className="absolute inset-[25px] flex flex-col items-center justify-center rounded-full bg-white shadow-inner"><Users className="size-7 text-[#1a3768]" /><strong className="mt-1 text-lg text-[#172348]">{summary.total}</strong><span className="text-[10px] text-[#7b8697]">พนักงาน</span></div></div><div className="space-y-4">{rows.map(([label, value, color]) => <div key={label}><div className="mb-1 flex items-center justify-between text-xs"><span className="text-[#34415b]">{label}</span><strong className="text-[#172348]">{value} คน</strong></div><div className="h-2 overflow-hidden rounded-full bg-[#edf1f6]"><div className="h-full rounded-full" style={{ width: `${(value / max) * 100}%`, backgroundColor: color }} /></div></div>)}</div></div></Card>;
+}
+
+function DonutSummary({ title, total, rows }: { title: string; total: number; rows: Array<{ label: string; value: number; color: string }> }) {
+  return <Card><PanelHeader title={title}><DateControl /></PanelHeader><div className="grid min-h-[200px] grid-cols-[132px_1fr] items-center gap-3 p-4"><div className="relative mx-auto size-[118px] rounded-full" style={{ background: donutGradient(rows, total) }}><div className="absolute inset-[23px] flex flex-col items-center justify-center rounded-full bg-white"><strong className="text-lg text-[#172348]">{total}</strong><span className="text-[10px] text-[#7b8697]">คน</span></div></div><div className="space-y-3">{rows.map((row) => <div key={row.label} className="flex items-center gap-2 text-xs"><i className="size-2.5 rounded-full" style={{ backgroundColor: row.color }} /><span className="min-w-0 flex-1 truncate text-[#34415b]">{row.label}</span><strong className="text-[#172348]">{row.value}</strong></div>)}</div></div></Card>;
+}
+
+function NewHireChart() {
+  return <Card><PanelHeader title="เข้าใหม่ / ลาออก"><DateControl>ปี 2569</DateControl></PanelHeader><div className="px-4 pb-4 pt-5"><div className="flex h-[130px] items-end justify-around gap-4 border-b border-[#dfe5ee] px-6">{[30, 48, 34, 65, 43, 76, 55].map((value, index) => <div key={index} className="flex h-full flex-1 items-end gap-1"><div className="w-1/2 rounded-t bg-[#1474ee]" style={{ height: `${value}%` }} /><div className="w-1/2 rounded-t bg-[#ff9418]" style={{ height: `${Math.max(8, value - 32)}%` }} /></div>)}</div><div className="mt-3 flex justify-center gap-5 text-xs text-[#65728a]"><span className="flex items-center gap-1.5"><i className="size-2.5 rounded-sm bg-[#1474ee]" />เข้าใหม่</span><span className="flex items-center gap-1.5"><i className="size-2.5 rounded-sm bg-[#ff9418]" />ลาออก</span></div></div></Card>;
 }
 
 function SalarySummary({ summary }: { summary: DashboardEmployeeSummary }) {
-  return <Card className="h-[388px] p-[15.2px]"><div className="flex items-start justify-between"><h2 className="text-base font-bold leading-[25.144px] text-[#414852]">เงินเดือน</h2><DateControl>ปี 2026</DateControl></div><div className="mt-9 grid grid-cols-2 gap-8 border-b border-[#e8edf1] pb-7"><div><p className="text-sm text-[#69737e]">เงินเดือน</p><p className="mt-2 text-[29px] font-medium leading-none text-[#1a9dec]">— <span className="text-base">บาท</span></p></div><div><p className="text-sm text-[#69737e]">เดือน ส.ค.</p><p className="mt-2 text-[29px] font-medium leading-none text-[#69737e]">0 <span className="text-base">บาท</span></p></div></div><div className="mt-4"><SummaryLine label="พนักงานรายเดือน" value={`${summary.byEmploymentType.permanent ?? 0} คน`} /><SummaryLine label="พนักงานรายวัน" value={`${summary.byEmploymentType.dailyWage ?? 0} คน`} /><SummaryLine label="พนักงานพาร์ตไทม์" value={`${summary.byEmploymentType.partTime ?? 0} คน`} /></div></Card>;
+  const rows = [["พนักงานรายเดือน", summary.byEmploymentType.permanent ?? 0], ["พนักงานรายวัน", summary.byEmploymentType.dailyWage ?? 0], ["พนักงานพาร์ตไทม์", summary.byEmploymentType.partTime ?? 0]] as const;
+  return <Card><PanelHeader title="เงินเดือน"><DateControl>ปี 2569</DateControl></PanelHeader><div className="p-4"><div className="grid grid-cols-2 gap-4 rounded-lg bg-[#f6f8fc] p-3"><div><p className="text-xs text-[#6f7b90]">เงินเดือน</p><p className="mt-1 text-xl font-semibold text-[#1474ee]">— <span className="text-xs">บาท</span></p></div><div><p className="text-xs text-[#6f7b90]">เดือน ส.ค.</p><p className="mt-1 text-xl font-semibold text-[#172348]">0 <span className="text-xs">บาท</span></p></div></div><div className="mt-2 divide-y divide-[#edf0f4]">{rows.map(([label, value]) => <div key={label} className="flex h-9 items-center justify-between text-xs"><span className="text-[#4b5870]">{label}</span><strong className="text-[#172348]">{value} คน</strong></div>)}</div></div></Card>;
 }
 
 export default function DashboardMetrics({ summary }: { summary: DashboardEmployeeSummary }) {
-  return <><div className="space-y-3"><EmployeeAge summary={summary} /><div className="grid gap-3 sm:grid-cols-2"><SummaryCard title="ประเภทพนักงาน" type="employee" summary={summary} /><SummaryCard title="สัญชาติ" type="nationality" summary={summary} /></div><SmallChartCard /></div><SalarySummary summary={summary} /></>;
+  const permanent = summary.byEmploymentType.permanent ?? 0;
+  const contract = summary.byEmploymentType.contract ?? 0;
+  const nationalityRows = summary.byNationality.length > 0
+    ? summary.byNationality.slice(0, 4).map((item, index) => ({ label: item.nationality, value: item.count, color: ["#1474ee", "#30b750", "#ff9418", "#8156e9"][index] }))
+    : [{ label: "ไม่มีข้อมูล", value: 0, color: "#1474ee" }];
+
+  return <>
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <KpiCard label="พนักงานทั้งหมด" value={`${summary.total} คน`} helper="ข้อมูลพนักงานปัจจุบัน" icon={Users} gradient="from-[#5848ed] to-[#7339f3]" />
+      <KpiCard label="พนักงานชาย" value={`${summary.byGender.male} คน`} helper="ข้อมูลตามเพศ" icon={UserRound} gradient="from-[#03a759] to-[#0bc479]" />
+      <KpiCard label="พนักงานหญิง" value={`${summary.byGender.female} คน`} helper="ข้อมูลตามเพศ" icon={CircleUserRound} gradient="from-[#ff8b16] to-[#ffa415]" />
+      <KpiCard label="ไม่ระบุเพศ" value={`${summary.byGender.other} คน`} helper="ข้อมูลตามเพศ" icon={VenusAndMars} gradient="from-[#1474ee] to-[#1497f4]" />
+      <KpiCard label="พนักงานรายเดือน" value={`${permanent} คน`} helper="ข้อมูลประเภทพนักงาน" icon={UserCheck} gradient="from-[#ed2473] to-[#f20b9a]" />
+      <KpiCard label="พนักงานเหมาจ่าย" value={`${contract} คน`} helper="ข้อมูลประเภทพนักงาน" icon={ContactRound} gradient="from-[#09aeb5] to-[#13c3c4]" />
+    </div>
+
+    <div className="mt-3 grid gap-3 xl:grid-cols-[1.45fr_.9fr_1fr]">
+      <EmployeeOverview summary={summary} />
+      <DonutSummary title="ประเภทพนักงาน" total={summary.total} rows={[{ label: "รายเดือน", value: permanent, color: "#1474ee" }, { label: "เหมาจ่าย", value: contract, color: "#30b750" }, { label: "รายวัน", value: summary.byEmploymentType.dailyWage ?? 0, color: "#ff9418" }, { label: "พาร์ตไทม์", value: summary.byEmploymentType.partTime ?? 0, color: "#8156e9" }]} />
+      <DonutSummary title="สัญชาติ" total={summary.total} rows={nationalityRows} />
+    </div>
+
+    <div className="mt-3 grid gap-3 xl:grid-cols-2">
+      <NewHireChart />
+      <SalarySummary summary={summary} />
+    </div>
+  </>;
 }

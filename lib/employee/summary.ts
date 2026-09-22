@@ -3,6 +3,7 @@ import "server-only";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { invalidateReadModel, readVersionedReadModel, seedVersionedReadModel } from "@/lib/cache/read-model-version";
+import { formatThaiDateNumeric } from "@/lib/date/thai-date";
 
 export type EmployeeSummary = {
   total: number;
@@ -22,9 +23,7 @@ export type DashboardEmployeeSummary = {
 };
 
 function formatDate(date: Date): string {
-  const d = String(date.getUTCDate()).padStart(2, "0");
-  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
-  return `${d}/${m}/${date.getUTCFullYear()}`;
+  return formatThaiDateNumeric(date);
 }
 
 function logSummaryTiming(name: string, startedAt: number) {

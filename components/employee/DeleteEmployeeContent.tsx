@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { formatThaiDateNumeric } from "@/lib/date/thai-date";
 
 /* ---------------------------------- Types ---------------------------------- */
 
@@ -700,7 +701,7 @@ export function DeleteEmployeeContent() {
                           </TableCell>
                           <TableCell className="text-center font-normal text-foreground">{emp.departmentName}</TableCell>
                           <TableCell className="text-center font-normal text-foreground">{emp.positionName}</TableCell>
-                          <TableCell className="text-center font-normal text-foreground">{emp.deletedAt}</TableCell>
+                          <TableCell className="text-center font-normal text-foreground">{formatThaiDateNumeric(emp.deletedAt)}</TableCell>
                           <TableCell className="text-center">
                             <span
                               className={cn(

@@ -142,6 +142,7 @@ export type OrgTreeNode = {
   id: string;
   code: string;
   name: string;
+  kind: "company" | "branch" | "department" | "employee";
   firstNameTH?: string;
   lastNameTH?: string;
   nickname?: string | null;
@@ -206,6 +207,7 @@ async function buildOrgTree(
   id: e.id,
   code: e.employeeCode ?? e.employeeNumber ?? e.id,
   name: `${e.firstNameTH} ${e.lastNameTH}${e.nickname ? ` (${e.nickname})` : ""}`.trim(),
+  kind: "employee",
   firstNameTH: e.firstNameTH,
   lastNameTH: e.lastNameTH,
   nickname: e.nickname,
@@ -247,6 +249,7 @@ async function buildOrgTree(
       id: company.id,
       code: company.companyCode ?? company.id,
       name: company.name,
+      kind: "company",
       count: counts?.company.get(company.id) ?? companyEmps.length,
       children: [],
     };
@@ -258,6 +261,7 @@ async function buildOrgTree(
           id: branch.id,
           code: branch.code,
           name: branch.name,
+          kind: "branch",
           count: counts?.branch.get(branch.id) ?? branchEmps.length,
           children: [],
         };
@@ -270,6 +274,7 @@ async function buildOrgTree(
             id: dept.id,
             code: dept.code,
             name: dept.name,
+            kind: "department",
             count: counts?.department.get(dept.id) ?? deptEmps.length,
             children: deptEmps.map(toLeaf),
           });
@@ -287,6 +292,7 @@ async function buildOrgTree(
           id: dept.id,
           code: dept.code,
           name: dept.name,
+          kind: "department",
           count: counts?.department.get(dept.id) ?? deptEmps.length,
           children: deptEmps.map(toLeaf),
         });
@@ -361,7 +367,7 @@ async function getOrganizationTree(companyId?: string, includeEmployees = false)
 async function getCachedOrganizationTree(companyId?: string, includeEmployees = false) {
   const key = await versionedReadModelCacheKey(
     "workforce",
-    "employee-org-tree",
+    "employee-org-tree-v2",
     companyId,
     includeEmployees ? "with-employees" : "structure"
   );

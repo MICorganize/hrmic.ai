@@ -44,7 +44,17 @@ function dateValue(value: string): Date | null {
     return new Date(Date.UTC(1899, 11, 30 + Math.floor(serial)));
   }
   const thai = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (thai) return new Date(Date.UTC(Number(thai[3]), Number(thai[2]) - 1, Number(thai[1])));
+  if (thai) {
+    const inputYear = Number(thai[3]);
+    const year = inputYear >= 2400 ? inputYear - 543 : inputYear;
+    return new Date(Date.UTC(year, Number(thai[2]) - 1, Number(thai[1])));
+  }
+  const iso = value.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (iso) {
+    const inputYear = Number(iso[1]);
+    const year = inputYear >= 2400 ? inputYear - 543 : inputYear;
+    return new Date(Date.UTC(year, Number(iso[2]) - 1, Number(iso[3])));
+  }
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }

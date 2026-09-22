@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, ChevronDown, ChevronRight, Grid3x3 } from "lucide-react";
+import { ChevronDown, ChevronRight, Grid3x3 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ThaiMonthPicker } from "@/components/ui/thai-date-picker";
 
 const ORG_STRUCTURES = ["ทั้งหมด", "สำนักงานใหญ่", "สาขา 1"];
 const POSITIONS = ["ทั้งหมด", "พนักงานปฏิบัติการ", "หัวหน้างาน", "ผู้จัดการ"];
@@ -44,7 +45,7 @@ function EmptyState() {
 export default function ReportEmployeeBirthdaysPage() {
   const [organization, setOrganization] = useState("ทั้งหมด");
   const [position, setPosition] = useState("ทั้งหมด");
-  const [month, setMonth] = useState("สิงหาคม 2026");
+  const [month, setMonth] = useState("2026-08");
   const [searched, setSearched] = useState(false);
 
   return (
@@ -64,9 +65,7 @@ export default function ReportEmployeeBirthdaysPage() {
               <Field label="โครงสร้างองค์กร"><SelectBox value={organization} options={ORG_STRUCTURES} onChange={setOrganization} /></Field>
               <Field label="ตำแหน่ง"><SelectBox value={position} options={POSITIONS} onChange={setPosition} /></Field>
               <Field label="เดือน">
-                <button type="button" onClick={() => setMonth(month === "สิงหาคม 2026" ? "กันยายน 2026" : "สิงหาคม 2026")} className="flex h-8 w-full items-center gap-2 rounded-[3px] border border-[#d9d9d9] bg-white px-2.5 text-left text-sm text-[#555] shadow-sm transition-colors hover:border-[#40a9ff]">
-                  <CalendarDays className="size-4 shrink-0 text-[#8c8c8c]" /><span>{month}</span>
-                </button>
+                <ThaiMonthPicker value={month} onChange={setMonth} />
               </Field>
             </div>
             <div className="mt-7 flex justify-end gap-2">

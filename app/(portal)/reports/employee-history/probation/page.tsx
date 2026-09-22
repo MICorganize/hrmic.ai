@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarDays, ChevronDown, ChevronRight, FileText, Grid3x3 } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Grid3x3 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ThaiDateRangePicker, ThaiMonthPicker } from "@/components/ui/thai-date-picker";
 
 const ORG_STRUCTURES = ["ทั้งหมด", "สำนักงานใหญ่", "สาขา 1"];
 const POSITIONS = ["ทั้งหมด", "พนักงานปฏิบัติการ", "หัวหน้างาน", "ผู้จัดการ"];
@@ -46,6 +47,8 @@ export default function ReportEmployeeProbationPage() {
   const [position, setPosition] = useState("ทั้งหมด");
   const [hashtag, setHashtag] = useState("");
   const [searched, setSearched] = useState(false);
+  const [dateRange, setDateRange] = useState({ from: "", to: "" });
+  const [probationMonth, setProbationMonth] = useState("");
 
   return (
     <div>
@@ -67,12 +70,10 @@ export default function ReportEmployeeProbationPage() {
             </div>
             <div className="mt-2.5 grid grid-cols-1 gap-x-2 md:grid-cols-3">
               <Field label="วันที่เริ่มต้น - วันที่สิ้นสุด">
-                <button type="button" className="flex h-8 w-full items-center rounded-[3px] border border-[#d9d9d9] bg-white px-2.5 text-sm text-[#bfbfbf] shadow-sm">
-                  <span>วันเริ่มต้น</span><span className="mx-auto text-[#999]">→</span><span>วันสิ้นสุด</span><CalendarDays className="ml-auto size-4 text-[#8c8c8c]" />
-                </button>
+                <ThaiDateRangePicker value={dateRange} onChange={setDateRange} placeholder="วันเริ่มต้น → วันสิ้นสุด" />
               </Field>
               <Field label="เดือนที่ครบทดลองงาน">
-                <button type="button" className="flex h-8 w-full items-center gap-2 rounded-[3px] border border-[#d9d9d9] bg-white px-2.5 text-left text-sm text-[#bfbfbf] shadow-sm"><span>เดือน</span><CalendarDays className="ml-auto size-4 text-[#8c8c8c]" /></button>
+                <ThaiMonthPicker value={probationMonth} onChange={setProbationMonth} />
               </Field>
               <div />
             </div>
