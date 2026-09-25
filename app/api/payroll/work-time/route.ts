@@ -3,7 +3,7 @@ import type { AttendanceStatus, LeaveType, WorkDayType } from "@/generated/prism
 
 import { prisma } from "@/lib/prisma";
 import { getActiveCompany } from "@/lib/active-company";
-import { companyPeriodKey } from "@/lib/payroll/company-period";
+import { getResolvedPayrollBounds } from "@/lib/payroll/resolved-period";
 import { CLOSED_PAYROLL_PERIOD_MESSAGE, isPayrollPeriodClosed } from "@/lib/payroll/period-lock";
 
 const THAI_DAYS = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัส", "ศุกร์", "เสาร์"];
@@ -21,21 +21,10 @@ function parseMonth(value: string | null) {
   return { year, month };
 }
 
-async function payrollPeriod(month: { year: number; month: number }, companyId?: string) {
-  const defaultStart = new Date(Date.UTC(month.year, month.month - 1, 1));
-  const defaultEnd = new Date(Date.UTC(month.year, month.month, 1));
-  const periodKey = `${month.year}-${String(month.month).padStart(2, "0")}`;
-  const savedPeriod = await prisma.payrollRun.findUnique({
-    where: { period: companyPeriodKey(periodKey, companyId) },
-    select: { periodStart: true, periodEnd: true },
-  });
-  if (!savedPeriod?.periodStart || !savedPeriod.periodEnd) {
-    return { periodStart: defaultStart, periodEnd: defaultEnd };
-  }
-
-  const periodEnd = new Date(savedPeriod.periodEnd);
-  periodEnd.setUTCDate(periodEnd.getUTCDate() + 1);
-  return { periodStart: savedPeriod.periodStart, periodEnd };
+async function payrollPeriod(month: { year: number; month: number }, companyId: string) {
+  const monthKey = `${month.year}-${String(month.month).padStart(2, "0")}`;
+  const { start, end } = await getResolvedPayrollBounds(monthKey, companyId);
+  return { periodStart: start, periodEnd: end };
 }
 
 function dateKey(value: Date) {

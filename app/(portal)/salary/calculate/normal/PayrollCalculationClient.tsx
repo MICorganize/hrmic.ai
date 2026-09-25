@@ -351,7 +351,7 @@ function PayrollMonthPicker({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="relative inline-flex h-10 w-full items-center justify-between rounded-lg border border-[#dfe4e8] bg-white px-3 text-sm font-normal leading-5 text-[#34425c] outline-none ring-[#5eaafa] transition-colors hover:border-[#5eaafa] focus:ring-2"
+          className="relative inline-flex h-8 w-full items-center justify-between rounded-lg border border-[#dfe4e8] bg-white px-3 text-sm font-normal leading-5 text-[#34425c] outline-none ring-[#5eaafa] transition-colors hover:border-[#5eaafa] focus:ring-2"
           aria-label="เลือกเดือน"
         >
           {monthLabel}
@@ -709,11 +709,6 @@ function PageBanner({
             <span>คำนวณเงินเดือน</span>
           </p>
           <h1 className="text-xl font-semibold tracking-tight text-[#172348]">{displayTitle}</h1>
-          {pageTitle === "คำนวณเงินเดือนรายบุคคล" && (
-            <p className="mt-0.5 text-xs leading-5 text-[#6f7b90]">
-              เลือกพนักงาน ตรวจสอบข้อมูล และคำนวณเงินเดือนรายบุคคล
-            </p>
-          )}
         </div>
 
         {showAccountingPeriodWarning && (
@@ -725,7 +720,7 @@ function PageBanner({
           <PayrollMonthPicker monthLabel={monthLabel} monthValue={monthValue} onMonthChange={onMonthChange} />
 
           <div className="mt-1 flex h-6 items-center justify-between">
-            <span className="flex min-w-0 flex-1 justify-center whitespace-nowrap text-xs leading-5 text-[#6f7b90]">
+            <span className="relative left-[8px] flex min-w-0 flex-1 justify-center whitespace-nowrap text-[13px] leading-5 text-[#6f7b90]">
               {formatPayrollPeriod(period.startDate, period.endDate)}
             </span>
             {!isAccountingPeriodClosed && (
@@ -771,12 +766,12 @@ function AccountingPeriodWarning({
 }) {
   return (
     <div
-      className="warning-container flex-1 overflow-hidden rounded-lg border border-[#f3dda0] bg-[#fff9df]"
+      className="warning-container flex h-8 flex-1 overflow-hidden rounded-lg border border-[#f3dda0] bg-[#fff9df] lg:self-start"
       role="status"
     >
-      <div className="warning px-3 py-2 text-xs font-normal leading-5 text-[#755c18]">
+      <div className="warning flex h-full items-center px-3 py-0 text-[14px] font-[400] leading-5 tracking-[-0.4px] text-[#755c18]">
         <label>
-          คุณกำลังคำนวณเงินเดือนของเดือน &quot;{monthLabel}&quot; หากคำนวณเงินเดือนเสร็จแล้ว กรุณาปิดงวดบัญชีด้วย ปิดงวดบัญชี{" "}
+          <span>คุณกำลังคำนวณเงินเดือนของเดือน &quot;{monthLabel}&quot; เมื่อคำนวณเสร็จแล้ว กรุณาปิดงวดบัญชี</span>
           <a
             id="link-salary-normal-warning"
             href="#close-period-accounting"
@@ -784,7 +779,7 @@ function AccountingPeriodWarning({
               event.preventDefault();
               onOpenClosePeriod();
             }}
-            className="cursor-pointer font-medium text-[#1474ee] no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5eaafa]"
+            className="ml-[2px] cursor-pointer font-medium text-[#1474ee] no-underline hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5eaafa]"
           >
             คลิกที่นี่
           </a>

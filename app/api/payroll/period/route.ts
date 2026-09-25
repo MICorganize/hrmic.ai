@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getActiveCompany } from "@/lib/active-company";
 import { invalidateReadModel } from "@/lib/cache/read-model-version";
 import { companyPeriodKey } from "@/lib/payroll/company-period";
+import { getResolvedPayrollPeriod } from "@/lib/payroll/resolved-period";
 import { prisma } from "@/lib/prisma";
 import { CLOSED_PAYROLL_PERIOD_MESSAGE, isPayrollPeriodClosed } from "@/lib/payroll/period-lock";
 
@@ -14,16 +15,6 @@ type PayrollPeriod = {
   endDate: string;
   isConfigured: boolean;
 };
-
-function defaultPeriod(month: string): PayrollPeriod {
-  const [year, monthNumber] = month.split("-").map(Number);
-  const lastDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
-  return {
-    startDate: `${month}-01`,
-    endDate: `${month}-${String(lastDay).padStart(2, "0")}`,
-    isConfigured: false,
-  };
-}
 
 function parseDate(value: unknown) {
   if (typeof value !== "string" || !DATE_PATTERN.test(value)) return null;
@@ -39,7 +30,7 @@ function dateKey(date: Date) {
 }
 
 function responsePeriod(month: string, run: { periodStart: Date | null; periodEnd: Date | null } | null): PayrollPeriod {
-  if (!run?.periodStart || !run.periodEnd) return defaultPeriod(month);
+  if (!run?.periodStart || !run.periodEnd) throw new Error(`Payroll period ${month} is not configured`);
   return {
     startDate: dateKey(run.periodStart),
     endDate: dateKey(run.periodEnd),
@@ -59,12 +50,7 @@ export async function GET(request: Request) {
   try {
     const company = await getActiveCompany();
     if (!company) return NextResponse.json({ error: "กรุณาเลือกบริษัทก่อนใช้งาน" }, { status: 403 });
-    const period = companyPeriodKey(month, company.id);
-    const run = await prisma.payrollRun.findUnique({
-      where: { period },
-      select: { periodStart: true, periodEnd: true },
-    });
-    return NextResponse.json(responsePeriod(month, run));
+    return NextResponse.json(await getResolvedPayrollPeriod(month, company.id));
   } catch (error) {
     console.error("GET /api/payroll/period failed:", error);
     return NextResponse.json({ error: "ไม่สามารถโหลดงวดเงินเดือนได้" }, { status: 500 });
@@ -129,7 +115,7 @@ export async function DELETE(request: Request) {
       data: { periodStart: null, periodEnd: null, updatedAt: new Date() },
     });
     await invalidateReadModel("payroll-dashboard", company.id);
-    return NextResponse.json(defaultPeriod(month));
+    return NextResponse.json(await getResolvedPayrollPeriod(month, company.id));
   } catch (error) {
     console.error("DELETE /api/payroll/period failed:", error);
     return NextResponse.json({ error: "ไม่สามารถรีเซ็ตงวดเงินเดือนได้" }, { status: 500 });

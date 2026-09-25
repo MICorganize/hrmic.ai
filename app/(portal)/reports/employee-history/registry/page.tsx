@@ -437,9 +437,9 @@ export default function ReportEmployeeRegistryPage() {
         <section className="mb-3 overflow-hidden rounded-xl border border-[#e5eaf2] bg-white shadow-[0_3px_12px_rgba(29,52,93,.07)]">
           <div className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
-              <p className="flex items-center gap-1 text-xs font-normal leading-5 text-[#7b8798]">
+              <p className="flex items-center gap-0 text-sm font-normal leading-[22.001px] text-[#7b8798]">
                 รายงาน
-                <ChevronRight className="size-3.5" />
+                <ChevronRight className="size-4" />
                 กลุ่มประวัติพนักงาน
               </p>
               <div className="mt-0.5 flex items-center gap-2">
@@ -452,11 +452,10 @@ export default function ReportEmployeeRegistryPage() {
                   <CircleHelp className="size-4" />
                 </button>
               </div>
-              <p className="mt-0.5 text-xs leading-5 text-[#6f7b90]">ค้นหาและจัดทำรายงานข้อมูลพนักงานขององค์กร</p>
             </div>
           </div>
 
-          <div className="flex border-t border-[#edf0f4] px-4" role="tablist">
+          <div className="flex border-t border-[#edf0f4] px-4" role="tablist" aria-label="รูปแบบรายงาน">
             {TABS.map((tab) => {
               const active = tab === activeTab;
               return (

@@ -970,7 +970,8 @@ function isReportLeafPage(pathname: string) {
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const usesUnifiedSidebar = true;
-  const usesModernPortalChrome = pathname === "/dashboard" || pathname === "/organization/organization-employee" || pathname === "/reports/employee-history/registry" || pathname === "/reports/report-nettotal" || pathname === "/salary/calculate/normal";
+  const usesModernPortalChrome = pathname === "/dashboard" || pathname === "/organization/organization-employee" || pathname === "/organization/organization-structure" || pathname === "/organization/organization-position" || pathname === "/reports/employee-history/registry" || pathname === "/reports/report-nettotal" || pathname === "/salary/calculate/normal" || pathname.startsWith("/settings/");
+  const isPayrollCalculatePage = pathname.startsWith("/salary/calculate");
   const usesEmployeeTemplateChrome = pathname === "/organization/organization-employee";
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -1298,7 +1299,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             )}
 
             {/* Company selector */}
-            <div className={cn("relative", usesEmployeeTemplateChrome ? "hidden" : usesModernPortalChrome ? "hidden xl:block [&>button]:h-10 [&>button]:rounded-xl [&>button]:bg-white [&>button]:px-3 [&>button_span_span]:!text-[#233250] [&>button_svg]:!text-[#738199]" : "lg:-ml-6")}>
+            <div className={cn("relative", usesModernPortalChrome ? "hidden" : isPayrollCalculatePage ? "hidden" : usesEmployeeTemplateChrome ? "hidden" : "lg:-ml-6")}>
               <button
                 type="button"
                 onClick={toggleCompanyMenu}

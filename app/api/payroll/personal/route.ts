@@ -3,32 +3,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getActiveCompany } from "@/lib/active-company";
 import { companyPeriodKey } from "@/lib/payroll/company-period";
+import { getResolvedPayrollBounds } from "@/lib/payroll/resolved-period";
 import { CLOSED_PAYROLL_PERIOD_MESSAGE, isPayrollPeriodClosed } from "@/lib/payroll/period-lock";
 
 const MONTH_PATTERN = /^\d{4}-(0[1-9]|1[0-2])$/;
-
-function defaultPeriodDates(month: string) {
-  const [year, monthNumber] = month.split("-").map(Number);
-  return {
-    start: new Date(Date.UTC(year, monthNumber - 1, 1)),
-    end: new Date(Date.UTC(year, monthNumber, 1)),
-  };
-}
-
-async function periodDates(month: string, companyId?: string) {
-  const defaultPeriod = defaultPeriodDates(month);
-  const savedPeriod = await prisma.payrollRun.findUnique({
-    where: { period: companyPeriodKey(month, companyId) },
-    select: { periodStart: true, periodEnd: true },
-  });
-  if (!savedPeriod?.periodStart || !savedPeriod.periodEnd) return defaultPeriod;
-
-  // Values in PayrollRun are inclusive database DATE values.  The existing
-  // attendance and leave queries use an exclusive end boundary.
-  const end = new Date(savedPeriod.periodEnd);
-  end.setUTCDate(end.getUTCDate() + 1);
-  return { start: savedPeriod.periodStart, end };
-}
 
 function numberValue(value: { toString(): string } | number | null | undefined) {
   return value == null ? 0 : Number(value.toString());
@@ -38,8 +16,8 @@ function isDisabledCalculation(value: string | null | undefined) {
   return !value || /ไม่คิด|none|disable|false/i.test(value);
 }
 
-async function getEmployeeCalculation(employeeId: string, month: string, companyId?: string) {
-  const { start, end } = await periodDates(month, companyId);
+async function getEmployeeCalculation(employeeId: string, month: string, companyId: string) {
+  const { start, end } = await getResolvedPayrollBounds(month, companyId);
   const employee = await prisma.employee.findFirst({
     where: { id: employeeId, deletedAt: null, ...(companyId ? { companyId } : {}) },
     include: {

@@ -2017,7 +2017,7 @@ export default function OrganizationEmployeeDetailPage({
                   id="btn-save-employee-data"
                   type="submit"
                   disabled={saveState === "saving"}
-                  className="flex h-[36.65px] w-full items-center justify-center gap-2 rounded-lg bg-[#1474ee] px-4 text-sm font-medium leading-5 text-white shadow-[0_4px_12px_rgba(20,116,238,.24)] transition-colors hover:bg-[#0d65d8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5eaafa] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="flex h-[36.65px] w-full items-center justify-center gap-2 rounded-lg bg-[#1474ee] text-sm font-medium leading-5 text-white shadow-[0_4px_12px_rgba(20,116,238,.24)] transition-colors hover:bg-[#0d65d8] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   บันทึก
                 </button>

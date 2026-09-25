@@ -1353,16 +1353,26 @@ export default function OrganizationEmployeeCreatePage({
       )}>
         {/* Sub-navigation tabs */}
               <div className={cn(
-                "relative overflow-hidden border-0 border-b bg-card",
+                "flex h-12 overflow-hidden rounded-t-xl border border-[#e5eaf2] bg-white font-[Kanit,sans-serif] text-sm font-semibold leading-[22px] text-[#65728a] shadow-[0_3px_12px_rgba(29,52,93,0.06)]",
                 embedded
-                  ? "rounded-t-xl border-[#edf0f5] shadow-[0_3px_12px_rgba(29,52,93,0.07)]"
-                  : "rounded-t-xl rounded-b-none border-[#e7eaf0] shadow-[0_3px_12px_rgba(29,52,93,.07)]",
+                  ? "border-[#edf0f5]"
+                  : "border-[#e5eaf2]",
               )}>
+                <button
+                  type="button"
+                  onClick={() => scrollTabs("back")}
+                  disabled={!canScrollTabsBack}
+                  className="flex h-12 w-9 shrink-0 items-center justify-center border-r border-[#edf0f5] text-[#718096] transition-colors hover:bg-[#f6f8fc] hover:text-[#1474ee] disabled:cursor-not-allowed disabled:opacity-30"
+                  aria-label="ก่อนหน้า"
+                >
+                  <ChevronLeft className="size-5" strokeWidth={1.75} />
+                </button>
                 <div
                   ref={tabViewportRef}
-                  className="overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  className="h-12 min-w-0 flex-1 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                  role="tablist"
                 >
-                  <div className="flex min-w-max items-center px-8">
+                  <div className="flex h-12 w-max">
           {TABS.map((tab) => {
             const active = tab === activeTab;
             const disabled = tab !== "ข้อมูลพื้นฐาน" && tab !== "ตั้งค่า";
@@ -1370,6 +1380,8 @@ export default function OrganizationEmployeeCreatePage({
               <button
                 key={tab}
                 type="button"
+                role="tab"
+                aria-selected={active}
                 onClick={() => {
                   if (activeTab === "ข้อมูลพื้นฐาน" && tab !== "ข้อมูลพื้นฐาน") {
                     resetBasicForm();
@@ -1377,16 +1389,14 @@ export default function OrganizationEmployeeCreatePage({
                   setActiveTab(tab);
                 }}
                 disabled={disabled}
-                style={{ width: TAB_WIDTHS[tab] }}
+                style={{ width: TAB_WIDTHS[tab], minWidth: TAB_WIDTHS[tab] }}
                 className={cn(
-                  "h-11 shrink-0 whitespace-nowrap border-b-2 px-4 text-sm font-medium leading-5 transition-colors",
+                  "relative flex h-12 shrink-0 items-center justify-center overflow-hidden whitespace-nowrap px-5 text-sm font-semibold leading-[22px] text-[#65728a] transition-colors",
                   active
-                    ? embedded
-                      ? "border-[#1474ee] text-[#126fd5]"
-                      : "border-[#1474ee] text-[#126fd5]"
+                    ? "bg-[#f8fbff] !text-[#126fd5] after:absolute after:bottom-0 after:left-2 after:right-2 after:h-0.5 after:rounded-full after:bg-[#1474ee]"
                     : disabled
-                      ? "border-transparent text-[rgba(0,0,0,0.38)] opacity-60"
-                      : "border-transparent text-[rgba(0,0,0,0.87)] opacity-60 hover:text-foreground"
+                      ? "cursor-default text-[#b1bac7]"
+                      : "hover:bg-[#f6f8fc] hover:text-[#26344f]"
                 )}
               >
                 {tab}
@@ -1397,33 +1407,12 @@ export default function OrganizationEmployeeCreatePage({
                 </div>
                 <button
                   type="button"
-                  onClick={() => scrollTabs("back")}
-                  disabled={!canScrollTabsBack}
-                  className={cn(
-                    "absolute inset-y-0 left-0 z-10 flex w-8 items-center justify-center bg-card text-[#515151] shadow-[4px_0_8px_rgba(0,0,0,0.18)] transition-colors hover:bg-muted disabled:cursor-default disabled:text-black/25 disabled:hover:bg-card",
-                    !canScrollTabsBack && "pointer-events-none"
-                  )}
-                  aria-label="ก่อนหน้า"
-                >
-                  <span
-                    aria-hidden="true"
-                    className="size-2 -rotate-[135deg] border-r-2 border-t-2 border-current"
-                  />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => scrollTabs("forward")}
                   disabled={!canScrollTabsForward}
-                  className={cn(
-                    "absolute inset-y-0 right-0 z-10 flex w-8 items-center justify-center bg-card text-[#515151] shadow-[-4px_0_8px_rgba(0,0,0,0.18)] transition-colors hover:bg-muted disabled:cursor-default disabled:text-black/25 disabled:hover:bg-card",
-                    !canScrollTabsForward && "pointer-events-none"
-                  )}
+                  onClick={() => scrollTabs("forward")}
+                  className="flex h-12 w-9 shrink-0 items-center justify-center border-l border-[#edf0f5] text-[#718096] transition-colors hover:bg-[#f6f8fc] hover:text-[#1474ee] disabled:cursor-not-allowed disabled:opacity-30"
                   aria-label="ถัดไป"
                 >
-                  <span
-                    aria-hidden="true"
-                    className="size-2 rotate-45 border-r-2 border-t-2 border-current"
-                  />
+                  <ChevronRight className="size-5" strokeWidth={1.75} />
                 </button>
               </div>
 
@@ -1712,7 +1701,7 @@ export default function OrganizationEmployeeCreatePage({
             </div>
 
             {/* Save */}
-            <div className="mt-3 h-auto p-1 lg:h-11">
+            <div className="mt-3 pt-1 pb-[6px]">
               {saveStatus === "error" && (
                 <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{saveMessage}</p>
               )}

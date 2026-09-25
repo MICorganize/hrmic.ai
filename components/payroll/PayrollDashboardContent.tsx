@@ -5,8 +5,8 @@ import { cn } from "@/lib/utils";
 function DashboardCardHeader({ title, monthLabel }: { title: string; monthLabel: string }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <h2 className="text-sm font-semibold leading-5 text-[#172348]">{title}</h2>
-      <span className="shrink-0 text-xs font-normal leading-5 text-[#6f7b90]">ณ {monthLabel}</span>
+      <h2 className="text-[14px] font-semibold leading-5 text-[#172348]">{title}</h2>
+      <span className="shrink-0 text-[14px] font-normal leading-5 text-[#6f7b90]">ณ {monthLabel}</span>
     </div>
   );
 }
@@ -19,8 +19,8 @@ function DashboardNumber({ count, caption }: { count: number; caption: string })
   return (
     <div className="flex flex-1 flex-col items-center justify-center text-center">
       <span className="text-4xl font-semibold leading-none text-[#172348]">{count}</span>
-      <span className="mt-2 text-sm font-medium leading-5 text-[#34425c]">คน</span>
-      <span className="mt-1 text-xs leading-5 text-[#7b8798]">{caption}</span>
+      <span className="mt-2 text-[14px] font-medium leading-5 text-[#34425c]">คน</span>
+      <span className="mt-1 text-[14px] leading-5 text-[#7b8798]">{caption}</span>
     </div>
   );
 }
@@ -84,7 +84,7 @@ export function PayrollDashboardContent({
           <CardContent className="h-full p-4">
             <DashboardCardHeader title="สัดส่วนพนักงาน" monthLabel={monthLabel} />
             <DashboardDivider />
-            <div className="grid min-h-[172px] gap-4 md:grid-cols-[160px_1fr_1.15fr]">
+            <div className="grid min-h-[172px] gap-4 md:grid-cols-[160px_0.65fr_1fr]">
               <div className="flex items-center justify-center">
                 <div
                   role="img"
@@ -108,9 +108,9 @@ export function PayrollDashboardContent({
               <div className="grid grid-cols-3 gap-2">
                 {statusBlocks.map((b) => (
                   <div key={b.label} className="flex min-w-0 flex-col items-center justify-center rounded-lg bg-[#f7f9fc] px-2 py-3 text-center">
-                    <span className="text-xs leading-5 text-[#7b8798]">{b.label}</span>
+                    <span className="text-[14px] leading-5 text-[#7b8798]">{b.label}</span>
                     <span className="mt-1 text-3xl font-semibold leading-none text-[#172348]">{b.count}</span>
-                    <span className="mt-2 text-xs font-medium leading-5 text-[#5f6d80]">คน</span>
+                    <span className="mt-2 text-[14px] font-medium leading-5 text-[#5f6d80]">คน</span>
                   </div>
                 ))}
               </div>

@@ -164,17 +164,24 @@ export default function OrganizationPositionPage() {
     </li>;
   };
 
-  return <div className="min-h-[calc(100vh-4rem)] bg-white">
-    <header className="flex h-40 min-h-40 flex-col items-center justify-center bg-[#61a8ff] p-6 text-white sm:flex-row sm:justify-between">
-      <div className="flex flex-col items-center sm:items-start"><div className="hidden items-center text-[14px] leading-[22.001px] text-white md:flex"><span>ข้อมูลองค์กร</span><ChevronRight className="-mx-px size-4" /><span>โครงสร้างตำแหน่ง</span></div><div className="group relative flex items-center pr-[30px] text-[24px] font-normal leading-[37.716px]"><h1>โครงสร้างตำแหน่ง</h1><button type="button" aria-label="คำอธิบายโครงสร้างตำแหน่ง" className="ml-2 hidden size-5 items-center justify-center rounded-full border border-white/90 text-xs font-semibold leading-none text-white">?</button><span role="tooltip" className="pointer-events-none absolute left-full top-1/2 z-10 ml-2 w-56 -translate-y-1/2 rounded bg-[#424242] px-3 py-2 text-xs leading-5 text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">แสดงโครงสร้างตำแหน่งในองค์กร</span></div></div>
-      <button type="button" onClick={exportPositions} disabled={loading || !positions.length} className="mt-4 inline-flex h-9 items-center rounded-[4px] bg-white px-4 text-sm font-semibold leading-9 text-black/87 shadow-[0_3px_1px_-2px_rgba(0,0,0,0.2),0_2px_2px_rgba(0,0,0,0.14),0_1px_5px_rgba(0,0,0,0.12)] transition-colors hover:bg-[#f5f5f5] disabled:cursor-not-allowed disabled:opacity-60 sm:mt-0">Export</button>
+  return <div className="min-h-[calc(100vh-70px)] bg-[#f3f6fb] font-sans">
+    <header className="mx-3 mt-3 h-[123px] overflow-hidden rounded-xl border border-[#e5eaf2] bg-white shadow-[0_3px_12px_rgba(29,52,93,.07)] sm:mx-4 sm:mt-4">
+      <div className="flex h-full items-center justify-between px-4 py-3">
+        <div className="min-w-0 self-start">
+          <p className="flex items-center gap-0 text-sm font-normal leading-[22.001px] text-[#7b8798]"><span>ข้อมูลองค์กร</span><ChevronRight className="size-4" /><span>โครงสร้างตำแหน่ง</span></p>
+          <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-[#172348]">โครงสร้างตำแหน่ง</h1>
+        </div>
+        <button type="button" onClick={exportPositions} disabled={loading || !positions.length} className="inline-flex h-[33px] shrink-0 items-center rounded-[4px] border border-[#dce7f3] bg-white px-4 text-sm font-semibold leading-9 text-[rgba(0,0,0,0.87)] shadow-[0_2px_4px_1px_rgba(29,52,93,0.12)] transition-colors hover:bg-[#f6f9fc] disabled:cursor-not-allowed disabled:opacity-60">Export</button>
+      </div>
     </header>
 
-    <section className="relative m-9 hidden md:block">
-      <div className="mb-9 flex h-[58.625px] items-center"><div className="box-border inline-block h-[58.625px] rounded-[10px] border-[1.6px] border-[#808080] px-6 py-3 text-[20px] font-normal leading-[31.43px] text-black/87">โครงสร้างตำแหน่ง</div><TreeAction kind="add" label="เพิ่มตำแหน่งระดับบนสุด" onClick={() => openAdd()} /></div>
-      {message && <p role="alert" className="mb-5 rounded border border-[#eb8794] bg-[#fff3f4] px-4 py-3 text-sm text-[#ad3242]">{message}</p>}
-      <span aria-hidden="true" className="absolute left-[60px] top-[58.625px] h-9 border-l-[0.8px] border-[#808080]" />
-      <div className="overflow-x-auto"><div role="tree" aria-label="โครงสร้างตำแหน่ง" className="-mt-[36.8px] ml-[60px] min-h-[210px] w-[calc(100%-60px)] min-w-[640px] bg-white pt-[36.8px]">{loading ? <p className="py-10 text-sm text-black/60">กำลังโหลดข้อมูล...</p> : positions.length ? <ul className="m-0 w-full list-none p-0">{positions.map((node) => renderNode(node, 1))}</ul> : <p className="py-10 text-sm text-black/60">ไม่พบข้อมูลโครงสร้างตำแหน่ง</p>}</div></div>
+    <section className="mx-3 mt-3 overflow-hidden rounded-xl border border-[#e7e8ec] bg-white shadow-[0_2px_10px_rgba(20,32,56,.04)] sm:mx-4">
+      <section className="relative m-9 hidden md:block">
+        <div className="mb-9 flex h-[58.625px] items-center"><div className="box-border inline-block h-[58.625px] rounded-[10px] border-[1.6px] border-[#808080] px-6 py-3 text-[20px] font-normal leading-[31.43px] text-black/87">โครงสร้างตำแหน่ง</div><TreeAction kind="add" label="เพิ่มตำแหน่งระดับบนสุด" onClick={() => openAdd()} /></div>
+        {message && <p role="alert" className="mb-5 rounded border border-[#eb8794] bg-[#fff3f4] px-4 py-3 text-sm text-[#ad3242]">{message}</p>}
+        <span aria-hidden="true" className="absolute left-[60px] top-[58.625px] h-9 border-l-[0.8px] border-[#808080]" />
+        <div className="overflow-x-auto"><div role="tree" aria-label="โครงสร้างตำแหน่ง" className="-mt-[36.8px] ml-[60px] min-h-[210px] w-[calc(100%-60px)] min-w-[640px] bg-white pt-[36.8px]">{loading ? <p className="py-10 text-sm text-black/60">กำลังโหลดข้อมูล...</p> : positions.length ? <ul className="m-0 w-full list-none p-0">{positions.map((node) => renderNode(node, 1))}</ul> : <p className="py-10 text-sm text-black/60">ไม่พบข้อมูลโครงสร้างตำแหน่ง</p>}</div></div>
+      </section>
     </section>
 
     <div className="flex h-[55vh] items-center justify-center px-6 text-center text-lg text-[#424242] md:hidden"><p>ไม่สามารถตั้งค่า<br /><b className="my-4 inline-block">&apos;ORG_POSITION&apos;</b><br />ในโทรศัพท์ได้</p></div>

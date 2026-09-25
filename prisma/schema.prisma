@@ -225,6 +225,7 @@ model Company {
   portalUrl          String?
   planName           String          @default("Standard")
   employeeLimit      Int?
+  payrollCutoffDay   Int             @default(1)
   Branch             Branch[]
   BusinessUnit       BusinessUnit[]
   Tenant             Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)

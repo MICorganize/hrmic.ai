@@ -4,6 +4,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { readThroughCache } from "@/lib/cache/read-through";
 import { versionedReadModelCacheKey } from "@/lib/cache/read-model-version";
 import { companyPeriodKey } from "@/lib/payroll/company-period";
+import { DEFAULT_PAYROLL_CUTOFF_DAY, getDefaultPayrollPeriod, normalizePayrollCutoffDay } from "@/lib/payroll/period-default";
 import { prisma } from "@/lib/prisma";
 
 type DashboardEmployeeGroup = "monthly" | "daily" | "partTime" | "contract";
@@ -52,9 +53,7 @@ export async function getPayrollDashboard(companyId: string | null | undefined, 
   const requestedMonth = parsePayrollMonth(monthKey);
   if (!requestedMonth) throw new Error("Invalid payroll month");
 
-  const { year, month } = requestedMonth;
-  const defaultPeriodStart = new Date(Date.UTC(year, month - 1, 1));
-  const defaultPeriodEnd = new Date(Date.UTC(year, month, 0));
+  const { month } = requestedMonth;
 
   const cacheKey = await versionedReadModelCacheKey(
     "payroll-dashboard",
@@ -66,6 +65,13 @@ export async function getPayrollDashboard(companyId: string | null | undefined, 
     cacheKey,
     30,
     async () => {
+      const companySettings = companyId
+        ? await prisma.company.findUnique({ where: { id: companyId }, select: { payrollCutoffDay: true } })
+        : null;
+      const cutoffDay = normalizePayrollCutoffDay(companySettings?.payrollCutoffDay) ?? DEFAULT_PAYROLL_CUTOFF_DAY;
+      const defaultPeriod = getDefaultPayrollPeriod(monthKey, cutoffDay);
+      const defaultPeriodStart = new Date(`${defaultPeriod.startDate}T00:00:00.000Z`);
+      const defaultPeriodEnd = new Date(`${defaultPeriod.endDate}T00:00:00.000Z`);
       type DashboardRow = {
         periodStart: Date;
         periodEnd: Date;

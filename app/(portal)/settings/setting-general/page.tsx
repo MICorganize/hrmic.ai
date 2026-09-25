@@ -1,36 +1,110 @@
 "use client";
 
 import {
-  BellRing,
   CalendarDays,
+  CircleAlert,
   ChevronDown,
-  CircleDollarSign,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
-  Eye,
-  FileText,
-  Landmark,
-  LayoutPanelTop,
-  ShieldCheck,
   Split,
 } from "lucide-react";
-import { useState, type ComponentType } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { cn } from "@/lib/utils";
+import { PagePlaceholder } from "@/components/layouts/PagePlaceholder";
+import { normalizePayrollCutoffDay } from "@/lib/payroll/period-default";
 
 type Option = { label: string; value: string };
-type SectionIcon = ComponentType<{ className?: string; strokeWidth?: number }>;
+const SETTINGS_TABS = [
+  "คำนวณเงินเดือน",
+  "โควตา",
+  "ตั้งค่ากะการทำงาน /วันหยุด",
+  "การลงเวลาการทำงาน",
+  "การแจ้งเตือน",
+  "แบบฟอร์ม",
+  "สิทธิการมองเห็น",
+  "โครงสร้างองค์กร",
+  "อื่นๆ",
+] as const;
 
-const PAGE_MENU: Array<{ label: string; icon: SectionIcon; active?: boolean }> = [
-  { label: "คำนวณเงินเดือน", icon: CircleDollarSign, active: true },
-  { label: "โควตา", icon: LayoutPanelTop },
-  { label: "ตั้งค่ากะการทำงาน /วันหยุด", icon: CalendarDays },
-  { label: "การลงเวลาการทำงาน", icon: Clock3 },
-  { label: "การแจ้งเตือน", icon: BellRing },
-  { label: "แบบฟอร์ม", icon: FileText },
-  { label: "สิทธิการมองเห็น", icon: Eye },
-  { label: "โครงสร้างองค์กร", icon: Landmark },
-  { label: "อื่นๆ", icon: ShieldCheck },
+type SectionIcon = typeof CalendarDays;
+
+const PAY_PERIOD_OPTIONS: Option[] = [
+  { value: "eom", label: "ตั้งแต่วันที่ 1 จนถึงวันที่ EOM (End of Month)" },
+  ...Array.from({ length: 15 }, (_, index) => {
+    const startDate = index + 2;
+    return { value: String(startDate), label: `ตั้งแต่วันที่ ${startDate} จนถึงวันที่ ${startDate - 1}` };
+  }),
 ];
+
+function PayPeriodDropdown({ value, onChange, selectClass }: {
+  value: string;
+  onChange: (value: string) => void;
+  selectClass: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const selectedOption = PAY_PERIOD_OPTIONS.find((option) => option.value === value) ?? PAY_PERIOD_OPTIONS[0];
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!dropdownRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={dropdownRef} className="relative">
+      <button
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        className={cn(selectClass, "flex items-center justify-between text-left", open && "border-[#1890ff] shadow-[0_0_0_2px_rgb(24_144_255_/_20%)]")}
+        onClick={() => setOpen((isOpen) => !isOpen)}
+        type="button"
+      >
+        <span className="truncate">{selectedOption.label}</span>
+        <ChevronDown className={cn("pointer-events-none ml-2 size-4 shrink-0 text-black/[.35] transition-transform", open && "rotate-180")} />
+      </button>
+      {open && (
+        <div aria-label="รอบการจ่ายเงินเดือน" className="absolute left-0 right-0 top-full z-20 mt-1 max-h-[280px] overflow-y-auto rounded-[3px] border border-[#d9d9d9] bg-white p-1 shadow-[0_3px_6px_-4px_rgba(0,0,0,0.12),0_6px_16px_0_rgba(0,0,0,0.08)]" role="listbox">
+          {PAY_PERIOD_OPTIONS.map((option) => {
+            const selected = option.value === value;
+            return (
+              <button
+                aria-selected={selected}
+                className={cn(
+                  "block w-full rounded-[2px] px-3 py-1.5 text-left text-sm leading-[22px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#40a9ff]/40",
+                  selected ? "bg-[#e6f7ff] font-medium text-[#1890ff]" : "bg-white text-black/[.65] hover:bg-[#f5f5f5]",
+                )}
+                key={option.value}
+                onClick={() => {
+                  onChange(option.value);
+                  setOpen(false);
+                }}
+                role="option"
+                type="button"
+              >
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function RadioGroup({ name, options, value, onChange, disabled = false }: {
   name: string;
@@ -110,43 +184,140 @@ export default function GeneralSettingsPage() {
   const [partTimeRounding, setPartTimeRounding] = useState("none");
   const [employeeRate, setEmployeeRate] = useState("5");
   const [employerRate, setEmployerRate] = useState("5");
-  const [saved, setSaved] = useState(false);
+  const [changeSettingsOpen, setChangeSettingsOpen] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [activeTab, setActiveTab] = useState<(typeof SETTINGS_TABS)[number]>(SETTINGS_TABS[0]);
+  const tabViewportRef = useRef<HTMLDivElement>(null);
+  const [canScrollTabsBack, setCanScrollTabsBack] = useState(false);
+  const [canScrollTabsForward, setCanScrollTabsForward] = useState(true);
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    async function loadGeneralSettings() {
+      try {
+        const response = await fetch("/api/settings/general", { cache: "no-store", signal: controller.signal });
+        if (!response.ok) throw new Error("Unable to load general settings");
+        const data = (await response.json()) as { payrollCutoffDay?: unknown };
+        const cutoffDay = normalizePayrollCutoffDay(data.payrollCutoffDay);
+        if (cutoffDay !== null) setPeriod(cutoffDay === 1 ? "eom" : String(cutoffDay));
+      } catch (error) {
+        if ((error as { name?: string }).name !== "AbortError") console.error("Unable to load general settings:", error);
+      }
+    }
+
+    void loadGeneralSettings();
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    const viewport = tabViewportRef.current;
+    if (!viewport) return;
+
+    const updateScrollState = () => {
+      const maxScroll = viewport.scrollWidth - viewport.clientWidth;
+      setCanScrollTabsBack(viewport.scrollLeft > 1);
+      setCanScrollTabsForward(viewport.scrollLeft < maxScroll - 1);
+    };
+
+    updateScrollState();
+    viewport.addEventListener("scroll", updateScrollState, { passive: true });
+    window.addEventListener("resize", updateScrollState);
+    return () => {
+      viewport.removeEventListener("scroll", updateScrollState);
+      window.removeEventListener("resize", updateScrollState);
+    };
+  }, []);
+
+  function scrollTabs(direction: "back" | "forward") {
+    tabViewportRef.current?.scrollBy({ left: direction === "back" ? -260 : 260, behavior: "smooth" });
+  }
+
+  async function saveGeneralSettings() {
+    if (savingSettings) return;
+    setSavingSettings(true);
+    try {
+      const payrollCutoffDay = period === "eom" ? 1 : Number(period);
+      const response = await fetch("/api/settings/general", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ payrollCutoffDay }),
+      });
+      if (!response.ok) throw new Error("Unable to save general settings");
+      setChangeSettingsOpen(false);
+    } catch (error) {
+      console.error("Unable to save general settings:", error);
+    } finally {
+      setSavingSettings(false);
+    }
+  }
 
   const selectClass = "h-8 w-full appearance-none rounded-[3px] border border-[#d9d9d9] bg-white px-3 pr-8 text-sm leading-8 text-black/[.65] outline-none focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgb(24_144_255_/_20%)]";
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[#e7eff8] font-[var(--font-kanit)] text-black/[.87]" data-testid="general-settings-page">
-      <header className="h-40 bg-[#61a7f5] px-6 pt-11 text-white">
-        <p className="m-0 text-sm leading-[22px] text-white/75">ตั้งค่า <span className="px-1">›</span> ตั้งค่าการคำนวณ</p>
-        <h1 className="m-0 pt-0.5 text-[26px] font-normal leading-[40px]">ตั้งค่าทั่วไป</h1>
+    <div className="min-h-[calc(100vh-70px)] bg-[#e7eff8] font-[var(--font-kanit)] text-black/[.87]" data-testid="general-settings-page">
+      <header className="mx-3 mt-3 h-[123px] overflow-hidden rounded-xl border border-[#e5eaf2] bg-white shadow-[0_3px_12px_rgba(29,52,93,.07)] sm:mx-4 sm:mt-4">
+        <div className="flex h-full items-center px-4 py-3">
+          <div className="min-w-0 self-start">
+            <p className="flex items-center gap-0 text-sm font-normal leading-[22.001px] text-[#7b8798]"><span>ตั้งค่า</span><ChevronRight className="size-4" /><span>ตั้งค่าการคำนวณ</span></p>
+            <h1 className="mt-0.5 text-xl font-semibold tracking-tight text-[#172348]">ตั้งค่าทั่วไป</h1>
+          </div>
+        </div>
       </header>
 
-      <div className="flex min-h-[calc(100vh-14rem)]">
-        <nav aria-label="เมนูการตั้งค่าทั่วไป" className="w-[196px] shrink-0 bg-white px-2 pt-4 max-md:hidden">
-          {PAGE_MENU.map(({ label, icon: Icon, active }) => (
-            <button
-              className={cn("mb-1 flex min-h-10 w-full items-center gap-3 rounded-[18px] px-3 text-left text-base leading-5 text-black/[.78] transition-colors hover:bg-[#f1f7fe]", active && "bg-[#e7eff8] font-medium text-[#1386f4]")}
-              key={label}
-              type="button"
-            >
-              <Icon className="size-6 shrink-0 text-[#61a7f5]" strokeWidth={1.7} />
-              <span>{label}</span>
-            </button>
-          ))}
-        </nav>
+      <div className="mt-3 px-3 sm:px-4">
+        <div className="flex h-12 overflow-hidden rounded-t-xl border border-[#e5eaf2] bg-white font-[Kanit,sans-serif] text-sm font-semibold leading-[22px] text-[#65728a] shadow-[0_3px_12px_rgba(29,52,93,0.06)]">
+          <button
+            type="button"
+            onClick={() => scrollTabs("back")}
+            disabled={!canScrollTabsBack}
+            className="flex h-12 w-9 shrink-0 items-center justify-center border-r border-[#edf0f5] text-[#718096] transition-colors hover:bg-[#f6f8fc] hover:text-[#1474ee] disabled:cursor-not-allowed disabled:opacity-30"
+            aria-label="ก่อนหน้า"
+          >
+            <ChevronLeft className="size-5" strokeWidth={1.75} />
+          </button>
+          <div ref={tabViewportRef} className="h-12 min-w-0 flex-1 overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" role="tablist" aria-label="เมนูการตั้งค่าทั่วไป">
+            <div className="flex h-12 w-max">
+              {SETTINGS_TABS.map((tab) => {
+                const active = tab === activeTab;
+                return (
+                  <button
+                    key={tab}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setActiveTab(tab)}
+                    className={cn(
+                      "relative flex h-12 shrink-0 items-center justify-center overflow-hidden whitespace-nowrap px-5 text-sm font-semibold leading-[22px] text-[#65728a] transition-colors",
+                      active ? "bg-[#f8fbff] !text-[#126fd5] after:absolute after:bottom-0 after:left-2 after:right-2 after:h-0.5 after:rounded-full after:bg-[#1474ee]" : "hover:bg-[#f6f8fc] hover:text-[#26344f]",
+                    )}
+                  >
+                    {tab}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={!canScrollTabsForward}
+            onClick={() => scrollTabs("forward")}
+            className="flex h-12 w-9 shrink-0 items-center justify-center border-l border-[#edf0f5] text-[#718096] transition-colors hover:bg-[#f6f8fc] hover:text-[#1474ee] disabled:cursor-not-allowed disabled:opacity-30"
+            aria-label="ถัดไป"
+          >
+            <ChevronRight className="size-5" strokeWidth={1.75} />
+          </button>
+        </div>
 
-        <div className="min-w-0 flex-1 px-4 py-4 sm:pl-[22px] sm:pr-6">
-          <form className="mb-3 flow-root w-[calc(100%+26.3245px)] translate-x-[0.8875px] rounded-[8px] bg-white shadow-[0_2px_1px_-1px_rgb(0_0_0_/_20%),0_1px_1px_rgb(0_0_0_/_14%),0_1px_3px_rgb(0_0_0_/_12%)]" onSubmit={(event) => { event.preventDefault(); setSaved(true); }}>
+        <div className="min-w-0 flex-1 pt-0 pb-4">
+          {activeTab === "คำนวณเงินเดือน" ? (
+            <form className="mb-3 flow-root w-full rounded-b-xl bg-white shadow-[0_2px_1px_-1px_rgb(0_0_0_/_20%),0_1px_1px_rgb(0_0_0_/_14%),0_1px_3px_rgb(0_0_0_/_12%)]" onSubmit={(event) => { event.preventDefault(); setChangeSettingsOpen(true); }}>
             <div className="my-2 px-6 py-[5px]">
-              <h2 className="mb-[16.88px] mt-[16.08px] text-2xl font-normal leading-[37.716px] text-black/[.85]">คำนวณเงินเดือน</h2>
+              <h2 className="mb-[16.88px] mt-[16.08px] text-xl font-normal leading-[37.716px] text-black/[.85]">คำนวณเงินเดือน</h2>
 
             <Row icon={CalendarDays} title="รอบการจ่ายเงินเดือน" description="วันที่ตัดรอบการจ่ายเงินเดือน" note={<><span>Ex. ตั้งแต่วันที่ 2 จนถึงวันที่ 1</span><br />วันที่ 2 มกราคม ถึง วันที่ 1 กุมภาพันธ์<br />วันที่ 2 กุมภาพันธ์ ถึง วันที่ 1 มีนาคม</>}>
               <div className="relative w-[80%] min-w-[250px]">
-                <select aria-label="รอบการจ่ายเงินเดือน" className={selectClass} onChange={(event) => setPeriod(event.target.value)} value={period}>
-                  <option value="eom">ตั้งแต่วันที่ 1 จนถึงวันที่ EOM (End of Month)</option>
-                  <option value="15">ตั้งแต่วันที่ 16 จนถึงวันที่ 15</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2 top-2 size-4 text-black/[.35]" />
+                <PayPeriodDropdown onChange={setPeriod} selectClass={selectClass} value={period} />
               </div>
             </Row>
 
@@ -204,11 +375,40 @@ export default function GeneralSettingsPage() {
               <input aria-label="อัตราประกันสังคมของนายจ้าง" className="mt-1 h-8 w-[300px] rounded-[3px] border border-[#d9d9d9] px-3 text-sm outline-none focus:border-[#40a9ff]" inputMode="decimal" onChange={(event) => setEmployerRate(event.target.value)} value={employerRate} />
             </Row>
 
-              <div className="pb-[8.8px] pt-5"><button className="h-8 rounded-[4px] bg-[#1890ff] px-5 text-sm text-white shadow-sm hover:bg-[#40a9ff]" type="submit">{saved ? "บันทึกแล้ว" : "บันทึก"}</button></div>
+              <div className="pb-[8.8px] pt-5"><button className="h-8 rounded-[4px] bg-[#1890ff] px-5 text-sm text-white shadow-sm hover:bg-[#40a9ff]" type="submit">บันทึก</button></div>
             </div>
           </form>
+          ) : (
+            activeTab === "โควตา" ? (
+              <PagePlaceholder title="จัดการโควตาการลา" description="จัดการโควตาการลาของพนักงานตามสิทธิที่กำหนด" />
+            ) : (
+              <section className="overflow-hidden rounded-b-xl bg-white shadow-[0_2px_1px_-1px_rgb(0_0_0_/_20%),0_1px_1px_rgb(0_0_0_/_14%),0_1px_3px_rgb(0_0_0_/_12%)]">
+                <div className="px-6 py-5">
+                  <h2 className="m-0 text-2xl font-normal leading-[37.716px] text-black/[.85]">{activeTab}</h2>
+                </div>
+              </section>
+            )
+          )}
         </div>
       </div>
+      {changeSettingsOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4" role="presentation">
+          <div aria-labelledby="change-settings-title" aria-modal="true" className="w-full max-w-[320px] rounded-[4px] bg-white px-8 pb-4 pt-6 text-center shadow-2xl" role="dialog">
+            <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-[#fff2df]">
+              <div className="flex size-9 items-center justify-center rounded-full bg-[#ffd9a8] text-[#f59e0b]">
+                <CircleAlert className="size-6" strokeWidth={2} />
+              </div>
+            </div>
+            <h2 className="mt-4 text-lg font-semibold text-[#303943]" id="change-settings-title">เปลี่ยนการตั้งค่า</h2>
+            <p className="mt-2 text-sm font-medium text-[#4b5560]">ยืนยันการเปลี่ยนการตั้งค่า</p>
+            <p className="mt-1 text-xs leading-5 text-[#7b8798]">หากมีการตั้งค่าที่ไม่เป็นไปตามเงื่อนไข ระบบจะไม่บันทึก การตั้งค่ารายการนั้น</p>
+            <div className="mt-5 flex justify-center gap-2">
+              <button className="h-9 min-w-[80px] rounded-[4px] bg-[#1890ff] px-4 text-sm font-medium text-white shadow-sm hover:bg-[#40a9ff]" onClick={() => void saveGeneralSettings()} type="button">ยืนยัน</button>
+              <button className="h-9 min-w-[80px] rounded-[4px] border border-[#d9d9d9] bg-white px-4 text-sm font-medium text-[#595959] shadow-sm hover:bg-[#f5f5f5]" onClick={() => setChangeSettingsOpen(false)} type="button">ยกเลิก</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

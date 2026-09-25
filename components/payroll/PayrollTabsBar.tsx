@@ -31,8 +31,8 @@ export function PayrollTabsBar({
               type="button"
               onClick={() => onChange(tab)}
               className={cn(
-                "relative block h-11 w-full whitespace-nowrap py-3 text-left text-sm font-normal leading-5 transition-colors",
-                active ? "font-medium text-[#1474ee] after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[#1474ee]" : "text-[#6f7b90] hover:text-[#34425c]"
+                "relative block h-11 w-full whitespace-nowrap py-3 text-left text-sm font-semibold leading-[22px] transition-colors",
+                active ? "text-[#1474ee] after:absolute after:inset-x-0 after:bottom-0 after:h-0.5 after:rounded-full after:bg-[#1474ee]" : "text-[#6f7b90] hover:text-[#34425c]"
               )}
             >
               {tab}
