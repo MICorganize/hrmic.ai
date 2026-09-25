@@ -15,7 +15,7 @@ function Field({ label, placeholder, children }: { label: string; placeholder?: 
 }
 
 function SelectField({ label, value }: { label: string; value: string }) {
-  return <Field label={label}><span className="relative mt-1 block"><select defaultValue={value} className="h-8 w-full appearance-none rounded border border-[#d8d8d8] bg-white px-3 text-sm font-normal outline-none"><option>{value}</option></select><ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-4 -translate-y-1/2 text-[#7d858c]" /></span></Field>;
+  return <Field label={label}><span className="relative mt-1 block"><DropdownSelect defaultValue={value} className="h-8 w-full appearance-none rounded border border-[#d8d8d8] bg-white px-3 text-sm font-normal outline-none"><option>{value}</option></DropdownSelect></span></Field>;
 }
 
 function DocumentManagementPage({ documentType }: { documentType: "leave" | "overtime" | "time-adjust" | "work-cycle" | "holiday" }) {
@@ -54,7 +54,7 @@ function DocumentManagementPage({ documentType }: { documentType: "leave" | "ove
               <button type="button" onClick={() => setRequestOpen(false)} aria-label="ปิด"><X className="size-5" /></button>
             </div>
             <div className="space-y-4 px-6 py-5">
-              <Field label={requestTypeLabel}><select className="mt-1 h-10 w-full rounded border border-slate-300 bg-white px-3"><option>{`เลือก${requestTypeLabel}`}</option></select></Field>
+              <Field label={requestTypeLabel}><DropdownSelect className="mt-1 h-10 w-full rounded border border-slate-300 bg-white px-3"><option>{`เลือก${requestTypeLabel}`}</option></DropdownSelect></Field>
               <Field label={isCompactDocument ? (documentType === "overtime" ? "วันที่ทำโอที" : documentType === "time-adjust" ? "วันที่เพิ่มเวลา" : documentType === "work-cycle" ? "วันที่เปลี่ยนกะการทำงาน" : "วันที่เปลี่ยนวันหยุด") : "วันที่ลา"} placeholder="วันเริ่มต้น - วันสิ้นสุด" />
               <Field label={requestDetailLabel}><textarea className="mt-1 min-h-24 w-full rounded border border-slate-300 p-3" /></Field>
             </div>
@@ -117,3 +117,5 @@ export default function PayrollDocumentsPage() {
   if (activeDocument) return <DocumentManagementPage documentType={activeDocument} />;
   return <div className="flex min-h-[calc(100vh-4rem)] items-center justify-center rounded-lg border border-dashed border-border bg-card text-muted-foreground">อยู่ระหว่างการพัฒนา</div>;
 }
+
+import { DropdownSelect } from "@/components/ui/dropdown-select";

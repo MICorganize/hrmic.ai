@@ -41,7 +41,7 @@ export default function OrganizationContactsPage() {
           <div className="grid grid-cols-1 gap-x-2 gap-y-2 md:grid-cols-12">
             <label className="block text-sm font-medium text-[#40454a] md:col-span-6">โครงสร้างองค์กร<input placeholder="โครงสร้างองค์กร" disabled className="mt-1 block h-8 w-full rounded border border-[#d8d8d8] bg-white px-3 text-sm font-normal outline-none placeholder:text-[#c9c9c9] disabled:cursor-not-allowed" /></label>
             <label className="block text-sm font-medium text-[#40454a] md:col-span-6">ตำแหน่ง<input placeholder="ตำแหน่ง" disabled className="mt-1 block h-8 w-full rounded border border-[#d8d8d8] bg-white px-3 text-sm font-normal outline-none placeholder:text-[#c9c9c9] disabled:cursor-not-allowed" /></label>
-            <label className="block text-sm font-medium text-[#40454a] md:col-span-4">สถานะ<select value={status} onChange={(event) => setStatus(event.target.value)} className="mt-1 block h-8 w-full rounded border border-[#d8d8d8] bg-white px-3 text-sm font-normal outline-none"><option>เฉพาะที่ Active</option><option>ทั้งหมด</option><option>เฉพาะที่ Inactive</option></select></label>
+            <label className="block text-sm font-medium text-[#40454a] md:col-span-4">สถานะ<DropdownSelect value={status} onChange={(event) => setStatus(event.target.value)} className="mt-1 block h-8 w-full rounded border border-[#d8d8d8] bg-white px-3 text-sm font-normal outline-none"><option>เฉพาะที่ Active</option><option>ทั้งหมด</option><option>เฉพาะที่ Inactive</option></DropdownSelect></label>
             <label className="block text-sm font-medium text-[#40454a] md:col-span-4">คำค้นหา<input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="คำค้นหา" className="mt-1 block h-8 w-full rounded border border-[#d8d8d8] bg-white px-3 text-sm font-normal outline-none placeholder:text-[#c9c9c9]" /></label>
             <label className="block text-sm font-medium text-[#40454a] md:col-span-4">Hashtag<input value={hashtag} onChange={(event) => setHashtag(event.target.value)} placeholder="#Hashtag" className="mt-1 block h-8 w-full rounded border border-[#d8d8d8] bg-white px-3 text-sm font-normal outline-none placeholder:text-[#c9c9c9]" /></label>
             <button type="submit" className="inline-flex h-[38px] items-center justify-center rounded bg-[#168fe9] px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#087fd8] md:col-start-12 md:justify-self-end"><Search className="mr-1.5 size-4" />ค้นหา</button>
@@ -59,3 +59,5 @@ export default function OrganizationContactsPage() {
     </div>
   );
 }
+
+import { DropdownSelect } from "@/components/ui/dropdown-select";

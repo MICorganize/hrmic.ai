@@ -32,6 +32,7 @@ import {
   toIsoDate,
 } from "@/lib/date/thai-date";
 import { cn } from "@/lib/utils";
+import { DropdownSelect } from "@/components/ui/dropdown-select";
 
 const TABS = [
   "ข้อมูลพื้นฐาน",
@@ -251,25 +252,148 @@ function SelectInput({
   name?: string;
 }) {
   return (
-    <div className={cn("relative", className)}>
-      <select
-        name={name}
-        defaultValue={defaultValue ?? ""}
+    <DropdownSelect
+      name={name}
+      defaultValue={defaultValue}
+      disabled={disabled}
+      placeholder={placeholder}
+      className={cn("h-8", className)}
+    >
+      {!defaultValue && <option value="">{placeholder ?? "เลือก"}</option>}
+      {options.map((opt) => (
+        <option key={opt} value={opt}>
+          {opt}
+        </option>
+      ))}
+    </DropdownSelect>
+  );
+}
+
+function TitleSelectInput({
+  options,
+  defaultValue,
+  disabled,
+  className,
+  name,
+}: {
+  options: string[];
+  defaultValue?: string;
+  disabled?: boolean;
+  className?: string;
+  name?: string;
+}) {
+  const [value, setValue] = useState(defaultValue ?? "");
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(() => {
+    const index = options.indexOf(defaultValue ?? "");
+    return index >= 0 ? index : 0;
+  });
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        setActiveIndex((current) => {
+          const direction = event.key === "ArrowDown" ? 1 : -1;
+          return (current + direction + options.length) % options.length;
+        });
+      }
+      if (event.key === "Enter" && options[activeIndex]) {
+        event.preventDefault();
+        setValue(options[activeIndex]);
+        setOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeIndex, open, options]);
+
+  const selectOption = (option: string, index: number) => {
+    setValue(option);
+    setActiveIndex(index);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={containerRef} className={cn("relative", className)}>
+      <input type="hidden" name={name} value={value} />
+      <button
+        type="button"
         disabled={disabled}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        onClick={() => {
+          setActiveIndex(Math.max(options.indexOf(value), 0));
+          setOpen((current) => !current);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            setOpen(true);
+          }
+        }}
         className={cn(
-          "h-8 w-full appearance-none rounded-lg border border-[#dfe4e8] bg-white px-3 pr-8 text-sm font-normal leading-5 text-[#34425c] shadow-none outline-none transition-colors focus:border-[#5eaafa] focus:ring-2 focus:ring-[#5eaafa]/20",
-          defaultValue ? "text-foreground" : "text-muted-foreground/60",
+          "flex h-8 w-full items-center justify-between rounded-lg border bg-white px-3 text-left text-sm font-normal leading-5 text-[#757575] shadow-none outline-none transition-colors",
+          open
+            ? "border-[#5eaafa] ring-2 ring-[#5eaafa]/20"
+            : "border-[#dfe4e8]",
           disabled && "cursor-not-allowed bg-[#f5f7fa] text-[#9aa5b5]"
         )}
       >
-        {!defaultValue && <option value="">{placeholder ? "" : "เลือก"}</option>}
-        {options.map((opt) => (
-          <option key={opt} value={opt}>
-            {opt}
-          </option>
-        ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-2.5 top-[calc(50%-4px)] size-4 -translate-y-1/2 text-black/45" />
+        <span className="truncate">{value || "เลือก"}</span>
+        <ChevronDown
+          className={cn(
+            "size-4 shrink-0 text-[#8b8b8b] transition-transform",
+            open && "rotate-180"
+          )}
+        />
+      </button>
+      {open && (
+        <div
+          role="listbox"
+          aria-label="คำนำหน้าชื่อ"
+          className="absolute left-0 right-0 top-[calc(100%+2px)] z-50 max-h-[260px] overflow-y-auto rounded-[2px] border border-[#e0e0e0] bg-white py-0.5 shadow-[0_2px_8px_rgba(0,0,0,0.18)]"
+        >
+          {options.map((option, index) => {
+            const selected = option === value;
+            return (
+              <button
+                key={option}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                onMouseEnter={() => setActiveIndex(index)}
+                onClick={() => selectOption(option, index)}
+                className={cn(
+                  "flex min-h-8 w-full items-center px-3 py-1 text-left text-sm font-light leading-5 text-[#555] transition-colors",
+                  selected
+                    ? "bg-[#e2f4ff] font-bold hover:bg-[#e2f4ff]"
+                    : "hover:bg-[#f2f2f2]"
+                )}
+              >
+                {option}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -299,7 +423,7 @@ function EmployeeTypeSelectInput({
 
   return (
     <div className="relative">
-      <select
+      <DropdownSelect
         name="employeeTypeDefinitionId"
         value={value}
         onChange={(event) => onChange(event.target.value)}
@@ -319,8 +443,7 @@ function EmployeeTypeSelectInput({
             {employeeTypeLabel(type)}
           </option>
         ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+      </DropdownSelect>
     </div>
   );
 }
@@ -395,11 +518,11 @@ function OrganizationSelectInput({
               setOpen(false);
             }}
             className={cn(
-              "min-w-0 flex-1 rounded-sm px-1.5 py-1 text-left text-sm leading-5",
+              "min-w-0 flex-1 rounded-sm px-1.5 py-1 text-left text-sm font-light leading-5",
               isCompany
                 ? "cursor-not-allowed text-[#999]"
                 : "text-foreground hover:bg-[#bae7ff]",
-              value === nodeValue && "bg-[#e6f7ff] text-[#1677ff]"
+              value === nodeValue && "bg-[#e6f7ff] font-bold text-[#1677ff]"
             )}
             title={label}
           >
@@ -421,7 +544,7 @@ function OrganizationSelectInput({
         <button
           type="button"
           disabled={loading || companies.length === 0}
-          className="flex h-8 w-full items-center justify-between rounded-lg border border-[#dfe4e8] bg-white px-3 text-left text-sm font-normal leading-5 text-[#34425c] shadow-none transition-colors focus:border-[#5eaafa] focus:outline-none focus:ring-2 focus:ring-[#5eaafa]/20 disabled:cursor-not-allowed disabled:bg-[#f5f7fa] disabled:text-[#9aa5b5]"
+          className={cn("flex h-8 w-full items-center justify-between rounded-lg border border-[#dfe4e8] bg-white px-3 text-left text-sm font-light leading-5 text-[#757575] shadow-none transition-colors focus:border-[#5eaafa] focus:outline-none focus:ring-2 focus:ring-[#5eaafa]/20 disabled:cursor-not-allowed disabled:bg-[#f5f7fa] disabled:text-[#9aa5b5]", open && "border-[#5eaafa] ring-2 ring-[#5eaafa]/20")}
         >
           <span className={cn("truncate", !selectedNode && "text-muted-foreground/60")}>
             {loading
@@ -430,7 +553,7 @@ function OrganizationSelectInput({
                 ? `${selectedNode.code}: ${selectedNode.name}`
                 : "เลือกโครงสร้างองค์กร"}
           </span>
-          <ChevronDown className="ml-2 size-4 shrink-0 text-muted-foreground" />
+          <ChevronDown className={cn("ml-2 size-4 shrink-0 text-[#8b8b8b] transition-transform", open && "rotate-180")} />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="max-h-72 w-[var(--radix-popover-trigger-width)] overflow-auto p-1">
@@ -508,8 +631,8 @@ function PositionSelectInput({
               setOpen(false);
             }}
             className={cn(
-              "min-w-0 flex-1 rounded-sm px-1.5 py-1 text-left text-sm leading-5 text-foreground hover:bg-[#bae7ff]",
-              value === node.id && "bg-[#e6f7ff] text-[#1677ff]"
+              "min-w-0 flex-1 rounded-sm px-1.5 py-1 text-left text-sm font-light leading-5 text-foreground hover:bg-[#bae7ff]",
+              value === node.id && "bg-[#e6f7ff] font-bold text-[#1677ff]"
             )}
             title={label}
           >
@@ -531,12 +654,12 @@ function PositionSelectInput({
         <button
           type="button"
           disabled={loading || positions.length === 0}
-          className="flex h-8 w-full items-center justify-between rounded-lg border border-[#dfe4e8] bg-white px-3 text-left text-sm font-normal leading-5 text-[#34425c] shadow-none transition-colors focus:border-[#5eaafa] focus:outline-none focus:ring-2 focus:ring-[#5eaafa]/20 disabled:cursor-not-allowed disabled:bg-[#f5f7fa] disabled:text-[#9aa5b5]"
+          className={cn("flex h-8 w-full items-center justify-between rounded-lg border border-[#dfe4e8] bg-white px-3 text-left text-sm font-light leading-5 text-[#757575] shadow-none transition-colors focus:border-[#5eaafa] focus:outline-none focus:ring-2 focus:ring-[#5eaafa]/20 disabled:cursor-not-allowed disabled:bg-[#f5f7fa] disabled:text-[#9aa5b5]", open && "border-[#5eaafa] ring-2 ring-[#5eaafa]/20")}
         >
           <span className={cn("truncate", !selectedNode && "text-muted-foreground/60")}>
             {loading ? "กำลังโหลดโครงสร้างตำแหน่ง..." : selectedNode ? `${selectedNode.code}: ${selectedNode.name}` : "เลือกตำแหน่ง"}
           </span>
-          <ChevronDown className="ml-2 size-4 shrink-0 text-muted-foreground" />
+          <ChevronDown className={cn("ml-2 size-4 shrink-0 text-[#8b8b8b] transition-transform", open && "rotate-180")} />
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className="max-h-72 w-[var(--radix-popover-trigger-width)] overflow-auto p-1">
@@ -1472,7 +1595,28 @@ export default function OrganizationEmployeeCreatePage({
             {/* Row 2 */}
             <div className="grid grid-cols-1 gap-0 sm:grid-cols-2 xl:grid-cols-4">
               <FieldShell label="คำนำหน้าชื่อ">
-                <SelectInput name="title" options={["นาย", "นาง", "นางสาว", "ดร.", "ศาสตราจารย์"]} defaultValue="นาย" />
+                <SelectInput
+                  name="title"
+                  options={[
+                    "นาย",
+                    "นาง",
+                    "นางสาว",
+                    "หม่อมราชวงศ์",
+                    "หม่อมหลวง",
+                    "คุณหญิง",
+                    "ว่าที่ร้อยตรี",
+                    "ร้อยตรี",
+                    "ร้อยโท",
+                    "ร้อยเอก",
+                    "พลทหารอากาศ",
+                    "จ่าโท",
+                    "นายดาบตำรวจ",
+                    "ว่าที่ ร.ต.",
+                    "พันตรี",
+                    "พันโท",
+                  ]}
+                  defaultValue="นาย"
+                />
               </FieldShell>
               <FieldShell label="ชื่อ" required>
                 <TextInput name="firstNameTH" placeholder="ชื่อ" />

@@ -29,7 +29,7 @@ export default function ReportEmployeeTypeChangePage() {
           <div className="flex h-[59px] items-center px-3"><p className="text-xl font-medium text-[#555]">ค้นหา</p></div>
           <CardContent className="px-4 pb-[15px] pt-4">
             <div className="grid grid-cols-1 gap-x-2 md:grid-cols-3">
-              <Field label="โครงสร้างองค์กร"><div className="relative"><select value={organization} onChange={(event) => setOrganization(event.target.value)} className="h-8 w-full appearance-none rounded-[3px] border border-[#d9d9d9] bg-white pl-2.5 pr-8 text-sm text-[#555] shadow-sm">{ORG_STRUCTURES.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#8c8c8c]" /></div></Field>
+              <Field label="โครงสร้างองค์กร"><div className="relative"><DropdownSelect value={organization} onChange={(event) => setOrganization(event.target.value)} className="h-8 w-full appearance-none rounded-[3px] border border-[#d9d9d9] bg-white pl-2.5 pr-8 text-sm text-[#555] shadow-sm">{ORG_STRUCTURES.map((item) => <option key={item}>{item}</option>)}</DropdownSelect></div></Field>
               <Field label="ปี"><ThaiYearPicker value="2026" disabled /></Field>
               <Field label="เดือน"><ThaiMonthPicker value={month} onChange={setMonth} /></Field>
             </div>
@@ -41,3 +41,5 @@ export default function ReportEmployeeTypeChangePage() {
     </div>
   );
 }
+
+import { DropdownSelect } from "@/components/ui/dropdown-select";

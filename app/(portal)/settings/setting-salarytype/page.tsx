@@ -3,6 +3,8 @@
 import { X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
+import { DropdownSelect } from "@/components/ui/dropdown-select";
+
 type Calculation = "Auto" | "Constant" | "Expense" | "Fund" | "Income" | "Loan";
 type SalaryType = {
   id: string;
@@ -148,20 +150,17 @@ function InfoIcon() {
 }
 
 function FilterSelect({ label, value, onChange, options, className }: { label: string; value: string; onChange: (value: string) => void; options: Array<{ label: string; value: string }>; className: string }) {
-  const selectedLabel = options.find((option) => option.value === value)?.label ?? label;
-
   return (
-    <label className={`relative shrink-0 ${className}`}>
-      <span className="sr-only">{label}</span>
-      <select aria-label={label} className="absolute inset-0 z-10 size-full cursor-pointer opacity-0" value={value} onChange={(event) => onChange(event.target.value)}>
+    <DropdownSelect
+      aria-label={label}
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      placeholder={label}
+      className={`h-10 shrink-0 ${className}`}
+    >
         <option value="">{label}</option>
         {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-      <span aria-hidden className="flex h-10 items-center gap-2 rounded-[20px] border-[0.8px] border-[#d9d9d9] bg-white px-4 text-[14px] font-normal leading-[22.001px] tracking-normal text-black/65 shadow-[0_2px_0_rgba(0,0,0,0.016)]">
-        <span>{selectedLabel}</span>
-        <svg className="ml-auto size-3 shrink-0 fill-black" viewBox="0 0 12 12"><path d="M2 4.25h8L6 8.25z" /></svg>
-      </span>
-    </label>
+    </DropdownSelect>
   );
 }
 

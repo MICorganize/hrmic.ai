@@ -1,5 +1,7 @@
 "use client";
 
+import { DropdownSelect } from "@/components/ui/dropdown-select";
+
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -380,7 +382,6 @@ function SelectBox({
           className
         )}
       />
-      <ChevronDown className="pointer-events-none absolute right-2.5 top-[calc(50%-4px)] size-4 -translate-y-1/2 text-black/45" />
     </div>
   );
 }
@@ -886,12 +887,11 @@ function SalaryAdjustmentHistoryContent() {
             <label className="flex min-w-0 flex-1 flex-col text-sm leading-[22px] text-[rgba(0,0,0,0.87)]">
               ประเภทการปรับ
               <span className="relative block">
-                <select value={adjustmentType} onChange={(event) => setAdjustmentType(event.target.value)} className="h-8 w-full appearance-none rounded border border-[#d9d9d9] bg-white px-[11px] pr-9 text-sm leading-[22px] text-[rgba(0,0,0,0.65)] outline-none focus:border-[#1890ff]">
+                <DropdownSelect value={adjustmentType} onChange={(event) => setAdjustmentType(event.target.value)} className="h-8 w-full appearance-none rounded border border-[#d9d9d9] bg-white px-[11px] pr-9 text-sm leading-[22px] text-[rgba(0,0,0,0.65)] outline-none focus:border-[#1890ff]">
                   <option value="all">ทั้งหมด</option>
                   <option value="salary">ปรับเงินเดือน</option>
                   <option value="employee-type">ปรับประเภทพนักงาน</option>
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[rgba(0,0,0,0.25)]" />
+                </DropdownSelect>
               </span>
             </label>
             <label className="flex min-w-0 flex-1 flex-col text-sm leading-[22px] text-[rgba(0,0,0,0.87)]">
@@ -903,10 +903,10 @@ function SalaryAdjustmentHistoryContent() {
             <label className="flex min-w-0 flex-1 flex-col text-sm leading-[22px] text-[rgba(0,0,0,0.87)]">
               เดือน
               <span className="relative block">
-                <select value={month} disabled={adjustmentType === "all"} onChange={(event) => setMonth(event.target.value)} className="h-[31.6px] w-full appearance-none rounded border border-[#d9d9d9] bg-white px-[11px] py-1 pr-9 text-sm leading-[22px] text-[rgba(0,0,0,0.65)] outline-none placeholder:text-[#bfbfbf] focus:border-[#1890ff] disabled:cursor-not-allowed disabled:bg-[#f5f5f5]">
+                <DropdownSelect value={month} disabled={adjustmentType === "all"} onChange={(event) => setMonth(event.target.value)} className="h-[31.6px] w-full appearance-none rounded border border-[#d9d9d9] bg-white px-[11px] py-1 pr-9 text-sm leading-[22px] text-[rgba(0,0,0,0.65)] outline-none placeholder:text-[#bfbfbf] focus:border-[#1890ff] disabled:cursor-not-allowed disabled:bg-[#f5f5f5]">
                   <option value="">เดือน</option>
                   {months.map((monthName, index) => <option key={monthName} value={String(index + 1)}>{monthName}</option>)}
-                </select>
+                </DropdownSelect>
                 <svg aria-hidden="true" viewBox="64 64 896 896" className="pointer-events-none absolute right-[11px] top-1/2 size-3.5 -translate-y-1/2 fill-current text-black/45"><path d="M880 184H712v-64c0-4.4-3.6-8-8-8h-56c-4.4 0-8 3.6-8 8v64H384v-64c0-4.4-3.6-8-8-8h-56c-4.4 0-8 3.6-8 8v64H144c-17.7 0-32 14.3-32 32v664c0 17.7 14.3 32 32 32h736c17.7 0 32-14.3 32-32V216c0-17.7-14.3-32-32-32zm-40 656H184V460h656v380zM184 392V256h128v48c0 4.4 3.6 8 8 8h56c4.4 0 8-3.6 8-8v-48h256v48c0 4.4 3.6 8 8 8h56c4.4 0 8-3.6 8-8v-48h128v136H184z" /></svg>
               </span>
             </label>

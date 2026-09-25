@@ -119,15 +119,15 @@ export function DashboardContent({
           <label className="relative block w-full max-w-[240px]"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#b0b0b8]" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="ค้นหาพนักงาน" className="h-9 w-full rounded-md border border-[#dddde3] bg-white pl-9 pr-3 text-sm text-[#34343d] outline-none transition-colors placeholder:text-[#b4b4bb] focus:border-[#5eaafa] focus:ring-2 focus:ring-[#5eaafa]/20" /></label>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <label className="relative"><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} className="h-9 min-w-[122px] appearance-none rounded-md border border-[#dddde3] bg-white pl-3 pr-9 text-sm text-[#777780] outline-none transition-colors focus:border-[#5eaafa] focus:ring-2 focus:ring-[#5eaafa]/20"><option value="all">ทั้งหมด</option><option value="waiting">รอเริ่มงาน</option><option value="probation">ทดลองงาน</option><option value="permanent">บรรจุ</option></select><ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[#9999a2]" /></label>
+          <label className="relative"><DropdownSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)} className="h-9 min-w-[122px] appearance-none rounded-md border border-[#dddde3] bg-white pl-3 pr-9 text-sm text-[#777780] outline-none transition-colors focus:border-[#5eaafa] focus:ring-2 focus:ring-[#5eaafa]/20"><option value="all">ทั้งหมด</option><option value="waiting">รอเริ่มงาน</option><option value="probation">ทดลองงาน</option><option value="permanent">บรรจุ</option></DropdownSelect></label>
           <button type="button" onClick={() => setFiltersOpen((open) => !open)} aria-expanded={filtersOpen} className={cn("inline-flex h-9 items-center gap-2 rounded-md border border-[#dddde3] bg-white px-3 text-sm font-normal text-[#777780] outline-none transition-colors hover:bg-[#fafafa] focus:border-[#5eaafa] focus:ring-2 focus:ring-[#5eaafa]/20", filtersOpen && "border-[#5eaafa] bg-[#f4f9ff] text-[#5eaafa]")}><Filter className="size-4" />ตัวกรอง<ChevronDown className={cn("size-4 transition-transform", filtersOpen && "rotate-180")} /></button>
           <button type="button" onClick={onAddEmployee} className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#1474ee] px-4 text-sm font-medium text-white shadow-[0_4px_12px_rgba(20,116,238,.24)] hover:bg-[#0d65d8]"><UserPlus className="size-4" />เพิ่มพนักงาน</button>
         </div>
       </div>
 
       {filtersOpen && <div className="grid gap-3 border-t border-[#eeeef1] bg-[#fafafa] px-4 py-3 sm:grid-cols-2 sm:px-5">
-        <label className="text-xs text-[#777780]">แผนก<select value={department} onChange={(event) => setDepartment(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-[#dddde3] bg-white px-3 text-sm text-[#44444e] outline-none"><option value="">ทั้งหมด</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-        <label className="text-xs text-[#777780]">ประเภทพนักงาน<select value={employeeType} onChange={(event) => setEmployeeType(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-[#dddde3] bg-white px-3 text-sm text-[#44444e] outline-none"><option value="">ทั้งหมด</option>{employeeTypes.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label className="text-xs text-[#777780]">แผนก<DropdownSelect value={department} onChange={(event) => setDepartment(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-[#dddde3] bg-white px-3 text-sm text-[#44444e] outline-none"><option value="">ทั้งหมด</option>{departments.map((item) => <option key={item} value={item}>{item}</option>)}</DropdownSelect></label>
+        <label className="text-xs text-[#777780]">ประเภทพนักงาน<DropdownSelect value={employeeType} onChange={(event) => setEmployeeType(event.target.value)} className="mt-1 h-9 w-full rounded-md border border-[#dddde3] bg-white px-3 text-sm text-[#44444e] outline-none"><option value="">ทั้งหมด</option>{employeeTypes.map((item) => <option key={item} value={item}>{item}</option>)}</DropdownSelect></label>
       </div>}
 
       <div className="overflow-x-auto px-4 pb-3 sm:px-5">
@@ -154,3 +154,5 @@ export function DashboardContent({
     </section>
   );
 }
+
+import { DropdownSelect } from "@/components/ui/dropdown-select";

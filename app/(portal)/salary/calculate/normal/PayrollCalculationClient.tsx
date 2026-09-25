@@ -1,5 +1,7 @@
 "use client";
 
+import { DropdownSelect } from "@/components/ui/dropdown-select";
+
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Fragment, useEffect, useRef, useState } from "react";
@@ -32,6 +34,7 @@ import {
 import type { OrgNode } from "@/components/employee/EmployeeSelectPanel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { DetailedDatePicker } from "@/components/ui/detailed-date-picker";
 import { ThaiDatePicker, ThaiDateTimePicker } from "@/components/ui/thai-date-picker";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
@@ -703,7 +706,7 @@ function PageBanner({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
         {/* Breadcrumb + title */}
         <div className="min-w-[220px] shrink-0">
-          <p className="flex items-center gap-1 text-xs font-normal leading-5 text-[#7b8798]">
+          <p className="flex items-center gap-1 text-sm font-normal leading-5 text-[#7b8798]">
             <span>ประมวลผลเงินเดือน</span>
             <ChevronRight className="size-3.5" />
             <span>คำนวณเงินเดือน</span>
@@ -1226,7 +1229,7 @@ function OvertimeRequestDialog({
               <div className="flex h-[55.6px] gap-2">
                 <label className="block flex-1">วันที่ <span className="text-red-500">*</span><ThaiDatePicker data-testid="doc-ot-date-input" value={selectedDate} onChange={setSelectedDate} required aria-label="วันที่ขอโอที" className={inputClass} /></label>
                 <label className="block flex-1">ชื่อพนักงาน <span className="text-red-500">*</span><input data-testid="doc-ot-employee-input" disabled value={employeeDisplayName} className={cn(inputClass, "h-[31.6px] cursor-not-allowed bg-[#f5f5f5] text-black/[0.65]")} /></label>
-                <label className="block flex-1">ประเภทโอที <span className="text-red-500">*</span><select data-testid="doc-ot-type-select" value={otType} onChange={(event) => setOtType(event.target.value)} className="block h-8 w-full appearance-auto rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-black/[0.65] outline-none transition-all duration-300 hover:border-[#40a9ff] focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]"><option>โอทีล่วงเวลา (x1.0)</option><option>โอทีล่วงเวลา (x1.5)</option><option>โอทีวันหยุด (x2.0)</option><option>โอทีล่วงเวลาวันหยุด (x3.0)</option></select></label>
+                <label className="block flex-1">ประเภทโอที <span className="text-red-500">*</span><DropdownSelect data-testid="doc-ot-type-select" value={otType} onChange={(event) => setOtType(event.target.value)} className="block h-8 w-full appearance-auto rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] font-[Kanit,sans-serif] text-sm font-normal leading-[22.001px] text-black/[0.65] outline-none transition-all duration-300 hover:border-[#40a9ff] focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]"><option>โอทีล่วงเวลา (x1.0)</option><option>โอทีล่วงเวลา (x1.5)</option><option>โอทีวันหยุด (x2.0)</option><option>โอทีล่วงเวลาวันหยุด (x3.0)</option></DropdownSelect></label>
               </div>
               <div className="flex h-[55.6px] gap-2">
                 <label className="block flex-1">ตั้งแต่วันที่ <span className="text-red-500">*</span><ThaiDateTimePicker data-testid="doc-ot-start-input" value={start} onChange={setStart} required aria-label="วันเวลาเริ่มโอที" className={inputClass} /></label>
@@ -1287,7 +1290,7 @@ function LeaveRequestDialog({
               <div className="w-full">
                 <div className="flex h-[54px] gap-2">
                   <label className="block flex-1">ชื่อพนักงาน <span className="text-red-500">*</span><input data-testid="doc-time-leave-employee-input" disabled value={employeeDisplayName} className={cn(inputClass, "h-[31.6px] cursor-not-allowed bg-[#f5f5f5]")} /></label>
-                  <label className="block flex-1">ประเภทการลา <span className="text-red-500">*</span><select data-testid="doc-time-leave-type-select" value={leaveType} onChange={(event) => setLeaveType(event.target.value)} className="block h-8 w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] font-[Kanit,sans-serif] text-sm leading-[22.001px] text-black/[0.65] outline-none transition-all duration-300 hover:border-[#40a9ff] focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]"><option>ลากิจพิเศษ</option><option>ลาป่วย</option><option>ลาพักร้อน</option><option>ลาไม่รับค่าจ้าง</option></select></label>
+                  <label className="block flex-1">ประเภทการลา <span className="text-red-500">*</span><DropdownSelect data-testid="doc-time-leave-type-select" value={leaveType} onChange={(event) => setLeaveType(event.target.value)} className="block h-8 w-full rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] font-[Kanit,sans-serif] text-sm leading-[22.001px] text-black/[0.65] outline-none transition-all duration-300 hover:border-[#40a9ff] focus:border-[#40a9ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)]"><option>ลากิจพิเศษ</option><option>ลาป่วย</option><option>ลาพักร้อน</option><option>ลาไม่รับค่าจ้าง</option></DropdownSelect></label>
                 </div>
                 <div className="flex h-[55.6px] gap-2">
                 <label className="block flex-1">ตั้งแต่วันที่ <span className="text-red-500">*</span><ThaiDateTimePicker data-testid="doc-time-leave-start-input" value={start} onChange={setStart} required aria-label="วันเวลาเริ่มลา" className={inputClass} /></label>
@@ -1363,11 +1366,11 @@ function WorkTimeEditDialog({
       <div className="w-full max-w-xl rounded-lg bg-white p-6 shadow-xl">
         <div className="mb-4 flex items-center justify-between"><h3 className="text-lg font-semibold">แก้ไขข้อมูลวันทำงาน {formatThaiDateNumeric(day.date)}</h3><button type="button" onClick={onClose} aria-label="ปิด">×</button></div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-sm">สถานะ<select value={status} onChange={(event) => setStatus(event.target.value as typeof status)} className="mt-1 h-9 w-full rounded border px-2"><option value="present">ทำงานปกติ</option><option value="late">มาสาย</option><option value="absent">ขาดงาน</option><option value="leave">ลา</option></select></label>
+          <label className="text-sm">สถานะ<DropdownSelect value={status} onChange={(event) => setStatus(event.target.value as typeof status)} className="mt-1 h-9 w-full rounded border px-2"><option value="present">ทำงานปกติ</option><option value="late">มาสาย</option><option value="absent">ขาดงาน</option><option value="leave">ลา</option></DropdownSelect></label>
           <label className="text-sm">โอที (นาที)<input type="number" min="0" step="1" value={overtime} onChange={(event) => setOvertime(event.target.value)} className="mt-1 h-9 w-full rounded border px-2" /></label>
           <label className="text-sm">เวลาเข้า<input type="time" value={checkIn} onChange={(event) => setCheckIn(event.target.value)} className="mt-1 h-9 w-full rounded border px-2" /></label>
           <label className="text-sm">เวลาออก<input type="time" value={checkOut} onChange={(event) => setCheckOut(event.target.value)} className="mt-1 h-9 w-full rounded border px-2" /></label>
-          <label className="text-sm">ประเภทการลา<select value={leaveType} onChange={(event) => setLeaveType(event.target.value)} className="mt-1 h-9 w-full rounded border px-2"><option value="">ไม่บันทึกการลา</option><option value="annual">ลาพักร้อน</option><option value="sick">ลาป่วย</option><option value="personal">ลากิจ</option><option value="maternity">ลาคลอด</option><option value="unpaid">ลาไม่รับค่าจ้าง</option></select></label>
+          <label className="text-sm">ประเภทการลา<DropdownSelect value={leaveType} onChange={(event) => setLeaveType(event.target.value)} className="mt-1 h-9 w-full rounded border px-2"><option value="">ไม่บันทึกการลา</option><option value="annual">ลาพักร้อน</option><option value="sick">ลาป่วย</option><option value="personal">ลากิจ</option><option value="maternity">ลาคลอด</option><option value="unpaid">ลาไม่รับค่าจ้าง</option></DropdownSelect></label>
           <label className="text-sm">หมายเหตุการลา<input value={reason} onChange={(event) => setReason(event.target.value)} className="mt-1 h-9 w-full rounded border px-2" /></label>
         </div>
         {error && <p role="alert" className="mt-3 text-sm text-red-600">{error}</p>}
@@ -2575,10 +2578,9 @@ function EditHistoryContent({ history }: { history: PersonalPayrollData["history
 
       <div className="mt-4 flex items-center justify-between px-3 pb-4">
         <label className="relative block h-8 w-[105px]">
-          <select aria-label="จำนวนรายการต่อหน้า" defaultValue="15" className="h-8 w-full appearance-none rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] pr-8 text-sm leading-[22px] text-black/[0.65] outline-none hover:border-[#40a9ff] focus:border-[#40a9ff] focus:ring-1 focus:ring-[#40a9ff]">
+          <DropdownSelect aria-label="จำนวนรายการต่อหน้า" defaultValue="15" className="h-8 w-full appearance-none rounded-[4px] border-[0.8px] border-[#d9d9d9] bg-white px-[11px] pr-8 text-sm leading-[22px] text-black/[0.65] outline-none hover:border-[#40a9ff] focus:border-[#40a9ff] focus:ring-1 focus:ring-[#40a9ff]">
             <option value="15">15 / หน้า</option>
-          </select>
-          <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-[11px] top-2 size-3 text-black/[0.25]" />
+          </DropdownSelect>
         </label>
 
         <div className="flex items-center justify-end gap-4">
@@ -4005,9 +4007,9 @@ function IndividualWeekSchedule({
 }) {
   return <section>
     <label className="mb-1 ml-1 block text-sm font-normal leading-[22px] text-[rgba(0,0,0,0.87)]">{label}</label>
-    <select aria-label={label} value={value} onChange={(event) => onValueChange(event.target.value)} disabled={disabled} className="mb-2 h-8 w-full rounded-[4px] border border-[#d9d9d9] bg-white px-3 text-sm font-normal leading-[22px] text-[rgba(0,0,0,0.65)] outline-none transition-colors focus:border-[#1890ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)] disabled:cursor-not-allowed disabled:bg-[#fafafa]">
+    <DropdownSelect aria-label={label} value={value} onChange={(event) => onValueChange(event.target.value)} disabled={disabled} className="mb-2 h-8 w-full rounded-[4px] border border-[#d9d9d9] bg-white px-3 text-sm font-normal leading-[22px] text-[rgba(0,0,0,0.65)] outline-none transition-colors focus:border-[#1890ff] focus:shadow-[0_0_0_2px_rgba(24,144,255,0.2)] disabled:cursor-not-allowed disabled:bg-[#fafafa]">
       {options.map(([optionValue, optionLabel]) => <option key={optionValue} value={optionValue}>{optionLabel}</option>)}
-    </select>
+    </DropdownSelect>
     <div className="overflow-x-auto rounded-lg border border-[#f0f0f0] bg-white shadow-[0_2px_1px_-1px_rgba(0,0,0,0.2),0_1px_1px_rgba(0,0,0,0.14),0_1px_3px_rgba(0,0,0,0.12)]">
       <table className="min-w-[840px] w-full table-fixed bg-white text-sm text-[rgba(0,0,0,0.65)]">
         <thead className="text-white"><tr className="bg-[#61a8ff]">{INDIVIDUAL_DAYS.map((day) => <IndividualTableHead tone="inverse" key={day}>{day}</IndividualTableHead>)}</tr></thead>
@@ -4531,7 +4533,7 @@ function ReportDownloadButton({ type, disabled = false }: { type: ReportAction; 
       type="button"
       disabled={disabled}
       className={cn(
-        "inline-flex h-8 items-center gap-1.5 rounded-lg border bg-white px-2.5 text-xs font-semibold shadow-[0_1px_2px_rgba(10,13,18,0.04)] transition-colors disabled:cursor-not-allowed disabled:border-[#e7eaf0] disabled:bg-[#f3f5f8] disabled:text-[#a3acb9]",
+        "inline-flex h-9 items-center gap-1.5 rounded-lg border bg-white px-2.5 text-xs font-semibold shadow-[0_1px_2px_rgba(10,13,18,0.04)] transition-colors disabled:cursor-not-allowed disabled:border-[#e7eaf0] disabled:bg-[#f3f5f8] disabled:text-[#a3acb9]",
         colors[type]
       )}
     >
@@ -4754,25 +4756,13 @@ function ClosePeriodContent({
     <div className="space-y-3">
       <Card className="overflow-hidden rounded-xl border border-[#e7eaf0] bg-white shadow-[0_3px_12px_rgba(29,52,93,.07)]">
         <CardContent className="p-0">
-          <div className="flex flex-col gap-3 border-b border-[#edf0f4] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#eef5ff] text-[#1474ee]">
-                <Calendar className="size-5" strokeWidth={1.8} />
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold leading-5 text-[#172348]">กำหนดวันจ่ายและสถานะงวดบัญชี</h2>
-                <p className="mt-0.5 text-xs leading-5 text-[#6f7b90]">ตรวจสอบวันที่ให้เรียบร้อยก่อนปิดงวดเงินเดือน</p>
-              </div>
+          {closePeriodState.isClosed && (
+            <div className="flex flex-col gap-3 border-b border-[#edf0f4] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <span className="inline-flex h-7 w-fit items-center rounded-full border border-[#b9e6cf] bg-[#effaf4] px-2.5 text-xs font-medium text-[#198754]">
+                ปิดงวดแล้ว
+              </span>
             </div>
-            <span className={cn(
-              "inline-flex h-7 w-fit items-center rounded-full border px-2.5 text-xs font-medium",
-              closePeriodState.isClosed
-                ? "border-[#b9e6cf] bg-[#effaf4] text-[#198754]"
-                : "border-[#f3dda0] bg-[#fff9df] text-[#8a6813]"
-            )}>
-              {closePeriodState.isClosed ? "ปิดงวดแล้ว" : "งวดกำลังเปิด"}
-            </span>
-          </div>
+          )}
 
           {closePeriodState.isClosed ? (
             <div className="grid gap-3 p-4 lg:grid-cols-[1fr_1fr_auto] lg:items-end">
@@ -4807,20 +4797,20 @@ function ClosePeriodContent({
               <div className="grid gap-3 sm:grid-cols-2 xl:max-w-[620px]">
                 <label className="grid gap-1.5 text-sm font-medium leading-5 text-[#34425c]">
                   วันที่จ่าย
-                  <ThaiDatePicker
+                  <DetailedDatePicker
                     value={payDate}
                     onChange={setPayDate}
-                    className="h-10 w-full rounded-lg border border-[#dfe4ec] bg-white px-3 text-sm font-normal text-[#34425c] outline-none transition-shadow focus:border-[#7db5f6] focus:ring-2 focus:ring-[#dcecff]"
+                    className="h-9 w-[276px] rounded-lg border border-[#dfe4ec] bg-white px-3 text-sm font-normal text-[#34425c] outline-none transition-shadow focus:border-[#7db5f6] focus:ring-2 focus:ring-[#dcecff]"
                   />
                 </label>
                 <label className="grid gap-1.5 text-sm font-medium leading-5 text-[#34425c]">
                   วันที่จ่ายภาษี
-                  <ThaiDatePicker
+                  <DetailedDatePicker
                     min="2026-08-01"
                     max="2026-09-17"
                     value={taxDate}
                     onChange={setTaxDate}
-                    className="h-10 w-full rounded-lg border border-[#dfe4ec] bg-white px-3 text-sm font-normal text-[#34425c] outline-none transition-shadow focus:border-[#7db5f6] focus:ring-2 focus:ring-[#dcecff]"
+                    className="h-9 w-[276px] rounded-lg border border-[#dfe4ec] bg-white px-3 text-sm font-normal text-[#34425c] outline-none transition-shadow focus:border-[#7db5f6] focus:ring-2 focus:ring-[#dcecff]"
                   />
                 </label>
               </div>
@@ -4836,16 +4826,7 @@ function ClosePeriodContent({
               </div>
             </div>
           )}
-        </CardContent>
-      </Card>
-
-      <Card className="overflow-hidden rounded-xl border border-[#e7eaf0] bg-white shadow-[0_3px_12px_rgba(29,52,93,.07)]">
-        <CardContent className="p-0">
-          <div className="border-b border-[#edf0f4] px-4 py-3">
-            <h2 className="text-sm font-semibold leading-5 text-[#172348]">รายงานและเอกสารงวดบัญชี</h2>
-            <p className="mt-0.5 text-xs leading-5 text-[#6f7b90]">เลือกขอบเขตข้อมูลสำหรับค้นหาและดาวน์โหลดเอกสาร</p>
-          </div>
-
+          <div className="border-t border-[#edf0f4]" />
           <div className="p-4">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {[
@@ -4858,13 +4839,11 @@ function ClosePeriodContent({
                 {filter.label}
                 <button
                   type="button"
-                  className="relative h-10 w-full rounded-lg border border-[#dfe4ec] bg-white px-3 text-left text-sm font-normal text-[#6f7b90] outline-none transition-shadow hover:border-[#b8c6d8] focus-visible:border-[#7db5f6] focus-visible:ring-2 focus-visible:ring-[#dcecff]"
+                  className="relative h-9 w-full rounded-lg border border-[#dfe4ec] bg-white px-3 text-left text-sm font-normal text-[#6f7b90] outline-none transition-shadow hover:border-[#b8c6d8] focus-visible:border-[#7db5f6] focus-visible:ring-2 focus-visible:ring-[#dcecff]"
                 >
                   ทั้งหมด
-                  {filter.multiple ? (
+                  {filter.multiple && (
                     <span className="absolute right-3 top-1/2 flex size-4 -translate-y-1/2 items-center justify-center rounded-full bg-[#aab4c3] text-[11px] leading-none text-white" aria-hidden="true">×</span>
-                  ) : (
-                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-[#8c98aa]" />
                   )}
                 </button>
               </label>

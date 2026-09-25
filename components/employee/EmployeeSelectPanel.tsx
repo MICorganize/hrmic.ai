@@ -1,5 +1,7 @@
 "use client";
 
+import { DropdownSelect } from "@/components/ui/dropdown-select";
+
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
@@ -130,15 +132,14 @@ function FilterSelect({
 }) {
   return (
     <span className="relative block">
-      <select
+      <DropdownSelect
         value={value}
         onChange={(event) => onChange(event.target.value)}
         aria-label={ariaLabel}
         className={cn("h-[30px] w-full appearance-none rounded-[4px] border border-[#dfe4e8] bg-white px-2.5 pr-8 text-xs font-normal leading-[18px] text-[#34425c] outline-none ring-[#5eaafa] transition-colors focus:ring-2", className)}
       >
         {children}
-      </select>
-      <ChevronDown aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[#738199]" />
+      </DropdownSelect>
     </span>
   );
 }

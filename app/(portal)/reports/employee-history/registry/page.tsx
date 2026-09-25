@@ -1,5 +1,7 @@
 "use client";
 
+import { DropdownSelect } from "@/components/ui/dropdown-select";
+
 import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, ChevronRight, CircleHelp, FileSpreadsheet, RefreshCw, Search } from "lucide-react";
 
@@ -67,7 +69,7 @@ function SelectBox({
 }) {
   return (
     <div className="relative">
-      <select
+      <DropdownSelect
         value={value}
         onChange={(e) => onChange(e.target.value)}
         className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-[#dfe4e8] bg-white px-3 pr-9 text-sm font-normal leading-5 text-[#34425c] transition-colors outline-none ring-[#5eaafa] focus:ring-2"
@@ -77,8 +79,7 @@ function SelectBox({
             {option.label}
           </option>
         ))}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-3.5 -translate-y-1/2 text-[#738199]" />
+      </DropdownSelect>
     </div>
   );
 }

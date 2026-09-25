@@ -45,14 +45,13 @@ function FilterSelect({ label, options }: { label: string; options: string[] }) 
     <div className="space-y-1.5">
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="relative">
-        <select className="h-9 w-full appearance-none rounded-md border border-input bg-card px-2.5 pr-8 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <DropdownSelect className="h-9 w-full appearance-none rounded-md border border-input bg-card px-2.5 pr-8 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
           {options.map((opt) => (
             <option key={opt} value={opt}>
               {opt}
             </option>
           ))}
-        </select>
-        <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        </DropdownSelect>
       </div>
     </div>
   );
@@ -302,3 +301,5 @@ export function EmployeeSelectSidebar({
     </>
   );
 }
+
+import { DropdownSelect } from "@/components/ui/dropdown-select";

@@ -350,7 +350,7 @@ export default function GeneralSettingsPage() {
             </Row>
 
             <Row className="h-[114.9375px]" title="ตั้งค่าสกุลเงิน" description="เลือกสกุลเงินที่จะใช้ในการแสดงเงินเดือน" note="การตั้งค่านี้จะเปลี่ยนแค่การแสดงผลของสกุลเงินในรูปแบบข้อความเท่านั้น และจะไม่เกี่ยวข้องกับการคำนวณหรือแปลงค่าเงินจริงในระบบ ซึ่งจะมีผลกับการแสดงสกุลเงินทั้งข้อมูลในอดีตและปัจจุบัน รวมถึงเอกสารที่แสดงสกุลเงินด้วย">
-              <div className="relative w-[300px]"><select aria-label="สกุลเงิน" className={selectClass} onChange={(event) => setCurrency(event.target.value)} value={currency}><option>THB | บาท</option><option>USD | ดอลลาร์สหรัฐ</option></select><ChevronDown className="pointer-events-none absolute right-2 top-2 size-4 text-black/[.35]" /></div>
+              <div className="relative w-[300px]"><DropdownSelect aria-label="สกุลเงิน" className={selectClass} onChange={(event) => setCurrency(event.target.value)} value={currency}><option>THB | บาท</option><option>USD | ดอลลาร์สหรัฐ</option></DropdownSelect></div>
             </Row>
 
             <Row className="h-[119.8px]" title="ปัดเศษจำนวนเงิน" description="ปัดเศษทศนิยมของจำนวนเงินที่เกิดจากการคำนวณของโปรแกรม" note="Ex. พนักงานเงินเดือน 13,000 / 30 = 433.33บาทถ้าเลือกปัดเศษจะเท่ากับ 433บาท พนักงานเงินเดือน 14,000 / 30 = 466.67บาทถ้าเลือกปัดเศษจะเท่ากับ 467บาท">
@@ -364,7 +364,7 @@ export default function GeneralSettingsPage() {
             <Row className="h-[178.8px]" flushTitle title="พนักงานพาร์ตไทม์ปัดเศษชั่วโมง" note={<>EX. พนักงานทำงาน 07:40:00 ชั่วโมง<br />ปัดเศษลงเต็มชั่วโมง ระบบจะคำนวณให้ 07:00:00 ชั่วโมง<br />ปัดเศษขึ้นเต็มชั่วโมง ระบบจะคำนวณให้ 08:00:00 ชั่วโมง<br />ปัดเศษขึ้น-ลงเต็มชั่วโมง ระบบจะคำนวณให้ 08:00:00 ชั่วโมง<br />ปัดเศษลงเต็มครึ่งชั่วโมง ระบบจะคำนวณให้ 07:30:00 ชั่วโมง<br />ปัดเศษขึ้นเต็มครึ่งชั่วโมง ระบบจะคำนวณให้ 08:00:00 ชั่วโมง<br />ปัดเศษขึ้น-ลงเต็มครึ่งชั่วโมง ระบบจะคำนวณให้ 08:00:00 ชั่วโมง</>}>
               <div className="flex"><Toggle active={partTimeMode === "total"} label="ปัดเศษชั่วโมงทำงานรวม" onClick={() => setPartTimeMode("total")} /><Toggle active={partTimeMode === "work-time"} label="ปัดเศษเวลาการทำงาน" onClick={() => setPartTimeMode("work-time")} /></div>
               <p className="mb-[7px] mt-1 text-sm leading-[22px] text-[rgba(33,33,33,0.65)]">หากคำนวณชั่วโมงแล้วไม่เต็มชั่วโมงระบบจะปัดเศษชั่วโมง</p>
-              <div className="relative w-[300px]"><select aria-label="การปัดเศษชั่วโมงพนักงานพาร์ตไทม์" className={selectClass} onChange={(event) => setPartTimeRounding(event.target.value)} value={partTimeRounding}><option value="none">ไม่ปัดเศษ</option><option value="up">ปัดเศษขึ้นเต็มชั่วโมง</option><option value="down">ปัดเศษลงเต็มชั่วโมง</option></select><ChevronDown className="pointer-events-none absolute right-2 top-2 size-4 text-black/[.35]" /></div>
+              <div className="relative w-[300px]"><DropdownSelect aria-label="การปัดเศษชั่วโมงพนักงานพาร์ตไทม์" className={selectClass} onChange={(event) => setPartTimeRounding(event.target.value)} value={partTimeRounding}><option value="none">ไม่ปัดเศษ</option><option value="up">ปัดเศษขึ้นเต็มชั่วโมง</option><option value="down">ปัดเศษลงเต็มชั่วโมง</option></DropdownSelect></div>
             </Row>
 
             <Row className="h-[93.5375px]" title="อัตราประกันสังคมของพนักงาน(%)" note="เปอร์เซ็นที่จะใช้ในการคำนวณประกันสังคมของพนักงาน">
@@ -412,3 +412,5 @@ export default function GeneralSettingsPage() {
     </div>
   );
 }
+
+import { DropdownSelect } from "@/components/ui/dropdown-select";

@@ -13,10 +13,9 @@ const POSITIONS = ["ทั้งหมด", "พนักงานปฏิบ�
 function SelectBox({ value, options, onChange }: { value: string; options: string[]; onChange: (value: string) => void }) {
   return (
     <div className="relative">
-      <select value={value} onChange={(event) => onChange(event.target.value)} className="h-8 w-full cursor-pointer appearance-none rounded-[3px] border border-[#d9d9d9] bg-white pl-2.5 pr-8 text-sm text-[#555] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#40a9ff]">
+      <DropdownSelect value={value} onChange={(event) => onChange(event.target.value)} className="h-8 w-full cursor-pointer appearance-none rounded-[3px] border border-[#d9d9d9] bg-white pl-2.5 pr-8 text-sm text-[#555] shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#40a9ff]">
         {options.map((option) => <option key={option} value={option}>{option}</option>)}
-      </select>
-      <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#8c8c8c]" />
+      </DropdownSelect>
     </div>
   );
 }
@@ -93,3 +92,5 @@ export default function ReportEmployeeProbationPage() {
     </div>
   );
 }
+
+import { DropdownSelect } from "@/components/ui/dropdown-select";

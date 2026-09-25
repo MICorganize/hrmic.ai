@@ -31,10 +31,10 @@ export default function ReportEmployeeSalaryAdjustmentPage() {
           <div className="flex h-[59px] items-center px-3"><p className="text-xl font-medium text-[#555]">ค้นหา</p></div>
           <CardContent className="px-4 pb-4 pt-4">
             <div className="grid grid-cols-1 gap-x-2 md:grid-cols-4">
-              <Field label="โครงสร้างองค์กร"><div className="relative"><select value={organization} onChange={(event) => setOrganization(event.target.value)} className="h-8 w-full appearance-none rounded-[3px] border border-[#d9d9d9] bg-white pl-2.5 pr-8 text-sm text-[#555] shadow-sm">{ORG_STRUCTURES.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#8c8c8c]" /></div></Field>
+              <Field label="โครงสร้างองค์กร"><div className="relative"><DropdownSelect value={organization} onChange={(event) => setOrganization(event.target.value)} className="h-8 w-full appearance-none rounded-[3px] border border-[#d9d9d9] bg-white pl-2.5 pr-8 text-sm text-[#555] shadow-sm">{ORG_STRUCTURES.map((item) => <option key={item}>{item}</option>)}</DropdownSelect></div></Field>
               <Field label="ปี"><ThaiYearPicker value="2026" disabled /></Field>
               <Field label="เดือน"><ThaiMonthPicker value={month} onChange={setMonth} /></Field>
-              <Field label="ประเภทข้อมูล"><div className="relative"><select value={dataType} onChange={(event) => setDataType(event.target.value)} className="h-8 w-full appearance-none rounded-[3px] border border-[#d9d9d9] bg-white pl-2.5 pr-8 text-sm text-[#555] shadow-sm">{DATA_TYPES.map((item) => <option key={item}>{item}</option>)}</select><ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 size-3.5 -translate-y-1/2 text-[#8c8c8c]" /></div></Field>
+              <Field label="ประเภทข้อมูล"><div className="relative"><DropdownSelect value={dataType} onChange={(event) => setDataType(event.target.value)} className="h-8 w-full appearance-none rounded-[3px] border border-[#d9d9d9] bg-white pl-2.5 pr-8 text-sm text-[#555] shadow-sm">{DATA_TYPES.map((item) => <option key={item}>{item}</option>)}</DropdownSelect></div></Field>
             </div>
             <div className="relative -left-[3px] mt-7 flex justify-end gap-2"><Button className="h-9 w-[90px] rounded-[3px] bg-[#43b14b] px-3.5 text-sm shadow-sm hover:bg-[#43b14b]/90">Excel<Grid3x3 className="size-4" /></Button><Button className="h-9 w-[65px] rounded-[3px] bg-[#1890ff] px-3.5 text-sm shadow-sm hover:bg-[#1890ff]/90">ค้นหา</Button></div>
           </CardContent>
@@ -44,3 +44,5 @@ export default function ReportEmployeeSalaryAdjustmentPage() {
     </div>
   );
 }
+
+import { DropdownSelect } from "@/components/ui/dropdown-select";
